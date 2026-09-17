@@ -4,7 +4,7 @@ A common place notebook built on top of Excalidraw.
 
 The idea: keep everything Excalidraw already does for in-canvas editing, but deliver it in the shape of a real notebook. Fixed-size pages, one after the other, in one file. You fill a page, you jump to the next one. No infinite canvas, no productivity-app machinery.
 
-Status: planning done, development not started.
+Status: Phase 0 spike in progress.
 
 ---
 
@@ -114,7 +114,7 @@ Notes:
 
 ## 5. How the tricky parts get solved
 
-**Fit-to-screen page.** Size a page-shaped container div to the notebook's aspect ratio and mount Excalidraw inside it. Compute the zoom from container width vs page width in paper units. In `onChange`, if `scrollX`, `scrollY` or `zoom` drift, reset them. Disable wheel zoom and the hand tool through UI options.
+**Fit-to-screen page.** Excalidraw fills the whole desk area, not a page-sized container: below roughly 730px of container width it switches to its mobile layout, and an A5 page on a laptop screen is narrower than that. The page is a rectangle inside the editor. Compute the zoom from the page box width vs page width in paper units, pin `scrollX` and `scrollY` so scene (0,0) lands on the page box, and reset all three in `onScrollChange` when they drift. UI options cannot disable wheel zoom or hide toolbar tools: wheel, space-drag, middle-drag and zoom shortcuts are swallowed by a capture-phase listener on the wrapper, and unwanted tools are hidden with CSS. Hiding the image tool through UI options breaks image paste, so only its button is hidden.
 
 **Lined / dotted paper.** A CSS pattern layer under the canvas, with Excalidraw's `viewBackgroundColor` set to transparent. Works because the canvas never moves. No Excalidraw internals touched.
 
@@ -182,4 +182,5 @@ If it feels fighty, adjust here first.
 - Page size and orientation are notebook-level. Paper type is page-level.
 - Date stamp and page number are overlays, not canvas elements.
 - Strict fit-to-screen for v1. Zoom inside a page can be reconsidered later.
+- Drawing outside the page is clipped, not blocked. The editor is larger than the page, so strokes can spill onto the desk; they are hidden there and stay out of exports.
 - Browser storage first, backups as downloadable files. No accounts, no backend.
