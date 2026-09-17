@@ -4,7 +4,7 @@ A common place notebook built on top of Excalidraw.
 
 The idea: keep everything Excalidraw already does for in-canvas editing, but deliver it in the shape of a real notebook. Fixed-size pages, one after the other, in one file. You fill a page, you jump to the next one. No infinite canvas, no productivity-app machinery.
 
-Status: planning done, development not started.
+Status: Phase 0 spike in progress.
 
 ---
 
@@ -26,7 +26,7 @@ Status: planning done, development not started.
 ### Pages
 - Page size is set per notebook: A5, A4 or Letter.
 - Orientation is set per notebook: portrait or landscape.
-- Paper type is set per page: blank, lined or dotted. A new page inherits the paper of the page you were on.
+- Paper type is set per page: blank, lined, dotted or grid. A new page inherits the paper of the page you were on.
 - Strict fit-to-screen. The canvas is the page. No pan, no zoom.
 - In portrait mode the user can toggle between single page and two-page spread.
 - Pages can be deleted (with a confirm). Remaining pages are renumbered, since the number is just the position in the notebook.
@@ -48,6 +48,7 @@ Status: planning done, development not started.
 ### Editing
 - Stripped-down Excalidraw toolbar: pen, text, a few shapes, arrow, eraser, image paste.
 - Copy and paste works across pages (both are Excalidraw).
+- On lined and grid paper, elements snap to the paper when moved, and medium text sits on the rules. See section 5.
 - No linking between pages, no complex references.
 
 ### Search
@@ -76,7 +77,7 @@ Notebook {
   pageSize: "A5" | "A4" | "Letter"
   orientation: "portrait" | "landscape"
   defaults: {
-    paper: "blank" | "lined" | "dotted"
+    paper: "blank" | "lined" | "dotted" | "grid"
     showDate: boolean
     showPageNumber: boolean
   }
@@ -89,7 +90,7 @@ Page {
   id: string
   createdAt: number
   tagId: string | null
-  paper: "blank" | "lined" | "dotted"
+  paper: "blank" | "lined" | "dotted" | "grid"
   showDate: boolean
   showPageNumber: boolean
   elements: ExcalidrawElement[]        // untouched Excalidraw data
@@ -114,9 +115,11 @@ Notes:
 
 ## 5. How the tricky parts get solved
 
-**Fit-to-screen page.** Size a page-shaped container div to the notebook's aspect ratio and mount Excalidraw inside it. Compute the zoom from container width vs page width in paper units. In `onChange`, if `scrollX`, `scrollY` or `zoom` drift, reset them. Disable wheel zoom and the hand tool through UI options.
+**Fit-to-screen page.** Excalidraw fills the whole desk area, not a page-sized container: below roughly 730px of container width it switches to its mobile layout, and an A5 page on a laptop screen is narrower than that. The page is a rectangle inside the editor. Compute the zoom from the page box width vs page width in paper units, pin `scrollX` and `scrollY` so scene (0,0) lands on the page box, and reset all three in `onScrollChange` when they drift. UI options cannot disable wheel zoom or hide toolbar tools: wheel, space-drag, middle-drag and zoom shortcuts are swallowed by a capture-phase listener on the wrapper, and unwanted tools are hidden with CSS. Hiding the image tool through UI options breaks image paste, so only its button is hidden.
 
-**Lined / dotted paper.** A CSS pattern layer under the canvas, with Excalidraw's `viewBackgroundColor` set to transparent. Works because the canvas never moves. No Excalidraw internals touched.
+**Lined / dotted / grid paper.** A CSS pattern layer under the canvas, with Excalidraw's `viewBackgroundColor` set to transparent. Works because the canvas never moves. No Excalidraw internals touched.
+
+**Paper snapping.** Done by the shell on release, not with Excalidraw's grid mode, which paints its own grid on the canvas and snaps both axes whatever the paper. Excalidraw recomputes positions from the pointer on every move, so nothing is rewritten mid-drag: on pointer up after a move or a creation, and when text editing ends, the shell rewrites positions through `updateScene` and the element jumps into place. Any element snaps. On lined paper only y moves, so the element's top edge (the first baseline for text) lands on the nearest rule. On grid and dotted paper both axes move, so the top-left corner lands on the nearest grid line. Sizes never change. Text is guaranteed to stay on the rules only at the medium size in the default font: the shell sets its line height so one line of text equals one rule on lined paper and two squares on grid paper, and positions the box so the first baseline sits on a rule, using a baseline offset per font that is measured once and kept in `paper.ts`. On lined paper text x also snaps to the margin line when within 5mm of it. Other sizes and fonts get position snapping only. A multi-selection moves as one block. Move and snap form a single undo step. Blank paper never snaps. Snapping is a notebook setting, on by default.
 
 **Two-page spread.** Two Excalidraw instances side by side, each with `handleKeyboardGlobally: false`, so shortcuts go to the focused page.
 
@@ -154,7 +157,8 @@ If it feels fighty, adjust here first.
 - Tags: create, assign, color; rail coloring and filtering
 - Hover thumbnails in the rail
 - Two-page spread toggle (portrait only)
-- Per-page paper: blank / lined / dotted
+- Per-page paper: blank / lined / dotted / grid
+- Paper snapping on lined and grid paper: moved elements snap to the rules or grid, medium text sits on the lines (section 5)
 - Per-page date stamp and page number, with notebook defaults
 - Page settings panel
 - Image paste
@@ -180,6 +184,8 @@ If it feels fighty, adjust here first.
 - Pages never reorder. Date order is the only order.
 - One tag per page.
 - Page size and orientation are notebook-level. Paper type is page-level.
+- Snapping is done by the shell on release, not by Excalidraw's grid mode. Only medium text in the default font is guaranteed to sit on the rules; everything else gets position snapping only.
 - Date stamp and page number are overlays, not canvas elements.
 - Strict fit-to-screen for v1. Zoom inside a page can be reconsidered later.
+- Drawing outside the page is clipped, not blocked. The editor is larger than the page, so strokes can spill onto the desk; they are hidden there and stay out of exports.
 - Browser storage first, backups as downloadable files. No accounts, no backend.
