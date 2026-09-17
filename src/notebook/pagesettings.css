@@ -1,0 +1,26 @@
+.page-settings {
+  min-width: 200px;
+  padding: 4px;
+  font-size: 13px;
+}
+
+.page-settings__meta {
+  padding: 4px 6px 10px;
+  color: var(--muted, #7d786d);
+  line-height: 1.5;
+  border-bottom: 1px solid #efede8;
+  margin-bottom: 6px;
+}
+
+.page-settings__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.page-settings__row:hover {
+  background: #f1efe9;
+}

@@ -1,13 +1,16 @@
 import { useCallback, useRef, useState } from "react";
 import { Canvas, type CanvasContent } from "./canvas/Canvas";
+import { PageSettings } from "./notebook/PageSettings";
 import { SettingsDialog } from "./notebook/SettingsDialog";
 import { useNotebookSession } from "./notebook/useNotebookSession";
 import { TextPage } from "./page/TextPage";
 import { defaultDivider, fitPage, pageGeometry, pageMm } from "./page/paper";
 import { useElementSize } from "./page/useElementSize";
+import { IconButton } from "./shell/IconButton";
 import { Menu } from "./shell/Menu";
 import { Panel } from "./shell/Panel";
 import { SplitView } from "./shell/SplitView";
+import { ChevronLeft, ChevronRight, Dots, Eye, NewPage, SidePanel } from "./shell/icons";
 
 const DESK_PADDING = 24;
 /** Panel margins plus the width below which Excalidraw falls into its mobile layout. */
@@ -34,7 +37,7 @@ function storeWidth(width: number): void {
 
 export function App() {
   const session = useNotebookSession();
-  const [clear, setClear] = useState(false);
+  const [preview, setPreview] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
   const [panelWidth, setPanelWidth] = useState(
@@ -76,9 +79,9 @@ export function App() {
     }
   };
 
-  const toggleDivider = () => {
+  const setTwoColumns = (enabled: boolean) => {
     const width = pageMm(notebook.pageSize, notebook.orientation).width;
-    void session.setDivider(page.divider === null ? defaultDivider(width, page.margin) : null);
+    void session.setDivider(enabled ? defaultDivider(width, page.margin) : null);
   };
 
   return (
@@ -92,49 +95,46 @@ export function App() {
         <>
           <header className="app-header">
             <span className="wordmark">typestill</span>
-            <span className="meta">
-              {notebook.name} · {notebook.pageSize} · {notebook.orientation}
-            </span>
             <nav className="page-nav" aria-label="Pages">
-              <button
-                type="button"
-                className="icon-button"
+              <IconButton
+                label="Previous page"
                 onClick={() => session.goTo(index - 1)}
                 disabled={index === 0}
-                title="Previous page"
               >
-                ‹
-              </button>
+                <ChevronLeft />
+              </IconButton>
               <span className="page-nav__label">
                 {index + 1} / {pages.length}
               </span>
-              <button
-                type="button"
-                className="icon-button"
+              <IconButton
+                label="Next page"
                 onClick={() => session.goTo(index + 1)}
                 disabled={index === pages.length - 1}
-                title="Next page"
               >
-                ›
-              </button>
-              <button type="button" onClick={() => void session.newPage()} title="New page">
-                + Page
-              </button>
+                <ChevronRight />
+              </IconButton>
+              <IconButton label="New page" onClick={() => void session.newPage()}>
+                <NewPage />
+              </IconButton>
             </nav>
+            <span className="meta">{notebook.name}</span>
             <div className="app-header__actions">
+              <PageSettings
+                page={page}
+                number={index + 1}
+                count={pages.length}
+                twoColumns={page.divider !== null}
+                onTwoColumnsChange={setTwoColumns}
+              />
               <Menu
-                title="Notebook"
+                label="Notebook"
                 items={[
                   { label: "Settings…", onSelect: () => setSettingsOpen(true) },
                   { label: "Download backup", onSelect: () => void session.downloadBackup() },
                   { label: "Open backup…", onSelect: () => fileInput.current?.click() },
                 ]}
               >
-                <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-                  <circle cx="4" cy="9" r="1.5" fill="currentColor" />
-                  <circle cx="9" cy="9" r="1.5" fill="currentColor" />
-                  <circle cx="14" cy="9" r="1.5" fill="currentColor" />
-                </svg>
+                <Dots />
               </Menu>
               <input
                 ref={fileInput}
@@ -147,42 +147,16 @@ export function App() {
                   void openBackup(file);
                 }}
               />
-              <button type="button" onClick={toggleDivider} aria-pressed={page.divider !== null}>
-                Two columns
-              </button>
-              <button type="button" onClick={() => setClear((c) => !c)} aria-pressed={clear}>
-                Clear
-              </button>
-              <button
-                type="button"
-                className="icon-button"
+              <IconButton label="Preview" pressed={preview} onClick={() => setPreview((p) => !p)}>
+                <Eye />
+              </IconButton>
+              <IconButton
+                label={panelOpen ? "Hide canvas" : "Show canvas"}
+                pressed={panelOpen}
                 onClick={() => setPanelOpen((open) => !open)}
-                aria-pressed={panelOpen}
-                title={panelOpen ? "Hide canvas" : "Show canvas"}
               >
-                <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-                  <rect
-                    x="2"
-                    y="3.5"
-                    width="14"
-                    height="11"
-                    rx="2.5"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                  />
-                  <rect
-                    x="10.5"
-                    y="3.5"
-                    width="5.5"
-                    height="11"
-                    rx="2.5"
-                    fill="currentColor"
-                    opacity="0.35"
-                  />
-                  <path d="M10.5 3.5v11" stroke="currentColor" strokeWidth="1.5" />
-                </svg>
-              </button>
+                <SidePanel />
+              </IconButton>
             </div>
           </header>
           <SettingsDialog
@@ -201,7 +175,7 @@ export function App() {
                 margin={page.margin}
                 columns={page.columns}
                 divider={page.divider}
-                clear={clear}
+                preview={preview}
                 onChange={session.setColumns}
               />
             )}

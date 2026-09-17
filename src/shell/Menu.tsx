@@ -1,4 +1,6 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import { IconButton } from "./IconButton";
+import { Popover } from "./Popover";
 import "./menu.css";
 
 export interface MenuItem {
@@ -7,66 +9,47 @@ export interface MenuItem {
 }
 
 export interface MenuProps {
-  /** Button content. */
+  /** Icon for the trigger button. */
   children: ReactNode;
-  title: string;
+  label: string;
   items: MenuItem[];
 }
 
-/** A button that opens a small list of actions below it. */
-export function Menu({ children, title, items }: MenuProps) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const id = useId();
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
+/** An icon button that opens a small list of actions below it. */
+export function Menu({ children, label, items }: MenuProps) {
   return (
-    <div className="menu" ref={ref}>
-      <button
-        type="button"
-        className="icon-button"
-        title={title}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={id}
-        onClick={() => setOpen((o) => !o)}
-      >
-        {children}
-      </button>
-      {open && (
-        <ul className="menu__list" role="menu" id={id}>
-          {items.map((item) => (
-            <li key={item.label} role="none">
-              <button
-                type="button"
-                role="menuitem"
-                className="menu__item"
-                onClick={() => {
-                  setOpen(false);
-                  item.onSelect();
-                }}
-              >
-                {item.label}
-              </button>
-            </li>
-          ))}
-        </ul>
+    <Popover
+      trigger={({ open, toggle, controls }) => (
+        <IconButton
+          label={label}
+          onClick={toggle}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-controls={controls}
+        >
+          {children}
+        </IconButton>
       )}
-    </div>
+    >
+      <ul className="menu__list" role="menu">
+        {items.map((item) => (
+          <li key={item.label} role="none">
+            <button
+              type="button"
+              role="menuitem"
+              className="menu__item"
+              onClick={() => {
+                item.onSelect();
+                // The popover closes on the outside pointerdown that follows a selection
+                // elsewhere; for keyboard users the Escape key closes it.
+                document.dispatchEvent(new PointerEvent("pointerdown"));
+              }}
+            >
+              {item.label}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </Popover>
   );
 }

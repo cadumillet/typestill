@@ -2,11 +2,10 @@
 
 .text-page {
   position: relative;
+  box-sizing: border-box;
   background: var(--paper, #fff);
-  box-shadow:
-    0 0 0 1px rgb(0 0 0 / 0.08),
-    0 1px 2px rgb(0 0 0 / 0.08),
-    0 14px 36px rgb(0 0 0 / 0.14);
+  border: 1px solid #e6e4de;
+  border-radius: 12px;
   overflow: hidden;
   font-family: "Excalifont", "Segoe Print", "Comic Sans MS", cursive;
 }
@@ -49,9 +48,9 @@
   pointer-events: none;
 }
 
-.text-page.is-clear::before,
-.text-page.is-clear::after,
-.text-page.is-clear .text-page__divider {
+.text-page.is-preview::before,
+.text-page.is-preview::after,
+.text-page.is-preview .text-page__divider {
   display: none;
 }
 

@@ -31,8 +31,8 @@ export interface TextPageProps {
   columns: readonly string[];
   /** Divider offset in mm from the left edge, null for one column. */
   divider: number | null;
-  /** Clear view: no rules, margin or divider, and no editing. */
-  clear?: boolean;
+  /** Preview: no rules, margin or divider, and no editing. */
+  preview?: boolean;
   readOnly?: boolean;
   onChange?: (columns: string[]) => void;
 }
@@ -49,7 +49,7 @@ export function TextPage({
   margin,
   columns,
   divider,
-  clear = false,
+  preview = false,
   readOnly = false,
   onChange,
 }: TextPageProps) {
@@ -79,10 +79,10 @@ export function TextPage({
   } as CSSProperties;
 
   const boxes = columnBoxes(mm.width, margin, divider);
-  const locked = clear || readOnly;
+  const locked = preview || readOnly;
 
   return (
-    <div className={`text-page${clear ? " is-clear" : ""}`} style={style}>
+    <div className={`text-page${preview ? " is-preview" : ""}`} style={style}>
       {divider !== null && (
         <div className="text-page__divider" style={{ left: px(divider) }} aria-hidden="true" />
       )}

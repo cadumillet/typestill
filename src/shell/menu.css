@@ -1,22 +1,8 @@
-.menu {
-  position: relative;
-}
-
 .menu__list {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 10;
-  min-width: 180px;
   margin: 0;
-  padding: 4px;
+  padding: 0;
   list-style: none;
-  background: #fff;
-  border: 1px solid #e6e4de;
-  border-radius: 10px;
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.06),
-    0 8px 24px rgb(0 0 0 / 0.1);
+  min-width: 170px;
 }
 
 .menu__item {

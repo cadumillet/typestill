@@ -1,0 +1,25 @@
+.popover {
+  position: relative;
+}
+
+.popover__panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  z-index: 10;
+  min-width: 200px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid #e6e4de;
+  border-radius: 10px;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.06),
+    0 8px 24px rgb(0 0 0 / 0.1);
+}
+
+.popover__panel--right {
+  right: 0;
+}
+
+.popover__panel--left {
+  left: 0;
+}
