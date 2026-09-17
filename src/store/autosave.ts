@@ -3,6 +3,7 @@
 // so writes are coalesced and skipped when the content's key has not changed.
 
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import type { Column } from "../page/document";
 
 export interface AutosaveOptions<T> {
   save: (value: T) => Promise<void>;
@@ -33,9 +34,9 @@ export function elementsKey(elements: readonly ExcalidrawElement[]): string {
   return out;
 }
 
-/** Key for a page's text columns. */
-export function textKey(columns: readonly string[]): string {
-  return JSON.stringify(columns);
+/** Key for a page's columns: their documents, which carry the text and the formatting. */
+export function columnsKey(columns: readonly Column[]): string {
+  return JSON.stringify(columns.map((column) => column.doc));
 }
 
 export function createAutosave<T>({

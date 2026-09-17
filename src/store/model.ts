@@ -4,7 +4,10 @@
 
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData } from "@excalidraw/excalidraw/types";
+import { columnFromDocument, columnFromText, joinDocuments, type Column } from "../page/document";
 import { DEFAULT_MARGIN_MM, type Orientation, type PageSize } from "../page/paper";
+
+export type { Column } from "../page/document";
 
 export interface Tag {
   id: string;
@@ -53,8 +56,8 @@ export interface Page {
   showPageNumber: boolean;
   /** Margin line offset in mm from the left edge. */
   margin: number;
-  /** One or two plain-text columns. */
-  columns: string[];
+  /** One or two columns of text. */
+  columns: Column[];
   /** Divider offset in mm from the left edge, null for one column. */
   divider: number | null;
   canvasView: CanvasView | null;
@@ -94,20 +97,20 @@ export function newId(): string {
 }
 
 /** Empty columns for a divider setting: one without a divider, two with. */
-export function emptyColumns(divider: number | null): string[] {
-  return divider === null ? [""] : ["", ""];
+export function emptyColumns(divider: number | null): Column[] {
+  return divider === null ? [columnFromText("")] : [columnFromText(""), columnFromText("")];
 }
 
 /**
  * Columns after adding or removing a divider. Adding one keeps the text in the left
- * column; removing one joins the right column's text after the left column's.
+ * column; removing one joins the right column's paragraphs after the left column's.
  */
-export function columnsForDivider(columns: readonly string[], divider: number | null): string[] {
+export function columnsForDivider(columns: readonly Column[], divider: number | null): Column[] {
   if (divider === null && columns.length === 2) {
     const [left, right] = columns;
-    return [left && right ? `${left}\n${right}` : left + right];
+    return [columnFromDocument(joinDocuments(left.doc, right.doc))];
   }
-  if (divider !== null && columns.length === 1) return [columns[0], ""];
+  if (divider !== null && columns.length === 1) return [columns[0], columnFromText("")];
   return [...columns];
 }
 

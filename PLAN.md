@@ -4,7 +4,7 @@ A commonplace notebook built on top of Excalidraw.
 
 The idea: a notebook where each side has its own character. On the left, fixed-size lined pages you write on like a simple note editor, in Excalidraw's handwriting font, always on the lines. On the right, one infinite Excalidraw canvas per notebook for drawings, diagrams and images, with an optional grid that snaps. Pages remember where they left the canvas, so each page opens next to its own part of the drawing. No productivity-app machinery.
 
-Status (2026-09-17): Phase 1 is complete and on `main`: the store, the page editor, the canvas panel and split view, storage wiring with autosave and per-page canvas views, backup download and restore, notebook settings, the left rail and the bare notebook switcher. Next is Phase 2, starting with text formatting, then the notebook cover. Text formatting is specified for Phase 2 (sections 2 and 5). Visual refinement is deliberately left for the end; the page's paper look should be settled before export work starts.
+Status (2026-09-17): Phase 1 is complete and on `main`: the store, the page editor, the canvas panel and split view, storage wiring with autosave and per-page canvas views, backup download and restore, notebook settings, the left rail and the bare notebook switcher. Phase 2 has started with text formatting: the page editor is on ProseMirror with bold, italic, colour and alignment, a floating format bar, and the backup format at version 2. Next is the notebook cover. Visual refinement is deliberately left for the end; the page's paper look should be settled before export work starts.
 
 ---
 
@@ -40,7 +40,7 @@ Status (2026-09-17): Phase 1 is complete and on `main`: the store, the page edit
 - A page holds a fixed number of lines. When it is full, input stops. The user creates the next page.
 - Optional divider: a light gray vertical line that splits the page into two columns of text. It defaults to the middle of the writable area (from the margin line to the right edge), snaps to 10mm steps when moved, and can be removed. A new page inherits the divider of the page it was created from. "Two columns" is toggled from the page settings popover, next to the page's metadata (number, date).
 - The page is a white sheet with a thin border and rounded corners, no shadow, matching the canvas panel.
-- Basic formatting (Phase 2): bold, italic, text colour from a small palette shared with the canvas, and paragraph alignment (left, centre, right). Alignment works like Google Docs: it applies to the whole paragraph, including its wrapped lines and any line breaks inside it, and to every paragraph a selection touches. Enter starts a new paragraph; Shift+Enter breaks a line within the paragraph. Nothing else: no font sizes, lists or links. The text stays on the lines whatever the formatting.
+- Basic formatting: bold, italic, text colour from a small palette shared with the canvas (Excalidraw's five stroke colours), and paragraph alignment (left, centre, right). Alignment works like Google Docs: it applies to the whole paragraph, including its wrapped lines and any line breaks inside it, and to every paragraph a selection touches. Enter starts a new paragraph; Shift+Enter breaks a line within the paragraph. A small bar floats over a selection with bold, italic, the five swatches and the three alignments; the shortcuts are Cmd+B, Cmd+I and Cmd+Shift+L / E / R, as in Google Docs. Nothing else: no font sizes, lists or links. The text stays on the lines whatever the formatting.
 - Pages can be deleted (with a confirm). Remaining pages are renumbered, since the number is just the position in the notebook.
 - Optional date stamp in the top right corner, formatted like "September 16, 2026".
 - Optional page number at the bottom center.
@@ -116,8 +116,8 @@ Page {
 }
 
 Column {
-  text: string                         // plain text: search, capacity checks, Phase 1 content
-  doc?: EditorDocument                 // Phase 2: paragraphs with alignment, runs with bold/italic/colour
+  text: string                         // plain text mirror of doc: search, and what a backup reader without the editor can use
+  doc: EditorDocument                  // ProseMirror JSON: paragraphs with an align attr; text with bold, italic and colour marks; hard breaks
 }
 
 Canvas {
@@ -132,14 +132,14 @@ NotebookFile { notebookId, id, data: BinaryFileData }   // images, referenced by
 Notes:
 - Pages, the canvas and files are separate records so autosave writes only what changed. The shelf reads notebook metadata only.
 - The canvas's `elements` is valid Excalidraw data. It can be exported as a normal `.excalidraw` file at any time, and future sync/collab can reuse Excalidraw's own reconciliation instead of a custom one.
-- Backup file = notebook, pages, canvas and files as one JSON document, images base64 inside.
+- Backup file = notebook, pages, canvas and files as one JSON document, images base64 inside. Format version 2; version 1 files (plain-string columns) are converted on open, each line break becoming a paragraph boundary. The IndexedDB schema has the same upgrade (Dexie version 2).
 - Page thumbnails are cached separately in IndexedDB and are not part of the file.
 
 ## 4. Tech stack
 
 - React + TypeScript + Vite, pnpm
 - `@excalidraw/excalidraw` (MIT) for the canvas, embedded, not forked
-- Our own page editor in Excalifont, self-hosted from Excalidraw's font files: a plain-text contenteditable in Phase 1, ProseMirror from Phase 2 for formatting (schema: paragraphs with alignment; marks bold, italic, colour)
+- Our own page editor in Excalifont, self-hosted from Excalidraw's font files: ProseMirror with a tiny schema (paragraphs with alignment; marks bold, italic, colour; a hard break)
 - Dexie for IndexedDB
 - Excalidraw's `exportToBlob` / `exportToCanvas` for the canvas; SVG foreignObject rendering for pages
 - pdf-lib to assemble page images into a PDF
@@ -147,11 +147,11 @@ Notes:
 
 ## 5. How the tricky parts get solved
 
-**Text on the lines.** One plain-text contenteditable block per column, in Excalifont, with the line height equal to the rule pitch and the top placed so the first baseline sits on the first rule. Wrapping at the column edge and everything else (caret, selection, undo, input methods, paste) is the browser's. A contenteditable rather than a text area so text can later wrap around images floated in the column. Line breaks always go through the browser's insert-line-break command so the DOM stays plain text, and Chrome's placeholder newline after a trailing one is normalised on read and write. Capacity is the number of rules on the page: an edit that would push text past the last rule is rejected before it happens, by measuring the candidate text in a hidden mirror with the column's width. The font comes from the woff2 subsets Excalidraw ships; a script writes the matching `@font-face` rules at install time.
+**Text on the lines.** One editor per column, in Excalifont, with the line height equal to the rule pitch and the top placed so the first baseline sits on the first rule; paragraphs have zero margin, so every baseline lands on a rule whatever the formatting. Wrapping at the column edge and everything else (caret, selection, input methods) is the browser's; ProseMirror keeps the document and the DOM in step. A contenteditable rather than a text area so text can later wrap around images floated in the column. Capacity is the number of rules on the page: every transaction that changes the document is measured first, by rendering the candidate document into a hidden mirror laid out like the column (with the trailing break ProseMirror adds to an empty last line), and one that would push text past the last rule is dropped. Text already past the last rule (after a page size change) can still be edited as long as the edit does not make it longer. The font comes from the woff2 subsets Excalidraw ships; a script writes the matching `@font-face` rules at install time. Excalifont has one weight, so bold and italic are the browser's synthetic ones.
 
 **Two columns.** Two text areas side by side. The divider is a shell element positioned at the page's divider offset, dragged in 10mm steps. Text does not flow between columns; each column is its own text.
 
-**Text formatting (Phase 2).** Bold, italic, colour and paragraph alignment need a structured document rather than a string, and reliable caret, undo, paste and input-method handling around marks is exactly where hand-rolled editors bleed time. The column moves onto ProseMirror with a tiny schema: a document of paragraphs, each with an alignment attribute; text with bold, italic and colour marks; a hard break node for Shift+Enter; nothing else. Enter splits the paragraph, so alignment is a block property exactly as in Google Docs: it applies to the whole paragraph (wrapped lines and hard breaks included) and to every paragraph a selection touches, never to a single visual line. Paragraphs render with zero margin and the rule pitch as line height, so the visual result is identical to today and text stays on the rules. Cmd+B and Cmd+I toggle marks; a small floating bar on a selection offers bold, italic, the colour palette (the same swatches as the canvas) and the three alignments. Capacity is still measured by height; floats for images still work because the editor's content is not a new block formatting context; export still renders the same DOM. Storage: each column keeps a plain `text` mirror for search and a `doc` in ProseMirror's JSON; the backup format goes to version 2 with a converter that turns version 1 strings into one paragraph per line (each existing line break becomes a paragraph boundary, since that is what Enter meant before).
+**Text formatting.** Bold, italic, colour and paragraph alignment need a structured document rather than a string, and reliable caret, undo, paste and input-method handling around marks is exactly where hand-rolled editors bleed time. The column is a ProseMirror editor with a tiny schema: a document of paragraphs, each with an alignment attribute; text with bold, italic and colour marks; a hard break node for Shift+Enter; nothing else. Enter splits the paragraph (the new one keeps the alignment and the marks being typed with), so alignment is a block property exactly as in Google Docs: it applies to the whole paragraph (wrapped lines and hard breaks included) and to every paragraph a selection touches, never to a single visual line. The colour palette is Excalidraw's default stroke picks; "black" is the page's ink, stored as no colour mark. Pasted HTML keeps bold, italic, alignment and palette colours and drops every other colour; pasted plain text becomes one paragraph per line, blank lines included. A small bar floats over a selection (after the pointer is released, so it does not chase a drag) with bold, italic, the swatches and the three alignments; the page positions it from the column's report of where the selection is. Capacity is still measured by height; floats for images still work because the editor's content is not a new block formatting context; export still renders the same DOM. Storage: each column keeps a `doc` in ProseMirror's JSON and a plain `text` mirror derived from it (paragraphs and hard breaks as line breaks); the backup format is version 2, with a converter that turns version 1 strings into one paragraph per line (each existing line break becomes a paragraph boundary, since that is what Enter meant before), and the IndexedDB schema upgrades the same way.
 
 **Page export with identical wrapping.** Render the page's DOM into an SVG foreignObject with the font inlined as data URLs, draw it to a canvas at 2x, then composite the date stamp and page number. The same DOM wraps identically on screen and in the export. Print CSS is the fallback if foreignObject proves unreliable.
 
@@ -187,7 +187,7 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - Bare notebook switcher (create / open) so the app is never single-notebook by design (done)
 
 ### Phase 2: notebook feel
-- Text formatting: bold, italic, colour, alignment; the page editor moves onto ProseMirror (section 5)
+- Text formatting: bold, italic, colour, alignment; the page editor moves onto ProseMirror (section 5) (done)
 - Notebook cover: colour, optional emoji and subtitle, set in notebook settings; shown as a swatch in the switcher and the app bar (the shelf renders it as a card in Phase 3)
 - Divider drag and inheritance polish (two columns exist since Phase 1)
 - Tags: create, assign, color; rail coloring and filtering
@@ -195,7 +195,7 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - Two-page spread when the canvas is collapsed
 - Per-page date stamp and page number, with notebook defaults
 - Page settings panel
-- Clear view
+- Preview, the page without rules, margin or divider (done in Phase 1)
 
 ### Phase 3: get it out
 - Full-text search
@@ -228,6 +228,7 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - One canvas per notebook. Pages remember a canvas view instead of owning canvases.
 - A full page stops accepting input. The user creates the next page.
 - Plain text only on pages in Phase 1. Basic formatting (bold, italic, colour, alignment) is in scope for Phase 2 and moves the page editor onto ProseMirror; columns stay plain strings until then.
+- Text formatting (2026-09-17): the page editor is ProseMirror with the schema of section 5. The text colour palette is Excalidraw's five default stroke picks, so pages and the canvas share one set of colours; the black swatch means the page's ink and is stored as no mark. Alignment shortcuts follow Google Docs (Cmd+Shift+L / E / R). Bold and italic are synthetic, since Excalifont has one weight; a bolder handwriting face is not planned. Colours outside the palette are dropped on paste. Columns are `{ text, doc }`, with `text` derived from `doc`; the backup format and the IndexedDB schema are at version 2, and version 1 data is converted with one paragraph per old line.
 - App bar controls are icon buttons with hover tooltips (label plus shortcut). Page navigation sits at the left of the bar; page settings, the notebook menu, preview and the panel toggle at the right.
 - "Clear view" is called Preview.
 - "Two columns" lives in page settings, with the page's metadata.

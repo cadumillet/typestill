@@ -1,4 +1,6 @@
+import Dexie from "dexie";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { columnFromText, documentFromText } from "../page/document";
 import { TypestillDb } from "./db";
 import { element, fileData, imageElement } from "./fixtures";
 import {
@@ -40,7 +42,7 @@ describe("notebooks", () => {
     expect(notebook.pageSize).toBe("A5");
     expect(notebook.orientation).toBe("portrait");
     expect(firstPage.notebookId).toBe(notebook.id);
-    expect(firstPage.columns).toEqual([""]);
+    expect(firstPage.columns).toEqual([columnFromText("")]);
     expect(firstPage.divider).toBeNull();
     expect(firstPage.margin).toBe(20);
     expect(firstPage.canvasView).toBeNull();
@@ -110,22 +112,22 @@ describe("pages", () => {
     const { notebook } = await createNotebook(db, { name: "A", defaults: { divider: 70 } });
     const a = await createPage(db, notebook.id);
     expect(a.divider).toBe(70);
-    expect(a.columns).toEqual(["", ""]);
+    expect(a.columns).toEqual([columnFromText(""), columnFromText("")]);
     const b = await createPage(db, notebook.id, { divider: null });
     expect(b.divider).toBeNull();
-    expect(b.columns).toEqual([""]);
+    expect(b.columns).toEqual([columnFromText("")]);
   });
 
   it("saves text, updates settings and deletes pages", async () => {
     const { notebook, firstPage } = await createNotebook(db, { name: "A" });
     const second = await createPage(db, notebook.id);
-    await savePageText(db, second.id, ["hello"]);
+    await savePageText(db, second.id, [columnFromText("hello")]);
     await updatePage(db, second.id, {
       showDate: false,
       canvasView: { scrollX: 1, scrollY: 2, zoom: 0.5 },
     });
     const stored = await db.pages.get(second.id);
-    expect(stored?.columns).toEqual(["hello"]);
+    expect(stored?.columns).toEqual([columnFromText("hello")]);
     expect(stored?.showDate).toBe(false);
     expect(stored?.canvasView).toEqual({ scrollX: 1, scrollY: 2, zoom: 0.5 });
     await deletePage(db, firstPage.id);
@@ -134,15 +136,43 @@ describe("pages", () => {
 
   it("adds, moves and removes the divider without losing text", async () => {
     const { firstPage } = await createNotebook(db, { name: "A" });
-    await savePageText(db, firstPage.id, ["left"]);
+    const left = columnFromText("left");
+    const right = columnFromText("right");
+    await savePageText(db, firstPage.id, [left]);
     await setPageDivider(db, firstPage.id, 70);
-    expect((await db.pages.get(firstPage.id))?.columns).toEqual(["left", ""]);
-    await savePageText(db, firstPage.id, ["left", "right"]);
+    expect((await db.pages.get(firstPage.id))?.columns).toEqual([left, columnFromText("")]);
+    await savePageText(db, firstPage.id, [left, right]);
     await setPageDivider(db, firstPage.id, 80);
     expect((await db.pages.get(firstPage.id))?.divider).toBe(80);
-    expect((await db.pages.get(firstPage.id))?.columns).toEqual(["left", "right"]);
+    expect((await db.pages.get(firstPage.id))?.columns).toEqual([left, right]);
     await setPageDivider(db, firstPage.id, null);
-    expect((await db.pages.get(firstPage.id))?.columns).toEqual(["left\nright"]);
+    expect((await db.pages.get(firstPage.id))?.columns).toEqual([columnFromText("left\nright")]);
+  });
+
+  it("upgrades plain-text columns from version 1 of the database", async () => {
+    const name = `test-${crypto.randomUUID()}`;
+    const old = new Dexie(name);
+    old.version(1).stores({
+      notebooks: "id, lastOpenedAt",
+      pages: "id, notebookId, [notebookId+createdAt]",
+      canvases: "notebookId",
+      files: "[notebookId+id], notebookId",
+    });
+    await old
+      .table("pages")
+      .add({ id: "p1", notebookId: "nb", createdAt: 1, columns: ["a\nb", ""] });
+    old.close();
+    const upgraded = new TypestillDb(name);
+    try {
+      const page = await upgraded.pages.get("p1");
+      expect(page?.columns).toEqual([
+        { text: "a\nb", doc: documentFromText("a\nb") },
+        { text: "", doc: documentFromText("") },
+      ]);
+      expect(page?.columns[0].doc.content).toHaveLength(2);
+    } finally {
+      await upgraded.delete();
+    }
   });
 });
 
@@ -183,7 +213,7 @@ describe("canvas", () => {
 describe("export and import", () => {
   it("round-trips a notebook document", async () => {
     const { notebook, firstPage } = await createNotebook(db, { name: "A" });
-    await savePageText(db, firstPage.id, ["some text"]);
+    await savePageText(db, firstPage.id, [columnFromText("some text")]);
     await saveCanvasContent(db, notebook.id, [imageElement("img", "f1")], { f1: fileData("f1") });
     await createPage(db, notebook.id);
     const doc = await exportNotebook(db, notebook.id);

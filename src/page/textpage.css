@@ -78,11 +78,27 @@
   cursor: text;
 }
 
-.text-page__column.is-readonly {
+.text-page__column[contenteditable="false"] {
   cursor: default;
 }
 
-/* Same layout as a column, used to measure how many lines a candidate text would take. */
+/* Paragraphs sit flush on the rules: no margin, the rule pitch as line height. */
+.text-page__column p,
+.text-page__mirror p {
+  margin: 0;
+}
+
+.text-page__column strong,
+.text-page__mirror strong {
+  font-weight: bold;
+}
+
+.text-page__column em,
+.text-page__mirror em {
+  font-style: italic;
+}
+
+/* Same layout as a column, used to measure how many lines a candidate document would take. */
 .text-page__mirror {
   visibility: hidden;
   pointer-events: none;

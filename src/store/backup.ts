@@ -1,10 +1,15 @@
 // The backup file: one notebook as JSON, images inlined as data URLs.
+//
+// Versions: 1 had plain-string columns; 2 (text formatting) has { text, doc } columns.
+// Version 1 files are still read, each line break becoming a paragraph boundary.
 
+import { columnFromText, isColumn } from "../page/document";
 import { DEFAULT_MARGIN_MM, PAGE_SIZES_MM } from "../page/paper";
-import type { NotebookDocument } from "./model";
+import type { Column, NotebookDocument } from "./model";
 
 export const BACKUP_FORMAT = "typestill-notebook";
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
+const READABLE_VERSIONS = new Set([1, 2]);
 
 export interface BackupFile {
   format: typeof BACKUP_FORMAT;
@@ -61,9 +66,10 @@ export function parseBackup(text: string): NotebookDocument {
   expect(isRecord(raw), "Not a typestill backup");
   expect(raw.format === BACKUP_FORMAT, "Not a typestill backup");
   expect(
-    raw.version === BACKUP_VERSION,
+    typeof raw.version === "number" && READABLE_VERSIONS.has(raw.version),
     `Backup version ${String(raw.version)} is not supported (expected ${BACKUP_VERSION})`,
   );
+  const version = raw.version;
   const nb = raw.notebook;
   expect(isRecord(nb), "Backup has no notebook");
   expect(typeof nb.id === "string" && nb.id.length > 0, "Notebook has no id");
@@ -86,7 +92,7 @@ export function parseBackup(text: string): NotebookDocument {
       Array.isArray(page.columns) &&
         page.columns.length >= 1 &&
         page.columns.length <= 2 &&
-        page.columns.every((column) => typeof column === "string"),
+        page.columns.every(version === 1 ? (column) => typeof column === "string" : isColumn),
       "Page has invalid columns",
     );
     expect(isNumberOrNull(page.divider), "Page has an invalid divider");
@@ -118,6 +124,9 @@ export function parseBackup(text: string): NotebookDocument {
     pages: doc.pages.map((page) => ({
       ...page,
       margin: typeof page.margin === "number" ? page.margin : DEFAULT_MARGIN_MM,
+      columns: (page.columns as (string | Column)[]).map((column) =>
+        typeof column === "string" ? columnFromText(column) : column,
+      ),
     })),
     canvas: {
       notebookId: nb.id,

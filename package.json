@@ -20,6 +20,12 @@
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.1",
     "dexie": "^4.4.6",
+    "prosemirror-commands": "^1.7.2",
+    "prosemirror-history": "^1.5.0",
+    "prosemirror-keymap": "^1.2.3",
+    "prosemirror-model": "^1.25.11",
+    "prosemirror-state": "^1.4.4",
+    "prosemirror-view": "^1.42.3",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
