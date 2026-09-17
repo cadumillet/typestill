@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { Canvas, type CanvasContent } from "./canvas/Canvas";
+import { PageRail } from "./notebook/PageRail";
 import { PageSettings } from "./notebook/PageSettings";
 import { SettingsDialog } from "./notebook/SettingsDialog";
 import { useNotebookSession } from "./notebook/useNotebookSession";
@@ -165,21 +166,29 @@ export function App() {
             onSave={session.updateSettings}
             onClose={() => setSettingsOpen(false)}
           />
-          <main className="desk" ref={deskRef}>
-            {fit && (
-              <TextPage
-                key={page.id}
-                size={notebook.pageSize}
-                orientation={notebook.orientation}
-                zoom={fit.zoom}
-                margin={page.margin}
-                columns={page.columns}
-                divider={page.divider}
-                preview={preview}
-                onChange={session.setColumns}
-              />
-            )}
-          </main>
+          <div className="workspace">
+            <PageRail
+              pages={pages}
+              index={index}
+              onSelect={session.goTo}
+              offsetTop={desk && fit ? Math.max(0, (desk.height - fit.height) / 2) : 0}
+            />
+            <main className="desk" ref={deskRef}>
+              {fit && (
+                <TextPage
+                  key={page.id}
+                  size={notebook.pageSize}
+                  orientation={notebook.orientation}
+                  zoom={fit.zoom}
+                  margin={page.margin}
+                  columns={page.columns}
+                  divider={page.divider}
+                  preview={preview}
+                  onChange={session.setColumns}
+                />
+              )}
+            </main>
+          </div>
         </>
       }
       panel={

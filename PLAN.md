@@ -4,7 +4,7 @@ A commonplace notebook built on top of Excalidraw.
 
 The idea: a notebook where each side has its own character. On the left, fixed-size lined pages you write on like a simple note editor, in Excalidraw's handwriting font, always on the lines. On the right, one infinite Excalidraw canvas per notebook for drawings, diagrams and images, with an optional grid that snaps. Pages remember where they left the canvas, so each page opens next to its own part of the drawing. No productivity-app machinery.
 
-Status (2026-09-17): Phase 1 is implemented except the left rail and the bare notebook switcher. Done and committed on `claude/phase-1-mvp`: the store, the page editor, the canvas panel and split view, storage wiring with autosave and per-page canvas views, backup download and restore, notebook settings. Text formatting is specified for Phase 2 (sections 2 and 5). Visual refinement is deliberately left for the end; the page's paper look should be settled before export work starts.
+Status (2026-09-17): Phase 1 is implemented except the bare notebook switcher. On `main`: the store, the page editor, the canvas panel and split view, storage wiring with autosave and per-page canvas views, backup download and restore, notebook settings. On `claude/phase-1-rail`: the left rail. Text formatting is specified for Phase 2 (sections 2 and 5). Visual refinement is deliberately left for the end; the page's paper look should be settled before export work starts.
 
 ---
 
@@ -181,7 +181,7 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - IndexedDB autosave for pages and canvas (done)
 - Download backup / open backup (done)
 - Notebook settings: page size, orientation (done)
-- Left rail with squares: one per page, current page highlighted, click to jump (no tags, no thumbnails)
+- Left rail with squares: one per page, current page highlighted, click to jump (no tags, no thumbnails) (done)
 - Bare notebook switcher (create / open) so the app is never single-notebook by design
 
 ### Phase 2: notebook feel
@@ -232,4 +232,5 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - Visual and branding refinement is deferred to the end; the control layout is settled when the rail arrives, and the paper look before export.
 - The divider snaps to 10mm steps and defaults to the midpoint of the writable area. The margin line offset is a notebook default, adjustable per page.
 - The caret is drawn by the shell, centred between rules, because a native text caret spans the whole line box and straddles the rule. Known issue: in the user's Chrome the caret still appears to cross the rule below it, while the built-in browser shows it centred; to be investigated in that Chrome directly.
+- The left rail sits under the app bar, to the left of the desk, with its first square aligned to the top of the page. The list scrolls on its own and keeps the open page's square in view; the hover label (and later the hover preview) floats beside the rail rather than inside the scrolling list, so it is never clipped.
 - Images on text pages (assessed 2026-09-17, not scheduled): possible with fixed-position floats now that the editor is a contenteditable. The editor switch was done on 2026-09-17.

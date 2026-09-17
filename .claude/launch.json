@@ -4,14 +4,16 @@
     {
       "name": "dev",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev", "--port", "5173", "--strictPort"],
-      "port": 5173
+      "runtimeArgs": ["dev", "--strictPort"],
+      "port": 5173,
+      "autoPort": true
     },
     {
       "name": "preview",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["preview", "--port", "4173", "--strictPort"],
-      "port": 4173
+      "runtimeArgs": ["preview", "--strictPort"],
+      "port": 4173,
+      "autoPort": true
     }
   ]
 }
