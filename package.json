@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.1",
+    "dexie": "^4.4.6",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
@@ -29,6 +30,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "eslint": "^10.10.0",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "fake-indexeddb": "^6.2.5",
     "globals": "^17.12.0",
     "prettier": "^3.9.7",
     "typescript": "^5.9.0",
