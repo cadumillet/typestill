@@ -1,0 +1,78 @@
+/* The notebook name in the app bar and the list it opens. */
+
+.switcher {
+  min-width: 0;
+}
+
+.switcher__trigger {
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  height: 30px;
+  padding: 0 6px 0 8px;
+  border-color: transparent;
+  color: var(--muted, #7d786d);
+}
+
+.switcher__trigger:hover,
+.switcher__trigger[aria-expanded="true"] {
+  background: #f1efe9;
+  color: var(--ink, #26241f);
+}
+
+.switcher__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.switcher__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 220px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.switcher__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+}
+
+.switcher__item:hover {
+  background: #f1efe9;
+}
+
+.switcher__item[aria-checked="true"] {
+  font-weight: 600;
+}
+
+.switcher__item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.switcher__item-count {
+  flex: none;
+  color: var(--muted, #7d786d);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.switcher__separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: #efede8;
+}

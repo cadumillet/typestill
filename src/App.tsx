@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { Canvas, type CanvasContent } from "./canvas/Canvas";
 import { PageRail } from "./notebook/PageRail";
+import { NotebookSwitcher } from "./notebook/NotebookSwitcher";
 import { PageSettings } from "./notebook/PageSettings";
 import { SettingsDialog } from "./notebook/SettingsDialog";
 import { useNotebookSession } from "./notebook/useNotebookSession";
@@ -118,7 +119,13 @@ export function App() {
                 <NewPage />
               </IconButton>
             </nav>
-            <span className="meta">{notebook.name}</span>
+            <NotebookSwitcher
+              notebooks={session.notebooks}
+              currentId={notebook.id}
+              currentPageCount={pages.length}
+              onOpen={(id) => void session.openNotebook(id)}
+              onCreate={(name) => void session.createNotebook(name)}
+            />
             <div className="app-header__actions">
               <PageSettings
                 page={page}

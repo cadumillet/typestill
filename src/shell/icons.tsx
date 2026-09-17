@@ -73,3 +73,9 @@ export const SidePanel = () => (
     <path d="M10.5 3.5v11" />
   </svg>
 );
+
+export const ChevronDown = () => (
+  <svg {...base} width={14} height={14}>
+    <path d="M4.5 7l4.5 4.5L13.5 7" />
+  </svg>
+);
