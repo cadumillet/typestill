@@ -137,7 +137,7 @@ Notes:
 
 ## 5. How the tricky parts get solved
 
-**Text on the lines.** One text area per column, in Excalifont, with the line height equal to the rule pitch and the top padding chosen so the first baseline sits on the first rule. Wrapping at the column edge and everything else (caret, selection, undo, input methods, paste) is the browser's. Capacity is the number of rules on the page: an input that would push text past the last rule is rejected. The font comes from the woff2 subsets Excalidraw ships; a script writes the matching `@font-face` rules at install time.
+**Text on the lines.** One plain-text contenteditable block per column, in Excalifont, with the line height equal to the rule pitch and the top placed so the first baseline sits on the first rule. Wrapping at the column edge and everything else (caret, selection, undo, input methods, paste) is the browser's. A contenteditable rather than a text area so text can later wrap around images floated in the column. Line breaks always go through the browser's insert-line-break command so the DOM stays plain text, and Chrome's placeholder newline after a trailing one is normalised on read and write. Capacity is the number of rules on the page: an edit that would push text past the last rule is rejected before it happens, by measuring the candidate text in a hidden mirror with the column's width. The font comes from the woff2 subsets Excalidraw ships; a script writes the matching `@font-face` rules at install time.
 
 **Two columns.** Two text areas side by side. The divider is a shell element positioned at the page's divider offset, dragged in 10mm steps. Text does not flow between columns; each column is its own text.
 
@@ -215,4 +215,4 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - Plain text only on pages.
 - The divider snaps to 10mm steps and defaults to the midpoint of the writable area. The margin line offset is a notebook default, adjustable per page.
 - The caret is drawn by the shell, centred between rules, because a native text caret spans the whole line box and straddles the rule. Known issue: in the user's Chrome the caret still appears to cross the rule below it, while the built-in browser shows it centred; to be investigated in that Chrome directly.
-- Images on text pages (assessed 2026-09-17, not scheduled): possible with fixed-position floats and a contenteditable editor; the editor switch should happen before the feature, and is worth doing early while the editor is small.
+- Images on text pages (assessed 2026-09-17, not scheduled): possible with fixed-position floats now that the editor is a contenteditable. The editor switch was done on 2026-09-17.

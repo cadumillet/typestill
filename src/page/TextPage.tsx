@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import {
   RULE_PITCH_MM,
   RULE_TOP_MM,
@@ -31,9 +38,9 @@ export interface TextPageProps {
 }
 
 /**
- * A lined text page. Each column is a plain text area in Excalifont whose line height
- * is the rule pitch and whose top is placed so every baseline lands on a rule. Input
- * that would push text past the last rule is rejected.
+ * A lined text page. Each column is a plain-text editable block in Excalifont whose line
+ * height is the rule pitch and whose top is placed so every baseline lands on a rule.
+ * Input that would push text past the last rule is rejected.
  */
 export function TextPage({
   size,
@@ -127,11 +134,27 @@ interface ColumnProps {
   onFull: (full: boolean) => void;
 }
 
-/** One text column: a text area sized to the column, capped at the page's line count. */
+/**
+ * One text column: a plain-text contenteditable block sized to the column and capped
+ * at the page's line count. A contenteditable rather than a text area so that, later,
+ * text can wrap around images floated inside the column.
+ *
+ * The DOM owns the text while editing; the value prop is written only when it differs.
+ * Line breaks always go through the browser's "insert line break" command, which keeps
+ * the DOM plain text (Enter would otherwise create block elements). Chrome keeps a
+ * placeholder newline after a trailing one so the caret can rest on an empty last
+ * line; readText and writeText translate that to and from the stored value.
+ */
 function Column({ value, readOnly, lines, pitch, style, onChange, onFull }: ColumnProps) {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  // Selection before the last edit, to put the caret back when an edit is rejected.
-  const selection = useRef({ start: 0, end: 0 });
+  const ref = useRef<HTMLDivElement>(null);
+  const mirrorRef = useRef<HTMLDivElement>(null);
+  // True while this component inserts text itself, so its own edits are not intercepted.
+  const inserting = useRef(false);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (el && readText(el) !== value) writeText(el, value);
+  }, [value]);
 
   // Text set from outside (page switch, undo) may itself fill the page.
   useEffect(() => {
@@ -139,41 +162,132 @@ function Column({ value, readOnly, lines, pitch, style, onChange, onFull }: Colu
     if (el) onFull(countLines(el, pitch) >= lines);
   }, [value, lines, pitch, onFull]);
 
-  return (
-    <textarea
-      ref={ref}
-      className="text-page__column"
-      style={style}
-      value={value}
-      readOnly={readOnly}
-      spellCheck={false}
-      wrap="soft"
-      onBeforeInput={(event) => {
-        const el = event.currentTarget;
-        selection.current = { start: el.selectionStart, end: el.selectionEnd };
-      }}
-      onChange={(event) => {
-        const el = event.currentTarget;
-        if (countLines(el, pitch) > lines) {
-          // Reject: React restores the previous value after this handler; restore the
-          // caret once it has.
-          const { start, end } = selection.current;
-          requestAnimationFrame(() => el.setSelectionRange(start, end));
-          onFull(true);
-          return;
+  // Reject, before it happens, any edit that would push text past the last rule.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const wouldOverflow = (data: string) => {
+      const mirror = mirrorRef.current;
+      const range = selectionOffsets(el);
+      if (!mirror || !range) return false;
+      const text = readText(el);
+      const candidate = text.slice(0, range.start) + data + text.slice(range.end);
+      mirror.textContent = candidate.endsWith("\n") ? candidate + "\n" : candidate;
+      const used = Math.max(1, Math.round(mirror.scrollHeight / pitch));
+      mirror.textContent = "";
+      return used > lines;
+    };
+    const onBeforeInput = (event: InputEvent) => {
+      if (inserting.current) return;
+      let data: string | null;
+      switch (event.inputType) {
+        case "insertParagraph":
+        case "insertLineBreak":
+          data = "\n";
+          break;
+        case "insertText":
+        case "insertReplacementText":
+          data = event.data;
+          break;
+        case "insertFromPaste":
+        case "insertFromDrop":
+          data = event.dataTransfer?.getData("text/plain") ?? null;
+          break;
+        default:
+          return; // deletions, formatting attempts and composition: nothing to reject
+      }
+      if (data === null) return;
+      if (wouldOverflow(data)) {
+        event.preventDefault();
+        onFull(true);
+        return;
+      }
+      // Anything with a line break is inserted by hand so the DOM stays plain text.
+      if (data.includes("\n")) {
+        event.preventDefault();
+        inserting.current = true;
+        try {
+          insertPlainText(data);
+        } finally {
+          inserting.current = false;
         }
-        onChange(el.value);
-      }}
-    />
+      }
+    };
+    el.addEventListener("beforeinput", onBeforeInput);
+    return () => el.removeEventListener("beforeinput", onBeforeInput);
+  }, [lines, pitch, onFull]);
+
+  return (
+    <>
+      <div
+        ref={ref}
+        className={`text-page__column${readOnly ? " is-readonly" : ""}`}
+        style={style}
+        contentEditable={readOnly ? false : "plaintext-only"}
+        suppressContentEditableWarning
+        spellCheck={false}
+        onInput={() => {
+          const el = ref.current;
+          if (!el) return;
+          // Edits that could not be rejected up front (composition) are undone after.
+          if (countLines(el, pitch) > lines) document.execCommand("undo");
+          onChange(readText(el));
+          onFull(countLines(el, pitch) >= lines);
+        }}
+      />
+      <div
+        ref={mirrorRef}
+        className="text-page__mirror"
+        style={{ left: style.left, top: style.top, width: style.width }}
+        aria-hidden="true"
+      />
+    </>
   );
 }
 
+/** The stored value of a column: the DOM text without Chrome's trailing placeholder newline. */
+function readText(el: HTMLElement): string {
+  return el.innerText.replace(/\n$/, "");
+}
+
+/** Puts a value in the DOM, adding the placeholder newline a trailing newline needs to render. */
+function writeText(el: HTMLElement, value: string): void {
+  el.textContent = value.endsWith("\n") ? value + "\n" : value;
+}
+
+/** Inserts text at the selection line by line, so newlines never become block elements. */
+function insertPlainText(text: string): void {
+  const parts = text.split("\n");
+  parts.forEach((part, index) => {
+    if (index > 0) document.execCommand("insertLineBreak");
+    if (part) document.execCommand("insertText", false, part);
+  });
+}
+
+/** Character offsets of the selection within the element's text, or null if it is elsewhere. */
+function selectionOffsets(el: HTMLElement): { start: number; end: number } | null {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return null;
+  const range = selection.getRangeAt(0);
+  if (!el.contains(range.startContainer) || !el.contains(range.endContainer)) return null;
+  const offsetOf = (node: Node, offset: number) => {
+    const probe = document.createRange();
+    probe.setStart(el, 0);
+    probe.setEnd(node, offset);
+    return probe.toString().length;
+  };
+  return {
+    start: offsetOf(range.startContainer, range.startOffset),
+    end: offsetOf(range.endContainer, range.endOffset),
+  };
+}
+
 /**
- * Lines the text occupies, using the browser's own wrapping. A text area reports its
- * content height through scrollHeight only when the box is shorter than the content,
- * so the box is collapsed for the measurement and restored right after.
+ * Lines the text occupies, using the browser's own wrapping. The box reports its content
+ * height through scrollHeight only when it is shorter than the content, so it is
+ * collapsed for the measurement and restored right after.
  */
-function countLines(el: HTMLTextAreaElement, pitch: number): number {
+function countLines(el: HTMLElement, pitch: number): number {
   const height = el.style.height;
   el.style.height = "0px";
   const used = Math.round(el.scrollHeight / pitch);

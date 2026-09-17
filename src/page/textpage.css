@@ -55,28 +55,39 @@
   display: none;
 }
 
-.text-page__column {
+.text-page__column,
+.text-page__mirror {
   position: absolute;
-  z-index: 1;
   display: block;
   margin: 0;
   padding: 0;
   border: 0;
-  outline: none;
-  resize: none;
-  overflow: hidden;
-  background: transparent;
   font: inherit;
   font-size: var(--font-size);
   line-height: var(--rule-pitch);
-  color: var(--ink, #26241f);
-  caret-color: var(--ink, #26241f);
   white-space: pre-wrap;
   overflow-wrap: break-word;
 }
 
-.text-page__column[readonly] {
+.text-page__column {
+  z-index: 1;
+  outline: none;
+  overflow: hidden;
+  background: transparent;
+  color: var(--ink, #26241f);
+  caret-color: var(--ink, #26241f);
+  cursor: text;
+}
+
+.text-page__column.is-readonly {
   cursor: default;
+}
+
+/* Same layout as a column, used to measure how many lines a candidate text would take. */
+.text-page__mirror {
+  visibility: hidden;
+  pointer-events: none;
+  height: auto;
 }
 
 .text-page__full {
