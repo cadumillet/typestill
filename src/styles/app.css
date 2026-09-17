@@ -4,10 +4,14 @@
   --muted: #7d786d;
   --paper: #ffffff;
   --rule: #c7d3e3;
+  --margin: #f0b4b4;
   --dot: #c3bfb5;
+  --grid: #d9e2ec;
   --rule-pitch: 26px;
   --rule-top: 75px;
+  --margin-left: 76px;
   --dot-pitch: 19px;
+  --grid-pitch: 19px;
 }
 
 html,
@@ -78,11 +82,20 @@ body {
     0 14px 36px rgb(0 0 0 / 0.14);
 }
 
+/* Two pattern layers per page: ::before for full-height marks, ::after for the main pattern. */
+.page::before,
 .page::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+
+/* Vertical margin line, full height. */
+.page.paper-lined::before {
+  background: linear-gradient(var(--margin), var(--margin)) no-repeat;
+  background-size: 1px 100%;
+  background-position: var(--margin-left) 0;
 }
 
 .page.paper-lined::after {
@@ -96,6 +109,14 @@ body {
   background-image: radial-gradient(circle, var(--dot) 1px, transparent 1.6px);
   background-size: var(--dot-pitch) var(--dot-pitch);
   background-position: calc(var(--dot-pitch) / 2) calc(var(--dot-pitch) / 2);
+}
+
+.page.paper-grid::after {
+  background-image:
+    linear-gradient(to right, var(--grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+  background-size: var(--grid-pitch) var(--grid-pitch);
+  background-position: calc(var(--grid-pitch) / 2) calc(var(--grid-pitch) / 2);
 }
 
 .page-canvas {

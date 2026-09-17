@@ -2,6 +2,8 @@ import { useMemo, useState, type CSSProperties } from "react";
 import { PageCanvas } from "./page/PageCanvas";
 import {
   DOT_PITCH_MM,
+  GRID_PITCH_MM,
+  MARGIN_LEFT_MM,
   RULE_PITCH_MM,
   RULE_TOP_MM,
   fitPage,
@@ -48,6 +50,8 @@ export function App() {
         "--rule-pitch": `${mmToCssPx(RULE_PITCH_MM, layout.zoom)}px`,
         "--rule-top": `${mmToCssPx(RULE_TOP_MM, layout.zoom)}px`,
         "--dot-pitch": `${mmToCssPx(DOT_PITCH_MM, layout.zoom)}px`,
+        "--grid-pitch": `${mmToCssPx(GRID_PITCH_MM, layout.zoom)}px`,
+        "--margin-left": `${mmToCssPx(MARGIN_LEFT_MM, layout.zoom)}px`,
       } as CSSProperties)
     : undefined;
 
@@ -64,6 +68,7 @@ export function App() {
             <option value="blank">Blank</option>
             <option value="lined">Lined</option>
             <option value="dotted">Dotted</option>
+            <option value="grid">Grid</option>
           </select>
         </label>
       </header>

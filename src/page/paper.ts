@@ -4,7 +4,7 @@
 
 export type PageSize = "A5" | "A4" | "Letter";
 export type Orientation = "portrait" | "landscape";
-export type Paper = "blank" | "lined" | "dotted";
+export type Paper = "blank" | "lined" | "dotted" | "grid";
 
 /** Physical page dimensions in millimetres, portrait. */
 export const PAGE_SIZES_MM: Record<PageSize, { width: number; height: number }> = {
@@ -19,8 +19,12 @@ export const SCENE_PX_PER_MM = 96 / 25.4;
 export const RULE_PITCH_MM = 7;
 /** Blank margin above the first rule. */
 export const RULE_TOP_MM = 20;
+/** Distance of the vertical margin line from the left edge on lined paper. */
+export const MARGIN_LEFT_MM = 20;
 /** Grid pitch for dotted paper. */
 export const DOT_PITCH_MM = 5;
+/** Square size for grid paper. */
+export const GRID_PITCH_MM = 5;
 
 /** Page dimensions in scene pixels at zoom 1. */
 export interface PageGeometry {

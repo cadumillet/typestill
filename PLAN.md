@@ -26,7 +26,7 @@ Status: Phase 0 spike in progress.
 ### Pages
 - Page size is set per notebook: A5, A4 or Letter.
 - Orientation is set per notebook: portrait or landscape.
-- Paper type is set per page: blank, lined or dotted. A new page inherits the paper of the page you were on.
+- Paper type is set per page: blank, lined, dotted or grid. A new page inherits the paper of the page you were on.
 - Strict fit-to-screen. The canvas is the page. No pan, no zoom.
 - In portrait mode the user can toggle between single page and two-page spread.
 - Pages can be deleted (with a confirm). Remaining pages are renumbered, since the number is just the position in the notebook.
@@ -76,7 +76,7 @@ Notebook {
   pageSize: "A5" | "A4" | "Letter"
   orientation: "portrait" | "landscape"
   defaults: {
-    paper: "blank" | "lined" | "dotted"
+    paper: "blank" | "lined" | "dotted" | "grid"
     showDate: boolean
     showPageNumber: boolean
   }
@@ -89,7 +89,7 @@ Page {
   id: string
   createdAt: number
   tagId: string | null
-  paper: "blank" | "lined" | "dotted"
+  paper: "blank" | "lined" | "dotted" | "grid"
   showDate: boolean
   showPageNumber: boolean
   elements: ExcalidrawElement[]        // untouched Excalidraw data
@@ -154,7 +154,7 @@ If it feels fighty, adjust here first.
 - Tags: create, assign, color; rail coloring and filtering
 - Hover thumbnails in the rail
 - Two-page spread toggle (portrait only)
-- Per-page paper: blank / lined / dotted
+- Per-page paper: blank / lined / dotted / grid
 - Per-page date stamp and page number, with notebook defaults
 - Page settings panel
 - Image paste
