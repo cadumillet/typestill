@@ -1,0 +1,10 @@
+.panel {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  background: #fff;
+  border: 1px solid #e6e4de;
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+  overflow: hidden;
+}

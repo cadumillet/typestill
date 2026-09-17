@@ -27,28 +27,23 @@ body {
   overflow: hidden;
 }
 
-.app {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
 .app-header {
   display: flex;
   align-items: center;
   gap: 16px;
-  height: 40px;
-  padding: 0 16px;
+  height: 44px;
+  padding: 0 12px 0 16px;
   flex: none;
 }
 
 .app-header__actions {
   margin-left: auto;
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
-.app-header__actions button {
+button {
   font: inherit;
   padding: 4px 10px;
   border: 1px solid rgb(0 0 0 / 0.15);
@@ -58,9 +53,31 @@ body {
   cursor: pointer;
 }
 
-.app-header__actions button[aria-pressed="true"] {
+button[aria-pressed="true"] {
   background: #eceaf6;
   border-color: #b9b3e0;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.icon-button:hover {
+  background: #f1efe9;
+  color: var(--ink);
+}
+
+.icon-button[aria-pressed="true"] {
+  background: #eceaf6;
+  border-color: transparent;
+  color: #5b4fb5;
 }
 
 .wordmark {
@@ -80,9 +97,4 @@ body {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-}
-
-.page-canvas {
-  position: absolute;
-  inset: 0;
 }

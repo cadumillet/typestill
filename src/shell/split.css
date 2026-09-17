@@ -1,0 +1,56 @@
+.split {
+  display: flex;
+  height: 100%;
+  position: relative;
+}
+
+.split__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.split__panel {
+  flex: none;
+  min-width: 0;
+  display: flex;
+  padding: 12px 12px 12px 0;
+}
+
+/* The gap between the main column and the panel is the drag handle. */
+.split__handle {
+  flex: none;
+  position: relative;
+  width: 12px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.split__handle::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 5px;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background 120ms;
+}
+
+.split__handle:hover::after,
+.split.is-dragging .split__handle::after {
+  background: #c9c4e6;
+}
+
+.split.is-dragging {
+  user-select: none;
+  cursor: col-resize;
+}
+
+/* Keep the canvas from reacting to the pointer while the handle is dragged across it. */
+.split.is-dragging .split__main,
+.split.is-dragging .split__panel {
+  pointer-events: none;
+}
