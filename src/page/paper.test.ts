@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { SCENE_PX_PER_MM, fitPage, mmToCssPx, pageGeometry } from "./paper";
+import {
+  SCENE_PX_PER_MM,
+  columnBoxes,
+  defaultDivider,
+  fitPage,
+  mmToCssPx,
+  pageGeometry,
+  ruleCount,
+} from "./paper";
 
 describe("pageGeometry", () => {
   it("maps A5 portrait to scene pixels at 96 dpi", () => {
@@ -45,5 +53,32 @@ describe("mmToCssPx", () => {
   it("scales millimetres by dpi and zoom", () => {
     expect(mmToCssPx(25.4, 1)).toBeCloseTo(96, 9);
     expect(mmToCssPx(25.4, 0.5)).toBeCloseTo(48, 9);
+  });
+});
+
+describe("ruleCount", () => {
+  it("counts the rules that fit between the top and bottom margins", () => {
+    expect(ruleCount(210)).toBe(26); // A5 portrait
+    expect(ruleCount(297)).toBe(38); // A4 portrait
+    expect(ruleCount(148)).toBe(17); // A5 landscape
+    expect(ruleCount(10)).toBe(1);
+  });
+});
+
+describe("columnBoxes", () => {
+  it("gives one column from the margin line to the right inset", () => {
+    expect(columnBoxes(148, 20, null)).toEqual([{ left: 22, width: 120 }]);
+  });
+
+  it("splits at the divider with an inset on both sides", () => {
+    expect(columnBoxes(148, 20, 74)).toEqual([
+      { left: 22, width: 50 },
+      { left: 76, width: 66 },
+    ]);
+  });
+
+  it("defaults the divider to the middle of the writable area", () => {
+    expect(defaultDivider(148, 20)).toBe(84);
+    expect(defaultDivider(210, 30)).toBe(120);
   });
 });

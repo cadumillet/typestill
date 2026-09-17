@@ -1,59 +1,36 @@
-import { useMemo, useState, type CSSProperties } from "react";
-import { PageCanvas } from "./page/PageCanvas";
-import {
-  DOT_PITCH_MM,
-  GRID_PITCH_MM,
-  MARGIN_LEFT_MM,
-  RULE_PITCH_MM,
-  RULE_TOP_MM,
-  fitPage,
-  mmToCssPx,
-  pageGeometry,
-  type Paper,
-} from "./page/paper";
+import { useState } from "react";
+import { TextPage } from "./page/TextPage";
+import { DEFAULT_MARGIN_MM, defaultDivider, fitPage, pageGeometry, pageMm } from "./page/paper";
 import { useElementSize } from "./page/useElementSize";
+import { columnsForDivider } from "./store/model";
 
-// Phase 0 spike: a single hardcoded page.
+// Phase 1, first cut: the text page editor on its own, in memory. The split view with
+// the canvas, storage and navigation come next.
 const PAGE_SIZE = "A5";
 const ORIENTATION = "portrait";
-
-// Space kept free around the page for Excalidraw's floating UI: toolbar on top,
-// undo/redo at the bottom, properties panel on the left.
-const INSET = { top: 88, right: 48, bottom: 64, left: 48 };
+const DESK_PADDING = 32;
+const MARGIN = DEFAULT_MARGIN_MM;
 
 export function App() {
-  const [paper, setPaper] = useState<Paper>("lined");
-  const geometry = useMemo(() => pageGeometry(PAGE_SIZE, ORIENTATION), []);
+  const [columns, setColumns] = useState<string[]>([""]);
+  const [divider, setDivider] = useState<number | null>(null);
+  const [clear, setClear] = useState(false);
   const [deskRef, desk] = useElementSize<HTMLElement>();
 
-  const layout = useMemo(() => {
-    if (!desk) return null;
-    const inner = {
-      width: desk.width - INSET.left - INSET.right,
-      height: desk.height - INSET.top - INSET.bottom,
-    };
-    if (inner.width < 50 || inner.height < 50) return null;
-    const fit = fitPage(geometry, inner);
-    return {
-      ...fit,
-      left: Math.round(INSET.left + (inner.width - fit.width) / 2),
-      top: Math.round(INSET.top + (inner.height - fit.height) / 2),
-    };
-  }, [desk, geometry]);
+  const geometry = pageGeometry(PAGE_SIZE, ORIENTATION);
+  const fit = desk
+    ? fitPage(geometry, {
+        width: desk.width - 2 * DESK_PADDING,
+        height: desk.height - 2 * DESK_PADDING,
+      })
+    : null;
 
-  const pageStyle = layout
-    ? ({
-        left: layout.left,
-        top: layout.top,
-        width: layout.width,
-        height: layout.height,
-        "--rule-pitch": `${mmToCssPx(RULE_PITCH_MM, layout.zoom)}px`,
-        "--rule-top": `${mmToCssPx(RULE_TOP_MM, layout.zoom)}px`,
-        "--dot-pitch": `${mmToCssPx(DOT_PITCH_MM, layout.zoom)}px`,
-        "--grid-pitch": `${mmToCssPx(GRID_PITCH_MM, layout.zoom)}px`,
-        "--margin-left": `${mmToCssPx(MARGIN_LEFT_MM, layout.zoom)}px`,
-      } as CSSProperties)
-    : undefined;
+  const toggleDivider = () => {
+    const next =
+      divider === null ? defaultDivider(pageMm(PAGE_SIZE, ORIENTATION).width, MARGIN) : null;
+    setColumns((current) => columnsForDivider(current, next));
+    setDivider(next);
+  };
 
   return (
     <div className="app">
@@ -62,25 +39,27 @@ export function App() {
         <span className="meta">
           {PAGE_SIZE} · {ORIENTATION}
         </span>
-        <label className="paper-picker">
-          Paper
-          <select value={paper} onChange={(event) => setPaper(event.target.value as Paper)}>
-            <option value="blank">Blank</option>
-            <option value="lined">Lined</option>
-            <option value="dotted">Dotted</option>
-            <option value="grid">Grid</option>
-          </select>
-        </label>
+        <div className="app-header__actions">
+          <button type="button" onClick={toggleDivider} aria-pressed={divider !== null}>
+            Two columns
+          </button>
+          <button type="button" onClick={() => setClear((c) => !c)} aria-pressed={clear}>
+            Clear
+          </button>
+        </div>
       </header>
       <main className="desk" ref={deskRef}>
-        {layout && (
-          <>
-            <div className={`page paper-${paper}`} style={pageStyle} aria-hidden="true" />
-            <PageCanvas
-              zoom={layout.zoom}
-              box={{ x: layout.left, y: layout.top, width: layout.width, height: layout.height }}
-            />
-          </>
+        {fit && (
+          <TextPage
+            size={PAGE_SIZE}
+            orientation={ORIENTATION}
+            zoom={fit.zoom}
+            margin={MARGIN}
+            columns={columns}
+            divider={divider}
+            clear={clear}
+            onChange={setColumns}
+          />
         )}
       </main>
     </div>
