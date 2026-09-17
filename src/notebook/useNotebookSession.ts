@@ -27,6 +27,7 @@ import {
   setLastPage,
   setPageDivider,
   touchNotebook,
+  updateNotebookSettings,
   updatePage,
 } from "../store/notebooks";
 import { downloadText } from "./files";
@@ -51,6 +52,8 @@ export interface NotebookSession {
   onCanvasChange: (content: CanvasContent, loadId: number) => void;
   onCanvasViewChange: (view: CanvasView, loadId: number) => void;
   onGridChange: (enabled: boolean) => void;
+  /** Page size and orientation, applied to every page. */
+  updateSettings: (settings: Pick<Notebook, "pageSize" | "orientation">) => Promise<void>;
   /** Saves everything pending, then offers the notebook as a backup file. */
   downloadBackup: () => Promise<void>;
   /**
@@ -277,6 +280,17 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     [db, state],
   );
 
+  const updateSettings = useCallback(
+    async (settings: Pick<Notebook, "pageSize" | "orientation">) => {
+      if (!state) return;
+      await updateNotebookSettings(db, state.notebook.id, settings);
+      setState((current) =>
+        current ? { ...current, notebook: { ...current.notebook, ...settings } } : current,
+      );
+    },
+    [db, state],
+  );
+
   const downloadBackup = useCallback(async () => {
     if (!state) return;
     await Promise.all([
@@ -318,6 +332,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     onCanvasChange,
     onCanvasViewChange,
     onGridChange,
+    updateSettings,
     downloadBackup,
     restoreBackup,
   };

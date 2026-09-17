@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { Canvas, type CanvasContent } from "./canvas/Canvas";
+import { SettingsDialog } from "./notebook/SettingsDialog";
 import { useNotebookSession } from "./notebook/useNotebookSession";
 import { TextPage } from "./page/TextPage";
 import { defaultDivider, fitPage, pageGeometry, pageMm } from "./page/paper";
@@ -34,6 +35,7 @@ function storeWidth(width: number): void {
 export function App() {
   const session = useNotebookSession();
   const [clear, setClear] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
   const [panelWidth, setPanelWidth] = useState(
     () => readStoredWidth() ?? Math.round(window.innerWidth * 0.55),
@@ -123,6 +125,7 @@ export function App() {
               <Menu
                 title="Notebook"
                 items={[
+                  { label: "Settings…", onSelect: () => setSettingsOpen(true) },
                   { label: "Download backup", onSelect: () => void session.downloadBackup() },
                   { label: "Open backup…", onSelect: () => fileInput.current?.click() },
                 ]}
@@ -182,6 +185,12 @@ export function App() {
               </button>
             </div>
           </header>
+          <SettingsDialog
+            open={settingsOpen}
+            notebook={notebook}
+            onSave={session.updateSettings}
+            onClose={() => setSettingsOpen(false)}
+          />
           <main className="desk" ref={deskRef}>
             {fit && (
               <TextPage
