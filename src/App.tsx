@@ -1,9 +1,10 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Canvas, type CanvasContent } from "./canvas/Canvas";
 import { useNotebookSession } from "./notebook/useNotebookSession";
 import { TextPage } from "./page/TextPage";
 import { defaultDivider, fitPage, pageGeometry, pageMm } from "./page/paper";
 import { useElementSize } from "./page/useElementSize";
+import { Menu } from "./shell/Menu";
 import { Panel } from "./shell/Panel";
 import { SplitView } from "./shell/SplitView";
 
@@ -37,9 +38,14 @@ export function App() {
   const [panelWidth, setPanelWidth] = useState(
     () => readStoredWidth() ?? Math.round(window.innerWidth * 0.55),
   );
-  // The drawing survives the panel closing: the editor hands it back on unmount.
-  const [canvasSnapshot, setCanvasSnapshot] = useState<CanvasContent>();
+  // The drawing survives the panel closing: the editor hands it back on unmount. The
+  // snapshot is tagged with the load it belongs to, so a restored notebook starts fresh.
+  const [canvasSnapshot, setCanvasSnapshot] = useState<{
+    loadId: number;
+    content: CanvasContent;
+  }>();
   const [deskRef, desk] = useElementSize<HTMLElement>();
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const handleWidth = useCallback((width: number) => {
     setPanelWidth(width);
@@ -58,6 +64,15 @@ export function App() {
         height: desk.height - 2 * DESK_PADDING,
       })
     : null;
+
+  const openBackup = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      await session.restoreBackup(file);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Could not open the backup.");
+    }
+  };
 
   const toggleDivider = () => {
     const width = pageMm(notebook.pageSize, notebook.orientation).width;
@@ -105,6 +120,30 @@ export function App() {
               </button>
             </nav>
             <div className="app-header__actions">
+              <Menu
+                title="Notebook"
+                items={[
+                  { label: "Download backup", onSelect: () => void session.downloadBackup() },
+                  { label: "Open backup…", onSelect: () => fileInput.current?.click() },
+                ]}
+              >
+                <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                  <circle cx="4" cy="9" r="1.5" fill="currentColor" />
+                  <circle cx="9" cy="9" r="1.5" fill="currentColor" />
+                  <circle cx="14" cy="9" r="1.5" fill="currentColor" />
+                </svg>
+              </Menu>
+              <input
+                ref={fileInput}
+                type="file"
+                accept=".json,application/json"
+                hidden
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  void openBackup(file);
+                }}
+              />
               <button type="button" onClick={toggleDivider} aria-pressed={page.divider !== null}>
                 Two columns
               </button>
@@ -163,13 +202,18 @@ export function App() {
       panel={
         <Panel label="Canvas">
           <Canvas
-            initial={canvasSnapshot ?? { elements: session.canvas.elements, files: session.files }}
+            key={session.loadId}
+            initial={
+              canvasSnapshot?.loadId === session.loadId
+                ? canvasSnapshot.content
+                : { elements: session.canvas.elements, files: session.files }
+            }
             initialGridEnabled={session.canvas.gridEnabled}
             view={session.restoreView}
-            onChange={session.onCanvasChange}
-            onViewChange={session.onCanvasViewChange}
+            onChange={(content) => session.onCanvasChange(content, session.loadId)}
+            onViewChange={(view) => session.onCanvasViewChange(view, session.loadId)}
             onGridChange={session.onGridChange}
-            onUnmount={setCanvasSnapshot}
+            onUnmount={(content) => setCanvasSnapshot({ loadId: session.loadId, content })}
           />
         </Panel>
       }

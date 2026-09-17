@@ -2,6 +2,7 @@ import type { BinaryFileData } from "@excalidraw/excalidraw/types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CanvasContent } from "../canvas/Canvas";
 import { createAutosave, elementsKey, textKey, type Autosave } from "../store/autosave";
+import { backupFileName, parseBackup, serializeBackup } from "../store/backup";
 import { getDb, type TypestillDb } from "../store/db";
 import {
   columnsForDivider,
@@ -13,8 +14,10 @@ import {
 import {
   createNotebook,
   createPage,
+  exportNotebook,
   getCanvas,
   getNotebook,
+  importNotebook,
   listNotebooks,
   listPages,
   loadNotebookFiles,
@@ -26,6 +29,7 @@ import {
   touchNotebook,
   updatePage,
 } from "../store/notebooks";
+import { downloadText } from "./files";
 
 export interface NotebookSession {
   notebook: Notebook;
@@ -37,16 +41,27 @@ export interface NotebookSession {
   files: Record<string, BinaryFileData>;
   /** The view the open page remembers. Changes only when a page is opened. */
   restoreView: CanvasView | null;
+  /** Increments each time a notebook is loaded. Key the canvas editor by it so it starts over. */
+  loadId: number;
   goTo: (index: number) => void;
   newPage: () => Promise<void>;
   setColumns: (columns: string[]) => void;
   setDivider: (divider: number | null) => Promise<void>;
-  onCanvasChange: (content: CanvasContent) => void;
-  onCanvasViewChange: (view: CanvasView) => void;
+  /** Canvas callbacks carry the loadId of the editor that sent them; stale editors are ignored. */
+  onCanvasChange: (content: CanvasContent, loadId: number) => void;
+  onCanvasViewChange: (view: CanvasView, loadId: number) => void;
   onGridChange: (enabled: boolean) => void;
+  /** Saves everything pending, then offers the notebook as a backup file. */
+  downloadBackup: () => Promise<void>;
+  /**
+   * Restores a backup file and opens that notebook. Asks before replacing a notebook that
+   * already exists. Throws BackupError for files that are not valid backups.
+   */
+  restoreBackup: (file: File) => Promise<void>;
 }
 
 interface Loaded {
+  loadId: number;
   notebook: Notebook;
   pages: Page[];
   index: number;
@@ -71,6 +86,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
   const canvasSaver = useRef<Autosave<CanvasContent> | null>(null);
   /** Latest canvas view seen, written onto the page when it is left. */
   const latestView = useRef<CanvasView | null>(null);
+  const loads = useRef(0);
 
   const flushAll = useCallback(() => {
     void pageSaver.current?.flush();
@@ -101,21 +117,28 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     [db],
   );
 
-  // Load the notebook.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const list = await listNotebooks(db);
-      if (cancelled) return;
-      const notebookId =
-        list[0]?.id ?? (await createNotebook(db, { name: "Notebook" })).notebook.id;
+  /** Stops all saving. Used before the stored notebook changes under the session. */
+  const detach = useCallback(async () => {
+    await Promise.all([
+      pageSaver.current?.flush(),
+      viewSaver.current?.flush(),
+      canvasSaver.current?.flush(),
+    ]);
+    pageSaver.current = null;
+    viewSaver.current = null;
+    canvasSaver.current = null;
+  }, []);
+
+  /** Opens a notebook: loads it, points the savers at it, and shows its remembered page. */
+  const load = useCallback(
+    async (notebookId: string) => {
       const [notebook, pages, canvas, files] = await Promise.all([
         getNotebook(db, notebookId),
         listPages(db, notebookId),
         getCanvas(db, notebookId),
         loadNotebookFiles(db, notebookId),
       ]);
-      if (cancelled || !notebook) return;
+      if (!notebook) throw new Error(`Notebook ${notebookId} not found`);
       await touchNotebook(db, notebookId);
       const remembered = pages.findIndex((page) => page.id === notebook.lastPageId);
       const index = remembered >= 0 ? remembered : pages.length - 1;
@@ -126,12 +149,35 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
       });
       canvasSaver.current.markClean({ elements: canvas.elements, files });
       attachPage(pages[index]);
-      setState({ notebook, pages, index, canvas, files, restoreView: pages[index].canvasView });
+      loads.current += 1;
+      setState({
+        loadId: loads.current,
+        notebook,
+        pages,
+        index,
+        canvas,
+        files,
+        restoreView: pages[index].canvasView,
+      });
+    },
+    [db, attachPage],
+  );
+
+  // Open the most recently used notebook, creating one on first launch.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const list = await listNotebooks(db);
+      if (cancelled) return;
+      const notebookId =
+        list[0]?.id ?? (await createNotebook(db, { name: "Notebook" })).notebook.id;
+      if (cancelled) return;
+      await load(notebookId);
     })().catch(report);
     return () => {
       cancelled = true;
     };
-  }, [db, attachPage]);
+  }, [db, load]);
 
   // Nothing pending is lost when the tab goes away or is hidden.
   useEffect(() => {
@@ -211,11 +257,15 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     [db, state],
   );
 
-  const onCanvasChange = useCallback((content: CanvasContent) => {
+  // An editor from a previous load can still fire (for instance on a resize) while it is
+  // being replaced; its content must never reach the current notebook.
+  const onCanvasChange = useCallback((content: CanvasContent, loadId: number) => {
+    if (loadId !== loads.current) return;
     canvasSaver.current?.onChange(content);
   }, []);
 
-  const onCanvasViewChange = useCallback((view: CanvasView) => {
+  const onCanvasViewChange = useCallback((view: CanvasView, loadId: number) => {
+    if (loadId !== loads.current) return;
     latestView.current = view;
     viewSaver.current?.onChange(view);
   }, []);
@@ -225,6 +275,36 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
       if (state) setCanvasGrid(db, state.notebook.id, enabled).catch(report);
     },
     [db, state],
+  );
+
+  const downloadBackup = useCallback(async () => {
+    if (!state) return;
+    await Promise.all([
+      pageSaver.current?.flush(),
+      viewSaver.current?.flush(),
+      canvasSaver.current?.flush(),
+    ]);
+    const doc = await exportNotebook(db, state.notebook.id);
+    if (doc) downloadText(backupFileName(doc), serializeBackup(doc));
+  }, [db, state]);
+
+  const restoreBackup = useCallback(
+    async (file: File) => {
+      const doc = parseBackup(await file.text());
+      const existing = await getNotebook(db, doc.id);
+      if (
+        existing &&
+        !window.confirm(
+          `Replace the notebook "${existing.name}" with this backup? Its current pages and canvas will be overwritten.`,
+        )
+      ) {
+        return;
+      }
+      await detach();
+      await importNotebook(db, doc, { replace: true });
+      await load(doc.id);
+    },
+    [db, detach, load],
   );
 
   if (!state) return null;
@@ -238,5 +318,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     onCanvasChange,
     onCanvasViewChange,
     onGridChange,
+    downloadBackup,
+    restoreBackup,
   };
 }
