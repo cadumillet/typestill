@@ -30,10 +30,11 @@ body {
 .app-header {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   height: 44px;
   padding: 0 12px 0 16px;
   flex: none;
+  white-space: nowrap;
 }
 
 .app-header__actions {
@@ -45,6 +46,7 @@ body {
 
 button {
   font: inherit;
+  white-space: nowrap;
   padding: 4px 10px;
   border: 1px solid rgb(0 0 0 / 0.15);
   border-radius: 6px;
@@ -87,6 +89,9 @@ button[aria-pressed="true"] {
 
 .meta {
   color: var(--muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .desk {
@@ -97,4 +102,37 @@ button[aria-pressed="true"] {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+}
+
+.page-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+}
+
+.page-nav__label {
+  min-width: 56px;
+  text-align: center;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.page-nav .icon-button {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.icon-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+  background: transparent;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--muted);
 }

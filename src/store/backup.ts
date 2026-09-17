@@ -110,6 +110,7 @@ export function parseBackup(text: string): NotebookDocument {
   return {
     ...doc,
     lastOpenedAt: typeof nb.lastOpenedAt === "number" ? nb.lastOpenedAt : nb.createdAt,
+    lastPageId: typeof nb.lastPageId === "string" ? nb.lastPageId : null,
     defaults: {
       ...doc.defaults,
       margin: typeof defaults.margin === "number" ? defaults.margin : DEFAULT_MARGIN_MM,

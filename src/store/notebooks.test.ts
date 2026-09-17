@@ -17,6 +17,7 @@ import {
   saveCanvasContent,
   savePageText,
   setCanvasGrid,
+  setLastPage,
   setPageDivider,
   touchNotebook,
   updateNotebookSettings,
@@ -43,6 +44,8 @@ describe("notebooks", () => {
     expect(firstPage.divider).toBeNull();
     expect(firstPage.margin).toBe(20);
     expect(firstPage.canvasView).toBeNull();
+    expect(notebook.lastPageId).toBe(firstPage.id);
+    expect((await db.notebooks.get(notebook.id))?.lastPageId).toBe(firstPage.id);
     expect(await listPages(db, notebook.id)).toHaveLength(1);
     expect(await getCanvas(db, notebook.id)).toEqual({
       notebookId: notebook.id,
@@ -61,6 +64,13 @@ describe("notebooks", () => {
     expect(list[0].pageCount).toBe(2);
     expect(list[1].pageCount).toBe(1);
     expect(list[0].lastOpenedAt).toBeGreaterThanOrEqual(b.notebook.lastOpenedAt);
+  });
+
+  it("remembers the last page shown", async () => {
+    const { notebook } = await createNotebook(db, { name: "A" });
+    const second = await createPage(db, notebook.id);
+    await setLastPage(db, notebook.id, second.id);
+    expect((await db.notebooks.get(notebook.id))?.lastPageId).toBe(second.id);
   });
 
   it("updates settings", async () => {

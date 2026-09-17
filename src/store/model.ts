@@ -27,6 +27,8 @@ export interface Notebook {
   name: string;
   createdAt: number;
   lastOpenedAt: number;
+  /** The page the notebook opens at: the one last shown. */
+  lastPageId: string | null;
   pageSize: PageSize;
   orientation: Orientation;
   defaults: NotebookDefaults;

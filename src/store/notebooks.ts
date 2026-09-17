@@ -85,12 +85,14 @@ export async function createNotebook(
     name: input.name,
     createdAt: now,
     lastOpenedAt: now,
+    lastPageId: null,
     pageSize: input.pageSize ?? "A5",
     orientation: input.orientation ?? "portrait",
     defaults: { ...DEFAULT_NOTEBOOK_DEFAULTS, ...input.defaults },
     tags: [],
   };
   const firstPage = buildPage(notebook, now, notebook.defaults.divider);
+  notebook.lastPageId = firstPage.id;
   await db.transaction("rw", [db.notebooks, db.pages, db.canvases], async () => {
     await db.notebooks.add(notebook);
     await db.pages.add(firstPage);
@@ -121,6 +123,11 @@ export function getNotebook(db: TypestillDb, id: string): Promise<Notebook | und
 /** Records that the notebook was opened now. */
 export async function touchNotebook(db: TypestillDb, id: string): Promise<void> {
   await db.notebooks.update(id, { lastOpenedAt: Date.now() });
+}
+
+/** Records the page the notebook is showing, so it reopens there. */
+export async function setLastPage(db: TypestillDb, id: string, pageId: string): Promise<void> {
+  await db.notebooks.update(id, { lastPageId: pageId });
 }
 
 export async function renameNotebook(db: TypestillDb, id: string, name: string): Promise<void> {

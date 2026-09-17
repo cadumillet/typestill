@@ -8,6 +8,7 @@ const doc: NotebookDocument = {
   name: "Field notes",
   createdAt: 10,
   lastOpenedAt: 20,
+  lastPageId: "p1",
   pageSize: "A5",
   orientation: "portrait",
   defaults: { showDate: true, showPageNumber: true, margin: 20, divider: null },
@@ -67,11 +68,13 @@ describe("backup", () => {
   it("fills lastOpenedAt, the grid flag and margins when missing", () => {
     const raw = JSON.parse(serializeBackup(doc));
     delete raw.notebook.lastOpenedAt;
+    delete raw.notebook.lastPageId;
     delete raw.notebook.canvas.gridEnabled;
     delete raw.notebook.defaults.margin;
     delete raw.notebook.pages[0].margin;
     const parsed = parseBackup(JSON.stringify(raw));
     expect(parsed.lastOpenedAt).toBe(10);
+    expect(parsed.lastPageId).toBeNull();
     expect(parsed.canvas.gridEnabled).toBe(true);
     expect(parsed.defaults.margin).toBe(20);
     expect(parsed.pages[0].margin).toBe(20);

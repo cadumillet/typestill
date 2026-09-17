@@ -1,17 +1,12 @@
 import { useCallback, useState } from "react";
 import { Canvas, type CanvasContent } from "./canvas/Canvas";
+import { useNotebookSession } from "./notebook/useNotebookSession";
 import { TextPage } from "./page/TextPage";
-import { DEFAULT_MARGIN_MM, defaultDivider, fitPage, pageGeometry, pageMm } from "./page/paper";
+import { defaultDivider, fitPage, pageGeometry, pageMm } from "./page/paper";
 import { useElementSize } from "./page/useElementSize";
 import { Panel } from "./shell/Panel";
 import { SplitView } from "./shell/SplitView";
-import { columnsForDivider } from "./store/model";
 
-// Phase 1, in memory: one page in the main column, the notebook's canvas in a side
-// panel. Storage and page navigation come next.
-const PAGE_SIZE = "A5";
-const ORIENTATION = "portrait";
-const MARGIN = DEFAULT_MARGIN_MM;
 const DESK_PADDING = 24;
 /** Panel margins plus the width below which Excalidraw falls into its mobile layout. */
 const MIN_PANEL_WIDTH = 730 + 12;
@@ -36,11 +31,8 @@ function storeWidth(width: number): void {
 }
 
 export function App() {
-  const [columns, setColumns] = useState<string[]>([""]);
-  const [divider, setDivider] = useState<number | null>(null);
+  const session = useNotebookSession();
   const [clear, setClear] = useState(false);
-  // Excalidraw owns the grid toggle; the shell only remembers the last value.
-  const [gridEnabled, setGridEnabled] = useState(true);
   const [panelOpen, setPanelOpen] = useState(true);
   const [panelWidth, setPanelWidth] = useState(
     () => readStoredWidth() ?? Math.round(window.innerWidth * 0.55),
@@ -49,7 +41,17 @@ export function App() {
   const [canvasSnapshot, setCanvasSnapshot] = useState<CanvasContent>();
   const [deskRef, desk] = useElementSize<HTMLElement>();
 
-  const geometry = pageGeometry(PAGE_SIZE, ORIENTATION);
+  const handleWidth = useCallback((width: number) => {
+    setPanelWidth(width);
+    storeWidth(width);
+  }, []);
+
+  if (!session) {
+    return <div className="loading">Opening notebook…</div>;
+  }
+
+  const { notebook, pages, index, page } = session;
+  const geometry = pageGeometry(notebook.pageSize, notebook.orientation);
   const fit = desk
     ? fitPage(geometry, {
         width: desk.width - 2 * DESK_PADDING,
@@ -58,16 +60,9 @@ export function App() {
     : null;
 
   const toggleDivider = () => {
-    const next =
-      divider === null ? defaultDivider(pageMm(PAGE_SIZE, ORIENTATION).width, MARGIN) : null;
-    setColumns((current) => columnsForDivider(current, next));
-    setDivider(next);
+    const width = pageMm(notebook.pageSize, notebook.orientation).width;
+    void session.setDivider(page.divider === null ? defaultDivider(width, page.margin) : null);
   };
-
-  const handleWidth = useCallback((width: number) => {
-    setPanelWidth(width);
-    storeWidth(width);
-  }, []);
 
   return (
     <SplitView
@@ -81,10 +76,36 @@ export function App() {
           <header className="app-header">
             <span className="wordmark">typestill</span>
             <span className="meta">
-              {PAGE_SIZE} · {ORIENTATION}
+              {notebook.name} · {notebook.pageSize} · {notebook.orientation}
             </span>
+            <nav className="page-nav" aria-label="Pages">
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => session.goTo(index - 1)}
+                disabled={index === 0}
+                title="Previous page"
+              >
+                ‹
+              </button>
+              <span className="page-nav__label">
+                {index + 1} / {pages.length}
+              </span>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => session.goTo(index + 1)}
+                disabled={index === pages.length - 1}
+                title="Next page"
+              >
+                ›
+              </button>
+              <button type="button" onClick={() => void session.newPage()} title="New page">
+                + Page
+              </button>
+            </nav>
             <div className="app-header__actions">
-              <button type="button" onClick={toggleDivider} aria-pressed={divider !== null}>
+              <button type="button" onClick={toggleDivider} aria-pressed={page.divider !== null}>
                 Two columns
               </button>
               <button type="button" onClick={() => setClear((c) => !c)} aria-pressed={clear}>
@@ -125,14 +146,15 @@ export function App() {
           <main className="desk" ref={deskRef}>
             {fit && (
               <TextPage
-                size={PAGE_SIZE}
-                orientation={ORIENTATION}
+                key={page.id}
+                size={notebook.pageSize}
+                orientation={notebook.orientation}
                 zoom={fit.zoom}
-                margin={MARGIN}
-                columns={columns}
-                divider={divider}
+                margin={page.margin}
+                columns={page.columns}
+                divider={page.divider}
                 clear={clear}
-                onChange={setColumns}
+                onChange={session.setColumns}
               />
             )}
           </main>
@@ -141,9 +163,12 @@ export function App() {
       panel={
         <Panel label="Canvas">
           <Canvas
-            initial={canvasSnapshot}
-            initialGridEnabled={gridEnabled}
-            onGridChange={setGridEnabled}
+            initial={canvasSnapshot ?? { elements: session.canvas.elements, files: session.files }}
+            initialGridEnabled={session.canvas.gridEnabled}
+            view={session.restoreView}
+            onChange={session.onCanvasChange}
+            onViewChange={session.onCanvasViewChange}
+            onGridChange={session.onGridChange}
             onUnmount={setCanvasSnapshot}
           />
         </Panel>

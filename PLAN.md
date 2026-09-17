@@ -86,6 +86,7 @@ Notebook {
   name: string
   createdAt: number
   lastOpenedAt: number
+  lastPageId: string | null            // the page the notebook opens at
   pageSize: "A5" | "A4" | "Letter"
   orientation: "portrait" | "landscape"
   defaults: {
