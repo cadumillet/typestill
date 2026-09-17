@@ -1,0 +1,101 @@
+/* A lined text page. Sizes come from custom properties set by TextPage. */
+
+.text-page {
+  position: relative;
+  box-sizing: border-box;
+  background: var(--paper, #fff);
+  border: 1px solid #e6e4de;
+  border-radius: 12px;
+  overflow: hidden;
+  font-family: "Excalifont", "Segoe Print", "Comic Sans MS", cursive;
+}
+
+/* Stacking: paper marks 0, text 1, labels 2. */
+
+/* Margin line, full height. */
+.text-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(var(--margin, #f0b4b4), var(--margin, #f0b4b4)) no-repeat;
+  background-size: 1px 100%;
+  background-position: var(--margin-left) 0;
+}
+
+/* Rules: one line at the top of each tile, starting at the first rule. */
+.text-page::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--rule-top);
+  height: var(--rules-height);
+  z-index: 0;
+  pointer-events: none;
+  background-image: linear-gradient(to bottom, var(--rule, #c7d3e3) 0 1px, transparent 1px);
+  background-size: 100% var(--rule-pitch);
+}
+
+.text-page__divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 0;
+  width: 1px;
+  background: var(--divider, #dedede);
+  pointer-events: none;
+}
+
+.text-page.is-preview::before,
+.text-page.is-preview::after,
+.text-page.is-preview .text-page__divider {
+  display: none;
+}
+
+.text-page__column,
+.text-page__mirror {
+  position: absolute;
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font: inherit;
+  font-size: var(--font-size);
+  line-height: var(--rule-pitch);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.text-page__column {
+  z-index: 1;
+  outline: none;
+  overflow: hidden;
+  background: transparent;
+  color: var(--ink, #26241f);
+  caret-color: var(--ink, #26241f);
+  cursor: text;
+}
+
+.text-page__column.is-readonly {
+  cursor: default;
+}
+
+/* Same layout as a column, used to measure how many lines a candidate text would take. */
+.text-page__mirror {
+  visibility: hidden;
+  pointer-events: none;
+  height: auto;
+}
+
+.text-page__full {
+  position: absolute;
+  z-index: 2;
+  bottom: 8px;
+  text-align: right;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px;
+  color: #c0504d;
+  pointer-events: none;
+}

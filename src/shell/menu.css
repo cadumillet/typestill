@@ -1,0 +1,20 @@
+.menu__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 170px;
+}
+
+.menu__item {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+}
+
+.menu__item:hover {
+  background: #f1efe9;
+}

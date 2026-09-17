@@ -1,88 +1,205 @@
-import { useMemo, useState, type CSSProperties } from "react";
-import { PageCanvas } from "./page/PageCanvas";
-import {
-  DOT_PITCH_MM,
-  GRID_PITCH_MM,
-  MARGIN_LEFT_MM,
-  RULE_PITCH_MM,
-  RULE_TOP_MM,
-  fitPage,
-  mmToCssPx,
-  pageGeometry,
-  type Paper,
-} from "./page/paper";
+import { useCallback, useRef, useState } from "react";
+import { Canvas, type CanvasContent } from "./canvas/Canvas";
+import { PageSettings } from "./notebook/PageSettings";
+import { SettingsDialog } from "./notebook/SettingsDialog";
+import { useNotebookSession } from "./notebook/useNotebookSession";
+import { TextPage } from "./page/TextPage";
+import { defaultDivider, fitPage, pageGeometry, pageMm } from "./page/paper";
 import { useElementSize } from "./page/useElementSize";
+import { IconButton } from "./shell/IconButton";
+import { Menu } from "./shell/Menu";
+import { Panel } from "./shell/Panel";
+import { SplitView } from "./shell/SplitView";
+import { ChevronLeft, ChevronRight, Dots, Eye, NewPage, SidePanel } from "./shell/icons";
 
-// Phase 0 spike: a single hardcoded page.
-const PAGE_SIZE = "A5";
-const ORIENTATION = "portrait";
+const DESK_PADDING = 24;
+/** Panel margins plus the width below which Excalidraw falls into its mobile layout. */
+const MIN_PANEL_WIDTH = 730 + 12;
+const MIN_MAIN_WIDTH = 360;
+const PANEL_STORAGE_KEY = "typestill.panel.width";
 
-// Space kept free around the page for Excalidraw's floating UI: toolbar on top,
-// undo/redo at the bottom, properties panel on the left.
-const INSET = { top: 88, right: 48, bottom: 64, left: 48 };
+function readStoredWidth(): number | null {
+  try {
+    const value = Number(localStorage.getItem(PANEL_STORAGE_KEY));
+    return Number.isFinite(value) && value > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeWidth(width: number): void {
+  try {
+    localStorage.setItem(PANEL_STORAGE_KEY, String(Math.round(width)));
+  } catch {
+    // Browser storage is a convenience only.
+  }
+}
 
 export function App() {
-  const [paper, setPaper] = useState<Paper>("lined");
-  const geometry = useMemo(() => pageGeometry(PAGE_SIZE, ORIENTATION), []);
+  const session = useNotebookSession();
+  const [preview, setPreview] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelWidth, setPanelWidth] = useState(
+    () => readStoredWidth() ?? Math.round(window.innerWidth * 0.55),
+  );
+  // The drawing survives the panel closing: the editor hands it back on unmount. The
+  // snapshot is tagged with the load it belongs to, so a restored notebook starts fresh.
+  const [canvasSnapshot, setCanvasSnapshot] = useState<{
+    loadId: number;
+    content: CanvasContent;
+  }>();
   const [deskRef, desk] = useElementSize<HTMLElement>();
+  const fileInput = useRef<HTMLInputElement>(null);
 
-  const layout = useMemo(() => {
-    if (!desk) return null;
-    const inner = {
-      width: desk.width - INSET.left - INSET.right,
-      height: desk.height - INSET.top - INSET.bottom,
-    };
-    if (inner.width < 50 || inner.height < 50) return null;
-    const fit = fitPage(geometry, inner);
-    return {
-      ...fit,
-      left: Math.round(INSET.left + (inner.width - fit.width) / 2),
-      top: Math.round(INSET.top + (inner.height - fit.height) / 2),
-    };
-  }, [desk, geometry]);
+  const handleWidth = useCallback((width: number) => {
+    setPanelWidth(width);
+    storeWidth(width);
+  }, []);
 
-  const pageStyle = layout
-    ? ({
-        left: layout.left,
-        top: layout.top,
-        width: layout.width,
-        height: layout.height,
-        "--rule-pitch": `${mmToCssPx(RULE_PITCH_MM, layout.zoom)}px`,
-        "--rule-top": `${mmToCssPx(RULE_TOP_MM, layout.zoom)}px`,
-        "--dot-pitch": `${mmToCssPx(DOT_PITCH_MM, layout.zoom)}px`,
-        "--grid-pitch": `${mmToCssPx(GRID_PITCH_MM, layout.zoom)}px`,
-        "--margin-left": `${mmToCssPx(MARGIN_LEFT_MM, layout.zoom)}px`,
-      } as CSSProperties)
-    : undefined;
+  if (!session) {
+    return <div className="loading">Opening notebook…</div>;
+  }
+
+  const { notebook, pages, index, page } = session;
+  const geometry = pageGeometry(notebook.pageSize, notebook.orientation);
+  const fit = desk
+    ? fitPage(geometry, {
+        width: desk.width - 2 * DESK_PADDING,
+        height: desk.height - 2 * DESK_PADDING,
+      })
+    : null;
+
+  const openBackup = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      await session.restoreBackup(file);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Could not open the backup.");
+    }
+  };
+
+  const setTwoColumns = (enabled: boolean) => {
+    const width = pageMm(notebook.pageSize, notebook.orientation).width;
+    void session.setDivider(enabled ? defaultDivider(width, page.margin) : null);
+  };
 
   return (
-    <div className="app">
-      <header className="app-header">
-        <span className="wordmark">typestill</span>
-        <span className="meta">
-          {PAGE_SIZE} · {ORIENTATION}
-        </span>
-        <label className="paper-picker">
-          Paper
-          <select value={paper} onChange={(event) => setPaper(event.target.value as Paper)}>
-            <option value="blank">Blank</option>
-            <option value="lined">Lined</option>
-            <option value="dotted">Dotted</option>
-            <option value="grid">Grid</option>
-          </select>
-        </label>
-      </header>
-      <main className="desk" ref={deskRef}>
-        {layout && (
-          <>
-            <div className={`page paper-${paper}`} style={pageStyle} aria-hidden="true" />
-            <PageCanvas
-              zoom={layout.zoom}
-              box={{ x: layout.left, y: layout.top, width: layout.width, height: layout.height }}
-            />
-          </>
-        )}
-      </main>
-    </div>
+    <SplitView
+      panelOpen={panelOpen}
+      panelWidth={panelWidth}
+      onPanelWidthChange={handleWidth}
+      minMain={MIN_MAIN_WIDTH}
+      minPanel={MIN_PANEL_WIDTH}
+      main={
+        <>
+          <header className="app-header">
+            <span className="wordmark">typestill</span>
+            <nav className="page-nav" aria-label="Pages">
+              <IconButton
+                label="Previous page"
+                onClick={() => session.goTo(index - 1)}
+                disabled={index === 0}
+              >
+                <ChevronLeft />
+              </IconButton>
+              <span className="page-nav__label">
+                {index + 1} / {pages.length}
+              </span>
+              <IconButton
+                label="Next page"
+                onClick={() => session.goTo(index + 1)}
+                disabled={index === pages.length - 1}
+              >
+                <ChevronRight />
+              </IconButton>
+              <IconButton label="New page" onClick={() => void session.newPage()}>
+                <NewPage />
+              </IconButton>
+            </nav>
+            <span className="meta">{notebook.name}</span>
+            <div className="app-header__actions">
+              <PageSettings
+                page={page}
+                number={index + 1}
+                count={pages.length}
+                twoColumns={page.divider !== null}
+                onTwoColumnsChange={setTwoColumns}
+              />
+              <Menu
+                label="Notebook"
+                items={[
+                  { label: "Settings…", onSelect: () => setSettingsOpen(true) },
+                  { label: "Download backup", onSelect: () => void session.downloadBackup() },
+                  { label: "Open backup…", onSelect: () => fileInput.current?.click() },
+                ]}
+              >
+                <Dots />
+              </Menu>
+              <input
+                ref={fileInput}
+                type="file"
+                accept=".json,application/json"
+                hidden
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  void openBackup(file);
+                }}
+              />
+              <IconButton label="Preview" pressed={preview} onClick={() => setPreview((p) => !p)}>
+                <Eye />
+              </IconButton>
+              <IconButton
+                label={panelOpen ? "Hide canvas" : "Show canvas"}
+                pressed={panelOpen}
+                onClick={() => setPanelOpen((open) => !open)}
+              >
+                <SidePanel />
+              </IconButton>
+            </div>
+          </header>
+          <SettingsDialog
+            open={settingsOpen}
+            notebook={notebook}
+            onSave={session.updateSettings}
+            onClose={() => setSettingsOpen(false)}
+          />
+          <main className="desk" ref={deskRef}>
+            {fit && (
+              <TextPage
+                key={page.id}
+                size={notebook.pageSize}
+                orientation={notebook.orientation}
+                zoom={fit.zoom}
+                margin={page.margin}
+                columns={page.columns}
+                divider={page.divider}
+                preview={preview}
+                onChange={session.setColumns}
+              />
+            )}
+          </main>
+        </>
+      }
+      panel={
+        <Panel label="Canvas">
+          <Canvas
+            key={session.loadId}
+            initial={
+              canvasSnapshot?.loadId === session.loadId
+                ? canvasSnapshot.content
+                : { elements: session.canvas.elements, files: session.files }
+            }
+            initialGridEnabled={session.canvas.gridEnabled}
+            view={session.restoreView}
+            onChange={(content) => session.onCanvasChange(content, session.loadId)}
+            onViewChange={(view) => session.onCanvasViewChange(view, session.loadId)}
+            onGridChange={session.onGridChange}
+            onUnmount={(content) => setCanvasSnapshot({ loadId: session.loadId, content })}
+          />
+        </Panel>
+      }
+    />
   );
 }

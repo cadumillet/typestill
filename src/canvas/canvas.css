@@ -1,0 +1,23 @@
+/*
+ * The canvas pane and overrides for the embedded Excalidraw editor. Excalidraw's UIOptions
+ * cannot hide individual toolbar tools or the floating chrome, so it is done here.
+ * Keyboard shortcuts for hidden tools still work.
+ */
+
+.canvas {
+  position: absolute;
+  inset: 0;
+}
+
+/* Tools that don't belong in a notebook. Image stays enabled (paste needs it), only its button goes. */
+.canvas .ToolIcon:has(input[data-testid="toolbar-lock"]),
+.canvas .ToolIcon:has(input[data-testid="toolbar-diamond"]),
+.canvas .ToolIcon:has(input[data-testid="toolbar-image"]),
+.canvas .App-toolbar__extra-tools-trigger,
+.canvas .App-toolbar__divider,
+/* Main menu (scene files, theme, background): nothing in it applies. */
+.canvas .main-menu-trigger,
+/* Library sidebar. */
+.canvas .default-sidebar-trigger {
+  display: none !important;
+}
