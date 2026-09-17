@@ -4,7 +4,7 @@ A commonplace notebook built on top of Excalidraw.
 
 The idea: a notebook where each side has its own character. On the left, fixed-size lined pages you write on like a simple note editor, in Excalidraw's handwriting font, always on the lines. On the right, one infinite Excalidraw canvas per notebook for drawings, diagrams and images, with an optional grid that snaps. Pages remember where they left the canvas, so each page opens next to its own part of the drawing. No productivity-app machinery.
 
-Status (2026-09-17): Phase 1 is complete. On `main`: the store, the page editor, the canvas panel and split view, storage wiring with autosave and per-page canvas views, backup download and restore, notebook settings. On `claude/phase-1-rail`: the left rail and the bare notebook switcher. Next is Phase 2, starting with text formatting. Text formatting is specified for Phase 2 (sections 2 and 5). Visual refinement is deliberately left for the end; the page's paper look should be settled before export work starts.
+Status (2026-09-17): Phase 1 is complete and on `main`: the store, the page editor, the canvas panel and split view, storage wiring with autosave and per-page canvas views, backup download and restore, notebook settings, the left rail and the bare notebook switcher. Next is Phase 2, starting with text formatting, then the notebook cover. Text formatting is specified for Phase 2 (sections 2 and 5). Visual refinement is deliberately left for the end; the page's paper look should be settled before export work starts.
 
 ---
 
@@ -25,6 +25,7 @@ Status (2026-09-17): Phase 1 is complete. On `main`: the store, the page editor,
 - A simple shelf screen on launch (name, page count, last opened). Notebooks are created, renamed and deleted only from the shelf.
 - Inside a notebook there is a switcher in the header.
 - A notebook has many pages and exactly one canvas.
+- Every notebook has a cover: a colour from a small palette, an optional emoji or initial, the name, and an optional subtitle. The cover is what the notebook looks like when closed: the card on the shelf, and a small swatch next to the name in the switcher and the app bar. It is set in notebook settings. Image covers are not planned.
 
 ### Layout: the split view
 - The text column on the left is the app. Its bar holds the page navigation (previous, next, new page) on the left, the notebook name in the middle, and on the right: page settings, the notebook menu (settings, backup), preview and the canvas panel toggle. Controls are icon buttons with a hover tooltip showing the label and, once one exists, the keyboard shortcut.
@@ -89,6 +90,7 @@ Notebook {
   createdAt: number
   lastOpenedAt: number
   lastPageId: string | null            // the page the notebook opens at
+  cover: { color: string, emoji: string | null, subtitle: string | null }
   pageSize: "A5" | "A4" | "Letter"
   orientation: "portrait" | "landscape"
   defaults: {
@@ -186,6 +188,7 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 
 ### Phase 2: notebook feel
 - Text formatting: bold, italic, colour, alignment; the page editor moves onto ProseMirror (section 5)
+- Notebook cover: colour, optional emoji and subtitle, set in notebook settings; shown as a swatch in the switcher and the app bar (the shelf renders it as a card in Phase 3)
 - Divider drag and inheritance polish (two columns exist since Phase 1)
 - Tags: create, assign, color; rail coloring and filtering
 - Hover thumbnails in the rail
@@ -200,14 +203,14 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - PNG export (current page, canvas)
 - Delete page with confirm
 - Keyboard shortcuts for page navigation
-- Proper shelf screen
+- Proper shelf screen, notebooks shown as their covers
 - First-run onboarding
 
 ### Later, not now
 - Images on text pages, with the text wrapping around them on the rule grid. Feasible: floats placed at the start of a column with a top margin sit at fixed lines regardless of the text, and the text flows around them. Needs the page editor to move from a text area to a plain-text contenteditable, since a text area cannot wrap around anything. See the assessment of 2026-09-17 in the decisions log.
 - Cursor alternatives for pages: highlighting the active rule, or only the piece of rule under the next character, instead of a caret. Tried on 2026-09-17, not adopted for now.
 - Tag-based links between pages and canvas areas
-- Multiple notebooks polish (sorting, covers)
+- Multiple notebooks polish (sorting)
 - Sync
 - Collaboration
 - Mobile / tablet
@@ -230,6 +233,7 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - "Two columns" lives in page settings, with the page's metadata.
 - The page has a thin border and rounded corners and no shadow, like the canvas panel.
 - Visual and branding refinement is deferred to the end; the control layout is settled when the rail arrives, and the paper look before export.
+- Notebook cover added to scope (2026-09-17): colour, optional emoji or initial, and subtitle, stored on the notebook and included in backups. Data and settings in Phase 2, the shelf card in Phase 3. Its exact look is part of the visual pass at the end.
 - The divider snaps to 10mm steps and defaults to the midpoint of the writable area. The margin line offset is a notebook default, adjustable per page.
 - The caret is drawn by the shell, centred between rules, because a native text caret spans the whole line box and straddles the rule. Known issue: in the user's Chrome the caret still appears to cross the rule below it, while the built-in browser shows it centred; to be investigated in that Chrome directly.
 - The left rail sits under the app bar, to the left of the desk, with its first square aligned to the top of the page. The list scrolls on its own and keeps the open page's square in view; the hover label (and later the hover preview) floats beside the rail rather than inside the scrolling list, so it is never clipped.
