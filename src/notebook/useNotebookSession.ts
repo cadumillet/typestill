@@ -12,7 +12,7 @@ import {
   type Page,
 } from "../store/model";
 import {
-  createNotebook,
+  createNotebook as createNotebookRecord,
   createPage,
   exportNotebook,
   getCanvas,
@@ -29,11 +29,14 @@ import {
   touchNotebook,
   updateNotebookSettings,
   updatePage,
+  type NotebookSummary,
 } from "../store/notebooks";
 import { downloadText } from "./files";
 
 export interface NotebookSession {
   notebook: Notebook;
+  /** Every notebook in storage, most recently opened first. Refreshed when one is opened. */
+  notebooks: NotebookSummary[];
   pages: Page[];
   index: number;
   page: Page;
@@ -52,6 +55,10 @@ export interface NotebookSession {
   onCanvasChange: (content: CanvasContent, loadId: number) => void;
   onCanvasViewChange: (view: CanvasView, loadId: number) => void;
   onGridChange: (enabled: boolean) => void;
+  /** Saves everything pending, then opens another notebook at its remembered page. */
+  openNotebook: (id: string) => Promise<void>;
+  /** Creates a notebook with one empty page and opens it. */
+  createNotebook: (name: string) => Promise<void>;
   /** Page size and orientation, applied to every page. */
   updateSettings: (settings: Pick<Notebook, "pageSize" | "orientation">) => Promise<void>;
   /** Saves everything pending, then offers the notebook as a backup file. */
@@ -66,6 +73,7 @@ export interface NotebookSession {
 interface Loaded {
   loadId: number;
   notebook: Notebook;
+  notebooks: NotebookSummary[];
   pages: Page[];
   index: number;
   canvas: Canvas;
@@ -143,6 +151,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
       ]);
       if (!notebook) throw new Error(`Notebook ${notebookId} not found`);
       await touchNotebook(db, notebookId);
+      const notebooks = await listNotebooks(db);
       const remembered = pages.findIndex((page) => page.id === notebook.lastPageId);
       const index = remembered >= 0 ? remembered : pages.length - 1;
       canvasSaver.current = createAutosave<CanvasContent>({
@@ -156,6 +165,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
       setState({
         loadId: loads.current,
         notebook,
+        notebooks,
         pages,
         index,
         canvas,
@@ -173,7 +183,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
       const list = await listNotebooks(db);
       if (cancelled) return;
       const notebookId =
-        list[0]?.id ?? (await createNotebook(db, { name: "Notebook" })).notebook.id;
+        list[0]?.id ?? (await createNotebookRecord(db, { name: "Notebook" })).notebook.id;
       if (cancelled) return;
       await load(notebookId);
     })().catch(report);
@@ -280,6 +290,24 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     [db, state],
   );
 
+  const openNotebook = useCallback(
+    async (id: string) => {
+      if (!state || id === state.notebook.id) return;
+      await detach();
+      await load(id);
+    },
+    [state, detach, load],
+  );
+
+  const createNotebook = useCallback(
+    async (name: string) => {
+      await detach();
+      const { notebook } = await createNotebookRecord(db, { name });
+      await load(notebook.id);
+    },
+    [db, detach, load],
+  );
+
   const updateSettings = useCallback(
     async (settings: Pick<Notebook, "pageSize" | "orientation">) => {
       if (!state) return;
@@ -332,6 +360,8 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     onCanvasChange,
     onCanvasViewChange,
     onGridChange,
+    openNotebook,
+    createNotebook,
     updateSettings,
     downloadBackup,
     restoreBackup,

@@ -118,16 +118,17 @@ button[aria-pressed="true"] {
   letter-spacing: 0.02em;
 }
 
-.meta {
-  color: var(--muted);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* Below the app bar: the page rail on the left and the desk with the page. */
+.workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
 }
 
 .desk {
   position: relative;
   flex: 1;
+  min-width: 0;
   min-height: 0;
   display: flex;
   align-items: center;

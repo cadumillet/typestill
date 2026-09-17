@@ -7,10 +7,12 @@ export interface PopoverProps {
   children: ReactNode;
   /** Which edge of the trigger the popover aligns to. */
   align?: "left" | "right";
+  /** Extra class for the wrapper, for placing it in a layout. */
+  className?: string;
 }
 
 /** A trigger with a floating panel below it. Closes on outside click or Escape. */
-export function Popover({ trigger, children, align = "right" }: PopoverProps) {
+export function Popover({ trigger, children, align = "right", className }: PopoverProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const id = useId();
@@ -32,7 +34,7 @@ export function Popover({ trigger, children, align = "right" }: PopoverProps) {
   }, [open]);
 
   return (
-    <div className="popover" ref={ref}>
+    <div className={["popover", className].filter(Boolean).join(" ")} ref={ref}>
       {trigger({ open, toggle: () => setOpen((o) => !o), controls: id })}
       {open && (
         <div className={`popover__panel popover__panel--${align}`} id={id}>
