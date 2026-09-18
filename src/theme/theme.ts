@@ -3,6 +3,8 @@
 // Every notebook references one theme by id. Built-in themes are code (themes.ts);
 // custom themes, stored with the notebook, come later.
 
+import type { Tint } from "../page/document";
+
 export type RuleStyle = "lines" | "dots" | "none";
 
 export interface Font {
@@ -53,6 +55,8 @@ export interface Theme {
     margin: string;
     divider: string;
   };
+  /** The highlight tints' colours on this paper: multiplied over light paper, translucent over dark. */
+  highlights: Record<Tint, string>;
   page: {
     border: boolean;
     cornerMm: number;

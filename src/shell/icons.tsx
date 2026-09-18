@@ -105,6 +105,13 @@ export const Italic = () => (
   </svg>
 );
 
+/** A marker pen: a slanted body with a chisel tip and a stroke under it. */
+export const Highlighter = () => (
+  <svg {...base}>
+    <path d="M10.5 3.5l4 4-6.5 6.5H5.5l-1.5-1.5v-2.5zM8.5 5.5l4 4M3 15.5h12" />
+  </svg>
+);
+
 export const AlignLeft = () => (
   <svg {...base}>
     <path d="M3 4.5h12M3 9h7M3 13.5h12" />

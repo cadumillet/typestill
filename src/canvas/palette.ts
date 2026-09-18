@@ -3,6 +3,8 @@
 // them as the first row of its stroke colour picker; the page's format bar shows the same
 // swatches, so text and drawings use the same handful of colours.
 
+import { type Tint } from "../page/document";
+
 export interface InkColor {
   name: string;
   /** CSS colour, or null for the page's default ink. */
@@ -15,6 +17,26 @@ export const INK_COLORS: readonly InkColor[] = [
   { name: "Green", value: "#2f9e44" },
   { name: "Blue", value: "#1971c2" },
   { name: "Yellow", value: "#f08c00" },
+];
+
+/**
+ * The highlight tints' colours on white paper: Excalidraw's element background picks
+ * (open-color shade 2), with the palette's pink at the same shade in place of red. Each
+ * theme maps the tints to its own paper; these are the light-paper values.
+ */
+export const HIGHLIGHT_COLORS: Record<Tint, string> = {
+  yellow: "#ffec99",
+  green: "#b2f2bb",
+  blue: "#a5d8ff",
+  pink: "#fcc2d7",
+};
+
+/** The tints as shown in the format bar, with their names. */
+export const HIGHLIGHT_TINTS: readonly { tint: Tint; name: string }[] = [
+  { tint: "yellow", name: "Yellow" },
+  { tint: "green", name: "Green" },
+  { tint: "blue", name: "Blue" },
+  { tint: "pink", name: "Pink" },
 ];
 
 /**

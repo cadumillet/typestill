@@ -82,6 +82,7 @@ describe("isEditorDocument", () => {
               { type: "text", text: "a", marks: [{ type: "bold" }, { type: "italic" }] },
               { type: "hard_break", marks: [{ type: "bold" }] },
               { type: "text", text: "b", marks: [{ type: "color", attrs: { color: "#1971c2" } }] },
+              { type: "text", text: "c", marks: [{ type: "highlight", attrs: { tint: "green" } }] },
             ],
           },
         ],
@@ -118,6 +119,23 @@ describe("isEditorDocument", () => {
         ],
       }),
     ).toBe(false);
+    for (const marks of [
+      [{ type: "highlight" }],
+      [{ type: "highlight", attrs: { tint: "red" } }],
+    ]) {
+      expect(
+        isEditorDocument({
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              attrs: { align: "left" },
+              content: [{ type: "text", text: "a", marks }],
+            },
+          ],
+        }),
+      ).toBe(false);
+    }
     expect(isColumn({ text: "x" })).toBe(false);
     expect(isColumn({ doc: documentFromText("x") })).toBe(false);
   });
