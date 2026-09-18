@@ -4,9 +4,11 @@
 
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData } from "@excalidraw/excalidraw/types";
+import type { Cover } from "../notebook/cover";
 import { columnFromDocument, columnFromText, joinDocuments, type Column } from "../page/document";
 import { DEFAULT_MARGIN_MM, type Orientation, type PageSize } from "../page/paper";
 
+export type { Cover } from "../notebook/cover";
 export type { Column } from "../page/document";
 
 export interface Tag {
@@ -32,6 +34,8 @@ export interface Notebook {
   lastOpenedAt: number;
   /** The page the notebook opens at: the one last shown. */
   lastPageId: string | null;
+  /** How the notebook looks when closed: the swatch in the bar and the shelf card. */
+  cover: Cover;
   pageSize: PageSize;
   orientation: Orientation;
   defaults: NotebookDefaults;

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_COVER } from "../notebook/cover";
 import { columnFromText, documentFromText, type EditorDocument } from "../page/document";
 import {
   BACKUP_VERSION,
@@ -31,6 +32,7 @@ const doc: NotebookDocument = {
   createdAt: 10,
   lastOpenedAt: 20,
   lastPageId: "p1",
+  cover: { color: "#2f5b9e", emoji: "🧭", subtitle: "Field notes, spring" },
   pageSize: "A5",
   orientation: "portrait",
   defaults: { showDate: true, showPageNumber: true, margin: 20, divider: null },
@@ -149,18 +151,29 @@ describe("backup", () => {
     expect(() => parseBackup(JSON.stringify(badCanvas))).toThrow(/canvas/);
   });
 
-  it("fills lastOpenedAt, the grid flag and margins when missing", () => {
+  it("fills lastOpenedAt, the grid flag, margins and the cover when missing", () => {
     const raw = JSON.parse(serializeBackup(doc));
+    raw.version = 2;
     delete raw.notebook.lastOpenedAt;
     delete raw.notebook.lastPageId;
     delete raw.notebook.canvas.gridEnabled;
     delete raw.notebook.defaults.margin;
     delete raw.notebook.pages[0].margin;
+    delete raw.notebook.cover;
     const parsed = parseBackup(JSON.stringify(raw));
     expect(parsed.lastOpenedAt).toBe(10);
     expect(parsed.lastPageId).toBeNull();
     expect(parsed.canvas.gridEnabled).toBe(true);
     expect(parsed.defaults.margin).toBe(20);
     expect(parsed.pages[0].margin).toBe(20);
+    expect(parsed.cover).toEqual(DEFAULT_COVER);
+  });
+
+  it("rejects a malformed cover", () => {
+    for (const cover of [null, "red", { color: "" }, { color: "#fff", emoji: 3, subtitle: null }]) {
+      const raw = JSON.parse(serializeBackup(doc));
+      raw.notebook.cover = cover;
+      expect(() => parseBackup(JSON.stringify(raw))).toThrow(/cover/);
+    }
   });
 });

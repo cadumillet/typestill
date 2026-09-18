@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable, type Table } from "dexie";
+import { DEFAULT_COVER } from "../notebook/cover";
 import { columnFromText } from "../page/document";
 import type { Canvas, Notebook, NotebookFile, Page } from "./model";
 
@@ -29,6 +30,17 @@ export class TypestillDb extends Dexie {
             page.columns = page.columns.map((column) =>
               typeof column === "string" ? columnFromText(column) : column,
             );
+          }),
+      );
+    // Version 3: notebooks got a cover. Existing ones get the default.
+    this.version(3)
+      .stores(stores)
+      .upgrade((tx) =>
+        tx
+          .table("notebooks")
+          .toCollection()
+          .modify((notebook: { cover?: unknown }) => {
+            notebook.cover ??= { ...DEFAULT_COVER };
           }),
       );
   }
