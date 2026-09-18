@@ -109,3 +109,18 @@ export const AlignRight = () => (
     <path d="M3 4.5h12M8 9h7M3 13.5h12" />
   </svg>
 );
+
+export const Images = () => (
+  <svg {...base}>
+    <rect x="2.5" y="3.5" width="13" height="11" rx="2" />
+    <circle cx="6.5" cy="7.5" r="1.25" />
+    <path d="M2.5 12.5l4-3.5 3 2.5 2.5-2 3.5 3" />
+  </svg>
+);
+
+export const Pencil = () => (
+  <svg {...base}>
+    <path d="M11.5 3.5l3 3-8 8H3.5v-3z" />
+    <path d="M10 5l3 3" />
+  </svg>
+);

@@ -8,6 +8,7 @@ import {
   type DragEvent,
 } from "react";
 import { imageFilesOf } from "../notebook/images";
+import { POOL_DRAG_TYPE } from "../notebook/pool";
 import { Column } from "./Column";
 import type { Column as ColumnValue } from "./document";
 import { FormatBar } from "./FormatBar";
@@ -36,8 +37,13 @@ export interface ZinePageProps {
   preview?: boolean;
   readOnly?: boolean;
   onChange?: (zine: Zine) => void;
-  /** Image files dropped, pasted or picked for a cell. */
-  onAddImages?: (cell: number, files: File[]) => void;
+  /** Image files dropped, pasted or picked; null when pasted with every cell full. */
+  onAddImages?: (cell: number | null, files: File[]) => void;
+  /** An image dragged from the media pool onto a cell. */
+  onPlaceFile?: (cell: number, fileId: string) => void;
+  /** The cell chosen by clicking it: where a paste, or a click in the pool, lands. */
+  selectedCell?: number | null;
+  onSelectCell?: (cell: number | null) => void;
 }
 
 /** Text blocks are the columns of a zine page: 0 below the media, 1 beside it. */
@@ -60,6 +66,9 @@ export function ZinePage({
   readOnly = false,
   onChange,
   onAddImages,
+  onPlaceFile,
+  selectedCell = null,
+  onSelectCell,
 }: ZinePageProps) {
   const mm = pageMm(size, orientation);
   const px = (value: number) => mmToCssPx(value, zoom);
@@ -67,8 +76,6 @@ export function ZinePage({
   const page = useRef<HTMLDivElement>(null);
   const bar = useFormatBar(page);
   const [fullBlocks, setFullBlocks] = useState<boolean[]>([]);
-  /** The cell a paste lands in, chosen by clicking it. */
-  const [selectedCell, setSelectedCell] = useState<number | null>(null);
   const locked = preview || readOnly;
 
   const setBlockFull = useCallback((index: number, full: boolean) => {
@@ -132,7 +139,7 @@ export function ZinePage({
       ref={page}
       onPaste={onPaste}
       onPointerDown={(event) => {
-        if (!(event.target as HTMLElement).closest(".zine-cell")) setSelectedCell(null);
+        if (!(event.target as HTMLElement).closest(".zine-cell")) onSelectCell?.(null);
       }}
     >
       {cells.map((box, index) => (
@@ -145,8 +152,9 @@ export function ZinePage({
           locked={locked}
           preview={preview}
           selected={selectedCell === index}
-          onSelect={() => setSelectedCell(index)}
+          onSelect={() => onSelectCell?.(index)}
           onFiles={(dropped) => onAddImages?.(index, dropped)}
+          onPlaceFile={(fileId) => onPlaceFile?.(index, fileId)}
           onFit={(fit) => setImage(index, { ...zine.media.images[index]!, fit })}
           onRemove={() => setImage(index, null)}
         />
@@ -208,6 +216,7 @@ interface ZineCellProps {
   selected: boolean;
   onSelect: () => void;
   onFiles: (files: File[]) => void;
+  onPlaceFile: (fileId: string) => void;
   onFit: (fit: ZineImage["fit"]) => void;
   onRemove: () => void;
 }
@@ -223,15 +232,23 @@ function ZineCell({
   selected,
   onSelect,
   onFiles,
+  onPlaceFile,
   onFit,
   onRemove,
 }: ZineCellProps) {
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
 
+  // Two kinds of drop: image files from outside, or an image from the media pool.
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
     setOver(false);
     if (locked) return;
+    const fileId = event.dataTransfer.getData(POOL_DRAG_TYPE);
+    if (fileId) {
+      event.preventDefault();
+      onPlaceFile(fileId);
+      return;
+    }
     const files = imageFilesOf(event.dataTransfer);
     if (files.length === 0) return;
     event.preventDefault();

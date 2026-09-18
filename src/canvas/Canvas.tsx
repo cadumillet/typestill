@@ -1,12 +1,19 @@
-import { Excalidraw } from "@excalidraw/excalidraw";
-import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import {
+  CaptureUpdateAction,
+  Excalidraw,
+  convertToExcalidrawElements,
+  viewportCoordsToSceneCoords,
+} from "@excalidraw/excalidraw";
+import type { ExcalidrawElement, FileId } from "@excalidraw/excalidraw/element/types";
 import type {
+  BinaryFileData,
   BinaryFiles,
   ExcalidrawImperativeAPI,
   ExcalidrawProps,
   NormalizedZoomValue,
 } from "@excalidraw/excalidraw/types";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, type DragEvent } from "react";
+import { POOL_DRAG_TYPE } from "../notebook/pool";
 import { GRID_PITCH_MM, SCENE_PX_PER_MM } from "../page/paper";
 import type { CanvasView } from "../store/model";
 import "./canvas.css";
@@ -32,6 +39,21 @@ export interface CanvasProps {
   onViewChange?: (view: CanvasView) => void;
   /** Called with the latest drawing when the editor goes away, e.g. when its pane collapses. */
   onUnmount?: (content: CanvasContent) => void;
+  /** Looks up an image of the notebook, for one dragged in from the media pool. */
+  resolveFile?: (id: string) => BinaryFileData | undefined;
+}
+
+/** Widest an image dropped from the pool comes in, in scene px. */
+const DROPPED_IMAGE_MAX = 400;
+
+/** An image's pixel size, read by decoding its data URL. */
+function imageSize(dataURL: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = () => reject(new Error("Could not decode the image"));
+    image.src = dataURL;
+  });
 }
 
 /** Excalidraw's grid cell in scene px. Grid mode snaps to it. */
@@ -68,6 +90,7 @@ export function Canvas({
   onGridChange,
   onViewChange,
   onUnmount,
+  resolveFile,
 }: CanvasProps) {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const latest = useRef<CanvasContent>(initial);
@@ -134,8 +157,50 @@ export function Canvas({
     [onViewChange],
   );
 
+  // An image dragged from the media pool becomes an image element where it is dropped.
+  // Handled in the capture phase so Excalidraw's own drop handler never sees it.
+  const onDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (event.dataTransfer.types.includes(POOL_DRAG_TYPE)) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "copy";
+    }
+  };
+  const onDrop = (event: DragEvent<HTMLDivElement>) => {
+    const fileId = event.dataTransfer.getData(POOL_DRAG_TYPE);
+    const api = apiRef.current;
+    if (!fileId || !api) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const data = resolveFile?.(fileId);
+    if (!data) return;
+    const { clientX, clientY } = event;
+    void imageSize(data.dataURL)
+      .then(({ width, height }) => {
+        const state = api.getAppState();
+        const at = viewportCoordsToSceneCoords({ clientX, clientY }, state);
+        const scale = Math.min(1, DROPPED_IMAGE_MAX / Math.max(width, height));
+        api.addFiles([data]);
+        const inserted = convertToExcalidrawElements([
+          {
+            type: "image",
+            fileId: fileId as FileId,
+            x: at.x - (width * scale) / 2,
+            y: at.y - (height * scale) / 2,
+            width: width * scale,
+            height: height * scale,
+          },
+        ]);
+        api.updateScene({
+          elements: [...api.getSceneElementsIncludingDeleted(), ...inserted],
+          captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+        });
+      })
+      .catch((error: unknown) => console.warn("typestill: could not place image", error));
+  };
+
   return (
-    <div className="canvas">
+    <div className="canvas" onDragOverCapture={onDragOver} onDropCapture={onDrop}>
       <Excalidraw
         excalidrawAPI={handleApi}
         initialData={initialData}

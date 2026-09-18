@@ -71,10 +71,10 @@ export function placeImages(zine: Zine, cell: number, fileIds: readonly string[]
   return { ...zine, media: { ...zine.media, images } };
 }
 
-/** The first empty cell, else the first cell. Where a paste with no cell chosen lands. */
-export function defaultCell(zine: Zine): number {
+/** The first empty cell, or null when every cell is filled. Where a paste with no cell chosen lands. */
+export function defaultCell(zine: Zine): number | null {
   const empty = zine.media.images.indexOf(null);
-  return empty < 0 ? 0 : empty;
+  return empty < 0 ? null : empty;
 }
 
 export function emptyZine(): Zine {

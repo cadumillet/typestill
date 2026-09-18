@@ -48,7 +48,7 @@ describe("zine helpers", () => {
     expect(defaultCell(zine)).toBe(0);
     expect(
       defaultCell({ ...zine, media: { layout: "row", images: [image("a"), image("b")] } }),
-    ).toBe(0);
+    ).toBeNull();
     expect(defaultCell({ ...zine, media: { layout: "row", images: [image("a"), null] } })).toBe(1);
   });
 

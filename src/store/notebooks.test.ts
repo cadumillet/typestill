@@ -6,9 +6,11 @@ import { TypestillDb } from "./db";
 import { element, fileData, imageElement } from "./fixtures";
 import { emptyZine } from "../page/zine";
 import {
+  FileInUseError,
   NotebookExistsError,
   addFile,
   createNotebook,
+  deleteFile,
   createPage,
   deleteNotebook,
   deletePage,
@@ -285,6 +287,11 @@ describe("files", () => {
     });
     await saveCanvasContent(db, notebook.id, [imageElement("img", "f2")], {});
     expect([...(await usedFileIds(db, notebook.id))].sort()).toEqual(["f1", "f2"]);
+    await expect(deleteFile(db, notebook.id, "f1")).rejects.toThrow(FileInUseError);
+    await expect(deleteFile(db, notebook.id, "f2")).rejects.toThrow(/in use/);
+    await deleteFile(db, notebook.id, "f3");
+    expect(await db.files.count()).toBe(2);
+    await addFile(db, notebook.id, fileData("f3"));
     expect(await pruneFiles(db, notebook.id)).toBe(1);
     expect(Object.keys(await loadNotebookFiles(db, notebook.id)).sort()).toEqual(["f1", "f2"]);
   });
