@@ -1,5 +1,6 @@
 import Dexie from "dexie";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { DEFAULT_COVER } from "../notebook/cover";
 import { columnFromText, documentFromText } from "../page/document";
 import { TypestillDb } from "./db";
 import { element, fileData, imageElement } from "./fixtures";
@@ -41,6 +42,7 @@ describe("notebooks", () => {
     const { notebook, firstPage } = await createNotebook(db, { name: "Field notes" });
     expect(notebook.pageSize).toBe("A5");
     expect(notebook.orientation).toBe("portrait");
+    expect(notebook.cover).toEqual(DEFAULT_COVER);
     expect(firstPage.notebookId).toBe(notebook.id);
     expect(firstPage.columns).toEqual([columnFromText("")]);
     expect(firstPage.divider).toBeNull();
@@ -65,6 +67,7 @@ describe("notebooks", () => {
     expect(list.map((n) => n.name)).toEqual(["A", "B"]);
     expect(list[0].pageCount).toBe(2);
     expect(list[1].pageCount).toBe(1);
+    expect(list[0].cover).toEqual(DEFAULT_COVER);
     expect(list[0].lastOpenedAt).toBeGreaterThanOrEqual(b.notebook.lastOpenedAt);
   });
 
@@ -81,6 +84,34 @@ describe("notebooks", () => {
     const stored = await db.notebooks.get(notebook.id);
     expect(stored?.pageSize).toBe("A4");
     expect(stored?.orientation).toBe("landscape");
+  });
+
+  it("creates with a cover and updates it", async () => {
+    const { notebook } = await createNotebook(db, { name: "A", cover: { emoji: "🌿" } });
+    expect(notebook.cover).toEqual({ ...DEFAULT_COVER, emoji: "🌿" });
+    const cover = { color: "#b8342c", emoji: null, subtitle: "Spring" };
+    await updateNotebookSettings(db, notebook.id, { cover });
+    expect((await db.notebooks.get(notebook.id))?.cover).toEqual(cover);
+    expect((await listNotebooks(db))[0].cover).toEqual(cover);
+  });
+
+  it("gives notebooks from version 2 of the database the default cover", async () => {
+    const name = `test-${crypto.randomUUID()}`;
+    const old = new Dexie(name);
+    old.version(2).stores({
+      notebooks: "id, lastOpenedAt",
+      pages: "id, notebookId, [notebookId+createdAt]",
+      canvases: "notebookId",
+      files: "[notebookId+id], notebookId",
+    });
+    await old.table("notebooks").add({ id: "nb", name: "Old", createdAt: 1, lastOpenedAt: 1 });
+    old.close();
+    const upgraded = new TypestillDb(name);
+    try {
+      expect((await upgraded.notebooks.get("nb"))?.cover).toEqual(DEFAULT_COVER);
+    } finally {
+      await upgraded.delete();
+    }
   });
 
   it("deletes a notebook with its pages, canvas and files", async () => {

@@ -1,15 +1,18 @@
 // The backup file: one notebook as JSON, images inlined as data URLs.
 //
-// Versions: 1 had plain-string columns; 2 (text formatting) has { text, doc } columns.
-// Version 1 files are still read, each line break becoming a paragraph boundary.
+// Versions: 1 had plain-string columns; 2 (text formatting) has { text, doc } columns;
+// 3 (notebook cover) adds the cover. Older files are still read: version 1 columns are
+// converted, each line break becoming a paragraph boundary, and a missing cover is the
+// default one.
 
+import { DEFAULT_COVER, isCover } from "../notebook/cover";
 import { columnFromText, isColumn } from "../page/document";
 import { DEFAULT_MARGIN_MM, PAGE_SIZES_MM } from "../page/paper";
 import type { Column, NotebookDocument } from "./model";
 
 export const BACKUP_FORMAT = "typestill-notebook";
-export const BACKUP_VERSION = 2;
-const READABLE_VERSIONS = new Set([1, 2]);
+export const BACKUP_VERSION = 3;
+const READABLE_VERSIONS = new Set([1, 2, 3]);
 
 export interface BackupFile {
   format: typeof BACKUP_FORMAT;
@@ -80,6 +83,7 @@ export function parseBackup(text: string): NotebookDocument {
     typeof nb.orientation === "string" && ORIENTATIONS.has(nb.orientation),
     "Unknown orientation",
   );
+  expect(nb.cover === undefined || isCover(nb.cover), "Invalid cover");
   expect(isRecord(nb.defaults) && isNumberOrNull(nb.defaults.divider), "Invalid defaults");
   expect(Array.isArray(nb.tags), "Invalid tags");
   expect(isRecord(nb.files), "Invalid files");
@@ -117,6 +121,7 @@ export function parseBackup(text: string): NotebookDocument {
     ...doc,
     lastOpenedAt: typeof nb.lastOpenedAt === "number" ? nb.lastOpenedAt : nb.createdAt,
     lastPageId: typeof nb.lastPageId === "string" ? nb.lastPageId : null,
+    cover: isCover(nb.cover) ? nb.cover : { ...DEFAULT_COVER },
     defaults: {
       ...doc.defaults,
       margin: typeof defaults.margin === "number" ? defaults.margin : DEFAULT_MARGIN_MM,

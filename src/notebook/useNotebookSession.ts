@@ -60,8 +60,8 @@ export interface NotebookSession {
   openNotebook: (id: string) => Promise<void>;
   /** Creates a notebook with one empty page and opens it. */
   createNotebook: (name: string) => Promise<void>;
-  /** Page size and orientation, applied to every page. */
-  updateSettings: (settings: Pick<Notebook, "pageSize" | "orientation">) => Promise<void>;
+  /** The cover, and the page size and orientation applied to every page. */
+  updateSettings: (settings: Pick<Notebook, "cover" | "pageSize" | "orientation">) => Promise<void>;
   /** Saves everything pending, then offers the notebook as a backup file. */
   downloadBackup: () => Promise<void>;
   /**
@@ -310,11 +310,19 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
   );
 
   const updateSettings = useCallback(
-    async (settings: Pick<Notebook, "pageSize" | "orientation">) => {
+    async (settings: Pick<Notebook, "cover" | "pageSize" | "orientation">) => {
       if (!state) return;
       await updateNotebookSettings(db, state.notebook.id, settings);
       setState((current) =>
-        current ? { ...current, notebook: { ...current.notebook, ...settings } } : current,
+        current
+          ? {
+              ...current,
+              notebook: { ...current.notebook, ...settings },
+              notebooks: current.notebooks.map((n) =>
+                n.id === current.notebook.id ? { ...n, cover: settings.cover } : n,
+              ),
+            }
+          : current,
       );
     },
     [db, state],

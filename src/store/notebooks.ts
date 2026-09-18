@@ -1,6 +1,7 @@
 import Dexie from "dexie";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData, BinaryFiles } from "@excalidraw/excalidraw/types";
+import { DEFAULT_COVER, type Cover } from "../notebook/cover";
 import type { Orientation, PageSize } from "../page/paper";
 import type { TypestillDb } from "./db";
 import {
@@ -30,10 +31,12 @@ export interface NotebookSummary {
   createdAt: number;
   lastOpenedAt: number;
   pageCount: number;
+  cover: Cover;
 }
 
 export interface CreateNotebookInput {
   name: string;
+  cover?: Partial<Cover>;
   pageSize?: PageSize;
   orientation?: Orientation;
   defaults?: Partial<NotebookDefaults>;
@@ -87,6 +90,7 @@ export async function createNotebook(
     createdAt: now,
     lastOpenedAt: now,
     lastPageId: null,
+    cover: { ...DEFAULT_COVER, ...input.cover },
     pageSize: input.pageSize ?? "A5",
     orientation: input.orientation ?? "portrait",
     defaults: { ...DEFAULT_NOTEBOOK_DEFAULTS, ...input.defaults },
@@ -114,6 +118,7 @@ export async function listNotebooks(db: TypestillDb): Promise<NotebookSummary[]>
     createdAt: n.createdAt,
     lastOpenedAt: n.lastOpenedAt,
     pageCount: counts[i],
+    cover: n.cover,
   }));
 }
 
@@ -138,7 +143,7 @@ export async function renameNotebook(db: TypestillDb, id: string, name: string):
 export async function updateNotebookSettings(
   db: TypestillDb,
   id: string,
-  patch: Partial<Pick<Notebook, "pageSize" | "orientation" | "defaults">>,
+  patch: Partial<Pick<Notebook, "cover" | "pageSize" | "orientation" | "defaults">>,
 ): Promise<void> {
   await db.notebooks.update(id, patch);
 }

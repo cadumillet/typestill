@@ -4,7 +4,7 @@ A digital notebook made to be the bridge between digital notes and real commonpl
 
 The idea: a notebook where each side has its own character. On the left, fixed-size lined pages you write on like a simple note editor, in Excalidraw's handwriting font, always on the lines. On the right, one infinite Excalidraw canvas per notebook for drawings, diagrams and images, with an optional grid that snaps. Pages remember where they left the canvas, so each page opens next to its own part of the drawing. Pages come in two kinds: lined pages for writing, and zine pages for images with a little text. No productivity-app machinery.
 
-Status (2026-09-17): Phase 1 is complete and on `main`: the store, the page editor, the canvas panel and split view, storage wiring with autosave and per-page canvas views, backup download and restore, notebook settings, the left rail and the bare notebook switcher. Phase 2 has started with text formatting: the page editor is on ProseMirror with bold, italic, colour and alignment, a floating format bar, and the backup format at version 2. Next is the notebook cover, then zine pages, the media pool and themes (all specified in sections 2, 3 and 5 on 2026-09-17 and 2026-09-18). Visual refinement is deliberately left for the end; the page's paper look should be settled before export work starts.
+Status (2026-09-18): Phase 1 is complete and on `main`: the store, the page editor, the canvas panel and split view, storage wiring with autosave and per-page canvas views, backup download and restore, notebook settings, the left rail and the bare notebook switcher. Phase 2 is under way: text formatting (the page editor on ProseMirror with bold, italic, colour and alignment, a floating format bar) and the notebook cover (colour, emoji and subtitle in notebook settings, a swatch in the app bar and the switcher) are done; the backup format is at version 3. Next are zine pages, the media pool and themes (all specified in sections 2, 3 and 5 on 2026-09-17 and 2026-09-18). Visual refinement is deliberately left for the end; the page's paper look should be settled before export work starts.
 
 ---
 
@@ -199,7 +199,7 @@ NotebookFile { notebookId, id, data: BinaryFileData }   // images, referenced by
 Notes:
 - Pages, the canvas and files are separate records so autosave writes only what changed. The shelf reads notebook metadata only.
 - The canvas's `elements` is valid Excalidraw data. It can be exported as a normal `.excalidraw` file at any time, and future sync/collab can reuse Excalidraw's own reconciliation instead of a custom one.
-- Backup file = notebook, pages, canvas and files as one JSON document, images base64 inside. A zip backup with images as separate files is planned for Phase 3, for notebooks heavy with photos. Format version 2; version 1 files (plain-string columns) are converted on open, each line break becoming a paragraph boundary. The IndexedDB schema has the same upgrade (Dexie version 2).
+- Backup file = notebook, pages, canvas and files as one JSON document, images base64 inside. A zip backup with images as separate files is planned for Phase 3, for notebooks heavy with photos. Format version 3; version 1 files (plain-string columns) are converted on open, each line break becoming a paragraph boundary, and files from before version 3 get the default cover. The IndexedDB schema has the same upgrades (Dexie versions 2 and 3).
 - Page thumbnails are cached separately in IndexedDB and are not part of the file.
 - Built-in themes are code, not records. Custom themes (later) are records under the notebook and go into the backup with it.
 
@@ -264,7 +264,7 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 
 ### Phase 2: notebook feel
 - Text formatting: bold, italic, colour, alignment; the page editor moves onto ProseMirror (section 5) (done)
-- Notebook cover: colour, optional emoji and subtitle, set in notebook settings; shown as a swatch in the switcher and the app bar (the shelf renders it as a card in Phase 3)
+- Notebook cover: colour, optional emoji and subtitle, set in notebook settings; shown as a swatch in the switcher and the app bar (the shelf renders it as a card in Phase 3) (done)
 - Zine pages: the page kind and its picker on new page, the media block (single image or grid preset), optional text below and beside, padding and reservations in page settings, image import with downscaling, files shared with the canvas
 - Media pool: the panel's pool mode on zine pages, usage index, placing by drag or click, drag onto the canvas, deletion refused while in use
 - Themes: the theme model with the built-in Ruled and Plain themes, a theme field on the notebook and a picker in settings, runtime baseline measurement, the zine text font
@@ -328,4 +328,5 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - Media pool (2026-09-18): an image in use on a page or the canvas cannot be deleted from the pool. Replace it first, then delete. Things stay tied, as in a real notebook; the user plays by its rules. The pool is one per notebook, over the same files table the canvas uses, and the side panel shows it on zine pages in place of the canvas.
 - Themes (2026-09-18): the page look is a theme the notebook references; built-in Ruled and Plain first, custom themes and templates later. Rules may be lines, dots or none, but the line grid and the hard stop are never themed away. Fonts are bundled or stored in the notebook, never fetched from the network; the baseline offset is measured at runtime rather than stored. This brings dot and blank paper back as theme choices without the page-level paper setting that was removed on 2026-09-17.
 - Zine text blocks use the theme's zine font, a typeface rather than the lined pages' handwriting.
+- Notebook cover, built (2026-09-18): the palette is eight classic notebook colours (black, red, orange, olive, green, blue, purple, brown), all dark enough for white lettering; a new notebook is black. The emoji field keeps one grapheme; without one, the swatch shows the name's initial. The subtitle appears under the name in the switcher list. Renaming stays out of the settings dialog, since the shelf owns naming. Backup format and IndexedDB schema are at version 3; older data gets the default cover.
 - Dark (2026-09-18): a built-in Dark page theme, implemented right after the first themes, paired with an app appearance setting for the chrome and the canvas. Appearance is not part of a theme; themes stay page-only.

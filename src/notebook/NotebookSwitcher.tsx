@@ -1,6 +1,7 @@
 import type { NotebookSummary } from "../store/notebooks";
 import { Popover } from "../shell/Popover";
 import { ChevronDown } from "../shell/icons";
+import { CoverSwatch } from "./CoverSwatch";
 import "./notebookswitcher.css";
 
 export interface NotebookSwitcherProps {
@@ -16,8 +17,8 @@ export interface NotebookSwitcherProps {
 const closePopovers = () => document.dispatchEvent(new PointerEvent("pointerdown"));
 
 /**
- * The notebook name in the app bar, opening a list of every notebook to switch to and a
- * way to create one. Bare on purpose: renaming and deleting belong to the shelf screen.
+ * The notebook's cover swatch and name in the app bar, opening a list of every notebook
+ * to switch to and a way to create one. Bare on purpose: renaming and deleting belong to the shelf screen.
  */
 export function NotebookSwitcher({
   notebooks,
@@ -47,6 +48,7 @@ export function NotebookSwitcher({
           aria-expanded={open}
           aria-controls={controls}
         >
+          {current && <CoverSwatch cover={current.cover} name={current.name} size={16} />}
           <span className="switcher__name">{current?.name ?? "Notebook"}</span>
           <ChevronDown />
         </button>
@@ -68,7 +70,13 @@ export function NotebookSwitcher({
                   if (!isCurrent) onOpen(notebook.id);
                 }}
               >
-                <span className="switcher__item-name">{notebook.name}</span>
+                <CoverSwatch cover={notebook.cover} name={notebook.name} size={18} />
+                <span className="switcher__item-name">
+                  {notebook.name}
+                  {notebook.cover.subtitle && (
+                    <span className="switcher__item-subtitle">{notebook.cover.subtitle}</span>
+                  )}
+                </span>
                 <span className="switcher__item-count">
                   {count} {count === 1 ? "page" : "pages"}
                 </span>
