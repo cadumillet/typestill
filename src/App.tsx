@@ -301,6 +301,7 @@ export function App() {
                   divider={page.divider}
                   preview={preview}
                   onChange={session.setColumns}
+                  onDividerChange={(offset) => void session.setDivider(offset)}
                 />
               )}
             </main>

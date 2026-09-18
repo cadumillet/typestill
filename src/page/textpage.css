@@ -69,6 +69,27 @@
   pointer-events: none;
 }
 
+/* The divider's grab area: wider than the line, over the text, only where the line is. */
+.text-page__divider-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 12px;
+  margin-left: -6px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.text-page__divider-handle:hover + .text-page__divider,
+.text-page.is-dragging-divider .text-page__divider {
+  background: var(--accent-line);
+}
+
+.text-page.is-dragging-divider {
+  user-select: none;
+}
+
 .text-page.is-preview::before,
 .text-page.is-preview::after,
 .text-page.is-preview .text-page__divider {

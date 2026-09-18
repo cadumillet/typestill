@@ -74,6 +74,27 @@ export function defaultDivider(widthMm: number, marginMm: number): number {
   return marginMm + (widthMm - marginMm) / 2;
 }
 
+/** The divider moves in steps of this many mm. */
+export const DIVIDER_STEP_MM = 10;
+/** Narrowest a column of text can be made by dragging the divider. */
+export const MIN_COLUMN_MM = 20;
+
+/**
+ * Where a dragged divider lands: the nearest 10mm step from the left edge, kept far
+ * enough from the margin line and the right edge for each column to hold some text.
+ */
+export function snapDivider(
+  mm: number,
+  widthMm: number,
+  marginMm: number,
+  grid: LinedMetrics = RULED_GRID,
+): number {
+  const min = marginMm + 2 * grid.textInsetMm + MIN_COLUMN_MM;
+  const max = widthMm - grid.rightInsetMm - grid.textInsetMm - MIN_COLUMN_MM;
+  const snapped = Math.round(mm / DIVIDER_STEP_MM) * DIVIDER_STEP_MM;
+  return Math.min(Math.max(snapped, Math.ceil(min / DIVIDER_STEP_MM) * DIVIDER_STEP_MM), max);
+}
+
 /** Horizontal extent of each text column in mm: [left edge, width]. */
 export function columnBoxes(
   widthMm: number,

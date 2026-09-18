@@ -7,6 +7,7 @@ import {
   mmToCssPx,
   pageGeometry,
   ruleCount,
+  snapDivider,
 } from "./paper";
 
 describe("pageGeometry", () => {
@@ -80,5 +81,23 @@ describe("columnBoxes", () => {
   it("defaults the divider to the middle of the writable area", () => {
     expect(defaultDivider(148, 20)).toBe(84);
     expect(defaultDivider(210, 30)).toBe(120);
+  });
+});
+
+describe("snapDivider", () => {
+  // A5 portrait, 148mm wide, margin line at 20mm.
+  it("snaps to 10mm steps", () => {
+    expect(snapDivider(84, 148, 20)).toBe(80);
+    expect(snapDivider(86, 148, 20)).toBe(90);
+    expect(snapDivider(85, 148, 20)).toBe(90);
+  });
+
+  it("keeps each column at least 20mm of text", () => {
+    // Left column: margin 20 + inset 2 + 20 + inset 2 = 44 → first step at 50.
+    expect(snapDivider(0, 148, 20)).toBe(50);
+    expect(snapDivider(44, 148, 20)).toBe(50);
+    // Right column: 148 - 6 - 2 - 20 = 120 is the farthest.
+    expect(snapDivider(140, 148, 20)).toBe(120);
+    expect(snapDivider(125, 148, 20)).toBe(120);
   });
 });
