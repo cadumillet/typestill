@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { IconButton } from "../shell/IconButton";
 import { Popover } from "../shell/Popover";
 import { Filter } from "../shell/icons";
+import { pageSide } from "../page/sides";
 import type { Page, Tag } from "../store/model";
 import { passesFilter, tagOf } from "./tags";
 import "./pagerail.css";
@@ -33,6 +34,8 @@ const FILTER_HEIGHT = 40;
 /** Rough heights of the hover box, with and without a thumbnail, for keeping it in view. */
 const HOVER_HEIGHT = 230;
 const LABEL_HEIGHT = 26;
+/** The thumbnail's outer corners, rounded like the page's; the inner edge stays square. */
+const THUMBNAIL_CORNER = "4px";
 
 /** Closes the popover the way Menu does: through the outside pointerdown it listens for. */
 const closePopovers = () => document.dispatchEvent(new PointerEvent("pointerdown"));
@@ -175,6 +178,12 @@ export function PageRail({
               src={thumbnails[pages[hover.index].id]}
               alt=""
               draggable={false}
+              style={{
+                borderRadius:
+                  pageSide(hover.index) === "right"
+                    ? `0 ${THUMBNAIL_CORNER} ${THUMBNAIL_CORNER} 0`
+                    : `${THUMBNAIL_CORNER} 0 0 ${THUMBNAIL_CORNER}`,
+              }}
             />
           )}
         </div>

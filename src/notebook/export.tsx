@@ -1,7 +1,8 @@
 // Exports: PDF of every page, PNG of one page, PNG of the canvas. Pages are rendered
-// off screen at zoom 1 in preview mode (no rules, margin or divider; the date stamp and
-// page number stay) through the same renderer as thumbnails, at 2x, so they wrap exactly
-// as on screen; the PDF places each image on a page of the paper's physical size.
+// off screen at zoom 1 in preview mode (no rules, margin or divider; the page number
+// stays; no side, so the paper is rectangular) through the same renderer as thumbnails,
+// at 2x, so they wrap exactly as on screen; the PDF places each image on a page of the
+// paper's physical size.
 
 import { exportToBlob } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
@@ -38,7 +39,6 @@ function pageElement(page: Page, index: number, source: ExportSource, theme: The
     zoom: 1,
     preview: true,
     readOnly: true,
-    date: page.showDate ? new Date(page.createdAt) : null,
     number: page.showPageNumber ? index + 1 : null,
   };
   return page.kind === "zine" && page.zine ? (

@@ -26,8 +26,8 @@ export interface PageSettingsProps {
   onTagChange: (tagId: string | null) => void;
   /** "New tag…" was picked: the caller asks for a name and assigns the new tag. */
   onNewTag: () => void;
-  /** The page's date stamp and page number toggles. */
-  onMarksChange: (patch: Partial<Pick<Page, "showDate" | "showPageNumber">>) => void;
+  /** The page number toggle. */
+  onMarksChange: (patch: Partial<Pick<Page, "showPageNumber">>) => void;
   /** Lined pages: the margin line offset in mm. */
   onMarginChange: (margin: number) => void;
   /** Lined pages. */
@@ -42,11 +42,14 @@ export interface PageSettingsProps {
   onDeletePage: () => void;
 }
 
-const formatDate = (timestamp: number) =>
-  new Date(timestamp).toLocaleDateString(undefined, {
+/** "September 18, 2026 at 3:42 PM": when the page was created, in the browser's locale. */
+const formatCreated = (timestamp: number) =>
+  new Date(timestamp).toLocaleString(undefined, {
     year: "numeric",
     month: "long",
     day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   });
 
 const LAYOUTS: { value: ZineLayout; label: string }[] = [
@@ -97,7 +100,7 @@ export function PageSettings({
           <div>
             Page {number} of {count}
           </div>
-          <div>{formatDate(page.createdAt)}</div>
+          <div>Created {formatCreated(page.createdAt)}</div>
         </div>
         <label className="page-settings__row page-settings__row--field">
           <span>Tag</span>
@@ -136,14 +139,6 @@ export function PageSettings({
             ))}
           </span>
         </div>
-        <label className="page-settings__row">
-          <input
-            type="checkbox"
-            checked={page.showDate}
-            onChange={(event) => onMarksChange({ showDate: event.target.checked })}
-          />
-          Date stamp
-        </label>
         <label className="page-settings__row">
           <input
             type="checkbox"

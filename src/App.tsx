@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import { Canvas, type CanvasContent, type CanvasHandle } from "./canvas/Canvas";
 import { MediaPool } from "./notebook/MediaPool";
@@ -13,7 +13,8 @@ import { useNotebookSession } from "./notebook/useNotebookSession";
 import { isBlankDocument } from "./page/document";
 import { TextPage } from "./page/TextPage";
 import { ZinePage } from "./page/ZinePage";
-import { defaultDivider, fitPage, pageGeometry, pageMm } from "./page/paper";
+import { defaultDivider, fitPage, mmToCssPx, pageGeometry, pageMm } from "./page/paper";
+import { pageSide, spreadOf } from "./page/sides";
 import { imagesForLayout, isZineEmpty, type Zine } from "./page/zine";
 import { exportCanvasPng, exportFileName, exportPagePng, exportPdf } from "./notebook/export";
 import { downloadBlob } from "./notebook/files";
@@ -44,8 +45,6 @@ import {
 } from "./shell/icons";
 
 const DESK_PADDING = 24;
-/** Gap between the two pages of a spread, in CSS px. */
-const SPREAD_GAP = 16;
 /** Panel margins plus the width below which Excalidraw falls into its mobile layout. */
 const MIN_PANEL_WIDTH = 730 + 12;
 const MIN_MAIN_WIDTH = 360;
@@ -197,17 +196,22 @@ export function App() {
   const { notebook, pages, index, page } = session;
   const theme = getTheme(notebook.themeId);
   const geometry = pageGeometry(notebook.pageSize, notebook.orientation);
-  // With the panel closed the desk shows a spread: fixed pairs of consecutive pages, the
-  // open page on its side of the pair, like a book lying open.
+  // With the panel closed the desk shows the spread the open page belongs to: a left-hand
+  // and a right-hand page touching at the gutter, like a notebook lying open. Page 1 is a
+  // right-hand page, so the first spread is (inside cover | 1); an empty side, the inside
+  // of a cover, is a slab in the cover colour.
   const spread = !panelOpen;
-  const spreadLeft = index - (index % 2);
-  const shown = spread ? [spreadLeft, spreadLeft + 1].filter((i) => i < pages.length) : [index];
+  const slots: (number | null)[] = spread
+    ? [spreadOf(index, pages.length).left, spreadOf(index, pages.length).right]
+    : [index];
   const fit = desk
     ? fitPage(spread ? { width: geometry.width * 2, height: geometry.height } : geometry, {
-        width: desk.width - 2 * DESK_PADDING - (spread ? SPREAD_GAP : 0),
+        width: desk.width - 2 * DESK_PADDING,
         height: desk.height - 2 * DESK_PADDING,
       })
     : null;
+  /** The corner radius of a page at the desk's zoom, for the slab. */
+  const cornerPx = fit ? mmToCssPx(theme.page.cornerMm, fit.zoom) : 0;
 
   /** Makes another page of the spread the open one, before the pointer reaches its editor. */
   const openInSpread = (i: number) => {
@@ -543,13 +547,27 @@ export function App() {
               onFilterChange={setFilterTagId}
               thumbnails={session.thumbnails}
             />
-            <main
-              className={`desk${spread ? " is-spread" : ""}`}
-              ref={attachDesk}
-              style={spread ? { gap: SPREAD_GAP } : undefined}
-            >
+            <main className={`desk${spread ? " is-spread" : ""}`} ref={attachDesk}>
               {fit &&
-                shown.map((i) => {
+                slots.map((i, slot) => {
+                  if (i === null) {
+                    const side = slot === 0 ? "left" : "right";
+                    return (
+                      <div
+                        key={`slab-${side}`}
+                        className={`desk__slab desk__slab--${side}`}
+                        style={
+                          {
+                            width: geometry.width * fit.zoom,
+                            height: fit.height,
+                            background: notebook.cover.color,
+                            "--page-corner": `${cornerPx}px`,
+                          } as CSSProperties
+                        }
+                        aria-hidden
+                      />
+                    );
+                  }
                   const shownPage = pages[i];
                   const isOpen = i === index;
                   return (
@@ -569,8 +587,8 @@ export function App() {
                           files={session.files}
                           preview={preview}
                           readOnly={!isOpen}
-                          date={shownPage.showDate ? new Date(shownPage.createdAt) : null}
                           number={shownPage.showPageNumber ? i + 1 : null}
+                          side={pageSide(i)}
                           onChange={session.setZine}
                           onAddImages={(cell, files) => void addImages(cell, files)}
                           onPlaceFile={session.placeFile}
@@ -588,8 +606,8 @@ export function App() {
                           divider={shownPage.divider}
                           preview={preview}
                           readOnly={!isOpen}
-                          date={shownPage.showDate ? new Date(shownPage.createdAt) : null}
                           number={shownPage.showPageNumber ? i + 1 : null}
+                          side={pageSide(i)}
                           onChange={session.setColumns}
                           onDividerChange={(offset) => void session.setDivider(offset)}
                         />

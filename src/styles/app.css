@@ -199,6 +199,21 @@ button[aria-pressed="true"] {
   opacity: 0.85;
 }
 
+/* The inside of a cover: an empty side of a spread, page-sized, in the cover colour, with
+   nothing on it and nothing to click. It rounds its outer corners like a page. */
+.desk__slab {
+  flex: none;
+  pointer-events: none;
+}
+
+.desk__slab--left {
+  border-radius: var(--page-corner) 0 0 var(--page-corner);
+}
+
+.desk__slab--right {
+  border-radius: 0 var(--page-corner) var(--page-corner) 0;
+}
+
 .page-nav {
   display: flex;
   align-items: center;

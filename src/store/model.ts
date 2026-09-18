@@ -23,6 +23,7 @@ export interface Tag {
 }
 
 export interface NotebookDefaults {
+  /** The date stamp was descoped in Phase 4: stored and ignored until the next format bump. */
   showDate: boolean;
   showPageNumber: boolean;
   /** Margin line offset in mm from the left edge for new pages. */
@@ -64,6 +65,7 @@ export interface Page {
   createdAt: number;
   kind: PageKind;
   tagId: string | null;
+  /** The date stamp was descoped in Phase 4: stored and ignored until the next format bump. */
   showDate: boolean;
   showPageNumber: boolean;
   /** Margin line offset in mm from the left edge. */

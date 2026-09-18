@@ -62,10 +62,11 @@ function fontAsDataUrl(url: string): Promise<string> {
   return pending;
 }
 
-/** Font family names a page uses: the page's own and its columns'. */
+/** Font family names a page uses: the page's own, its columns' and its page number's. */
 function fontFamiliesOf(page: HTMLElement): Set<string> {
   const families = new Set<string>();
-  for (const element of [page, ...page.querySelectorAll<HTMLElement>(".text-page__column")]) {
+  const parts = page.querySelectorAll<HTMLElement>(".text-page__column, .page-marks__number");
+  for (const element of [page, ...parts]) {
     const first = getComputedStyle(element).fontFamily.split(",")[0];
     families.add(first.trim().replace(/^["']|["']$/g, ""));
   }
@@ -108,6 +109,9 @@ export async function renderPage(
   const box = page.getBoundingClientRect();
   const clone = page.cloneNode(true) as HTMLElement;
   for (const selector of STRIPPED) clone.querySelectorAll(selector).forEach((el) => el.remove());
+  // The sided corners are screen chrome: the image is the rectangular paper. Thumbnails
+  // are rounded where they are shown, from the page's position at that moment.
+  clone.classList.remove("side-left", "side-right");
   if (options.preview) clone.classList.add("is-preview");
   clone
     .querySelectorAll("[contenteditable]")
