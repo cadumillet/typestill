@@ -201,9 +201,8 @@ export function App() {
   // right-hand page, so the first spread is (inside cover | 1); an empty side, the inside
   // of a cover, is a slab in the cover colour.
   const spread = !panelOpen;
-  const slots: (number | null)[] = spread
-    ? [spreadOf(index, pages.length).left, spreadOf(index, pages.length).right]
-    : [index];
+  const pair = spreadOf(index, pages.length);
+  const slots: (number | null)[] = spread ? [pair.left, pair.right] : [index];
   const fit = desk
     ? fitPage(spread ? { width: geometry.width * 2, height: geometry.height } : geometry, {
         width: desk.width - 2 * DESK_PADDING,
