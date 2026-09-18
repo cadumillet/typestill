@@ -237,6 +237,11 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - Proper shelf screen, notebooks shown as their covers
 - First-run onboarding
 
+### Ideas under discussion (2026-09-17, not yet specified)
+- Media pool: on a zine page the side panel shows the notebook's image pool instead of the drawing canvas. The pool is a view over the notebook's files table (every image, whether used on a zine page or the canvas) with import by drop or picker, and images are placed on the page from it.
+- Zine text blocks use a different font style from lined pages (a typeface rather than handwriting), set by the theme.
+- Themes: the page layout's variables (font, line pitch, rules and margin line on or off, insets, paper and ink colours, the zine text font and defaults) extracted from the code into a theme the notebook references. Built-in themes first (the current ruled look, a plain monospaced one without lines); user-made themes and "notebook templates" (theme plus notebook defaults) later. Themes change the page look only, nothing else in the app. Assessed as feasible; see the decisions log once specified.
+
 ### Later, not now
 - Images on text pages with text wrapping around them: superseded by zine pages on 2026-09-17. The float approach stays documented in the decisions log in case it is ever wanted.
 - Cursor alternatives for pages: highlighting the active rule, or only the piece of rule under the next character, instead of a caret. Tried on 2026-09-17, not adopted for now.
