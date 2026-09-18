@@ -130,3 +130,10 @@ export const Filter = () => (
     <path d="M3 4.5h12l-4.5 5.5v4l-3-1.5v-2.5z" />
   </svg>
 );
+
+export const Search = () => (
+  <svg {...base}>
+    <circle cx="8" cy="8" r="4.5" />
+    <path d="M11.5 11.5l4 4" />
+  </svg>
+);

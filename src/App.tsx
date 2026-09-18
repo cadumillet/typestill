@@ -1,10 +1,11 @@
 import { useCallback, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { Canvas, type CanvasContent } from "./canvas/Canvas";
+import { Canvas, type CanvasContent, type CanvasHandle } from "./canvas/Canvas";
 import { MediaPool } from "./notebook/MediaPool";
 import { PageRail } from "./notebook/PageRail";
 import { NotebookSwitcher } from "./notebook/NotebookSwitcher";
 import { PageSettings } from "./notebook/PageSettings";
+import { SearchBox } from "./notebook/SearchBox";
 import { SettingsDialog } from "./notebook/SettingsDialog";
 import { useNotebookSession } from "./notebook/useNotebookSession";
 import { isBlankDocument } from "./page/document";
@@ -77,11 +78,16 @@ export function App() {
     loadId: number;
     content: CanvasContent;
   }>();
-  /** The latest drawing the mounted canvas reported, for the canvas export. */
+  /**
+   * The latest drawing the mounted canvas reported, for the canvas export and the search,
+   * without a render per stroke. Tagged with its load so another notebook's drawing is
+   * never used.
+   */
   const latestCanvas = useRef<{ loadId: number; content: CanvasContent } | null>(null);
   const [deskRef, desk] = useElementSize<HTMLElement>();
   const deskElement = useRef<HTMLElement | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const canvasRef = useRef<CanvasHandle>(null);
   // The panel shows the media pool on zine pages and the canvas on lined pages. A peek
   // at the other lasts until the next page change, so it is tagged with its page.
   const [peek, setPeek] = useState<{ pageId: string; mode: "canvas" | "pool" } | null>(null);
@@ -269,6 +275,20 @@ export function App() {
         : { elements: session.canvas.elements, files: session.files };
 
   const panelMode = peek?.pageId === page.id ? peek.mode : page.kind === "zine" ? "pool" : "canvas";
+
+  /** The canvas's elements as the editor has them, or as loaded while it has not reported yet. */
+  const canvasElements = () => currentCanvas().elements;
+
+  /** Shows the canvas, whatever the panel was doing, and pans it to an element. */
+  const openElement = (elementId: string) => {
+    // Mounting the editor synchronously puts its handle in place; the editor itself
+    // waits for its scene before jumping.
+    flushSync(() => {
+      setPanelOpen(true);
+      setPeek({ pageId: page.id, mode: "canvas" });
+    });
+    canvasRef.current?.scrollTo(elementId);
+  };
   const selectedCell = chosenCell?.pageId === page.id ? chosenCell.cell : null;
   const setSelectedCell = (cell: number | null) =>
     setChosenCell(cell === null ? null : { pageId: page.id, cell });
@@ -323,6 +343,12 @@ export function App() {
               onCreate={(name) => void session.createNotebook(name)}
             />
             <div className="app-header__actions">
+              <SearchBox
+                pages={pages}
+                elements={canvasElements}
+                onOpenPage={session.goTo}
+                onOpenElement={openElement}
+              />
               <PageSettings
                 page={page}
                 number={index + 1}
@@ -497,6 +523,7 @@ export function App() {
           ) : (
             <Canvas
               key={session.loadId}
+              ref={canvasRef}
               initial={
                 canvasSnapshot?.loadId === session.loadId
                   ? canvasSnapshot.content

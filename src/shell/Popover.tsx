@@ -9,21 +9,43 @@ export interface PopoverProps {
   align?: "left" | "right";
   /** Extra class for the wrapper, for placing it in a layout. */
   className?: string;
+  /** Given, the popover is controlled: the caller owns whether it is open. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-/** A trigger with a floating panel below it. Closes on outside click or Escape. */
-export function Popover({ trigger, children, align = "right", className }: PopoverProps) {
-  const [open, setOpen] = useState(false);
+/**
+ * A trigger with a floating panel below it. Closes on outside click or Escape. Owns its
+ * open state unless the caller passes `open`, for popovers a shortcut can open.
+ */
+export function Popover({
+  trigger,
+  children,
+  align = "right",
+  className,
+  open: controlledOpen,
+  onOpenChange,
+}: PopoverProps) {
+  const [ownOpen, setOwnOpen] = useState(false);
+  const open = controlledOpen ?? ownOpen;
+  const setOpen = (next: boolean) => {
+    setOwnOpen(next);
+    onOpenChange?.(next);
+  };
   const ref = useRef<HTMLDivElement>(null);
   const id = useId();
 
   useEffect(() => {
     if (!open) return;
+    const close = () => {
+      setOwnOpen(false);
+      onOpenChange?.(false);
+    };
     const onPointerDown = (event: PointerEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+      if (!ref.current?.contains(event.target as Node)) close();
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") close();
     };
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
@@ -31,11 +53,11 @@ export function Popover({ trigger, children, align = "right", className }: Popov
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [open]);
+  }, [open, onOpenChange]);
 
   return (
     <div className={["popover", className].filter(Boolean).join(" ")} ref={ref}>
-      {trigger({ open, toggle: () => setOpen((o) => !o), controls: id })}
+      {trigger({ open, toggle: () => setOpen(!open), controls: id })}
       {open && (
         <div className={`popover__panel popover__panel--${align}`} id={id}>
           {children}
