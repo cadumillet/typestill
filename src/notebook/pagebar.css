@@ -1,0 +1,34 @@
+/* The bar under the page or spread: as wide as it, the controls centred. */
+
+.page-bar {
+  flex: none;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding-top: 8px;
+}
+
+.page-bar__counter {
+  min-width: 48px;
+  text-align: center;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.page-bar__gap {
+  width: 10px;
+}
+
+/* The bar sits at the bottom of the desk, so its popovers open over the page. */
+.page-bar .popover__panel {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
+/* Tooltips too, so they are not clipped by the desk's edge. */
+.page-bar .icon-button[data-tooltip]::after {
+  top: auto;
+  bottom: calc(100% + 6px);
+}

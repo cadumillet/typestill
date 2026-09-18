@@ -2,6 +2,7 @@ import { useCallback, useRef, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import { Canvas, type CanvasContent, type CanvasHandle } from "./canvas/Canvas";
 import { MediaPool } from "./notebook/MediaPool";
+import { PAGE_BAR_HEIGHT, PageBar } from "./notebook/PageBar";
 import { PageRail } from "./notebook/PageRail";
 import { NotebookSwitcher } from "./notebook/NotebookSwitcher";
 import { PageSettings } from "./notebook/PageSettings";
@@ -11,7 +12,7 @@ import { Shelf } from "./notebook/Shelf";
 import { WelcomeDialog } from "./notebook/WelcomeDialog";
 import { useNotebookSession } from "./notebook/useNotebookSession";
 import { isBlankDocument } from "./page/document";
-import { ADD_PAGE_HINT, canAddPage } from "./notebook/pageRules";
+import { canAddPage } from "./notebook/pageRules";
 import { TextPage } from "./page/TextPage";
 import { ZinePage } from "./page/ZinePage";
 import { defaultDivider, fitPage, mmToCssPx, pageGeometry, pageMm } from "./page/paper";
@@ -34,16 +35,7 @@ import { SplitView } from "./shell/SplitView";
 import { shortcutLabel, useShortcuts } from "./shell/useShortcuts";
 import { FileInUseError } from "./store/notebooks";
 import { getTheme } from "./theme/themes";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Dots,
-  Eye,
-  Images,
-  NewPage,
-  Pencil,
-  SidePanel,
-} from "./shell/icons";
+import { Dots, Eye, Images, Pencil, SidePanel } from "./shell/icons";
 
 const DESK_PADDING = 24;
 /** Panel margins plus the width below which Excalidraw falls into its mobile layout. */
@@ -204,14 +196,24 @@ export function App() {
   const spread = !panelOpen;
   const pair = spreadOf(index, pages.length);
   const slots: (number | null)[] = spread ? [pair.left, pair.right] : [index];
+  // The page bar sits under the page, so the page is fitted above its height.
   const fit = desk
     ? fitPage(spread ? { width: geometry.width * 2, height: geometry.height } : geometry, {
         width: desk.width - 2 * DESK_PADDING,
-        height: desk.height - 2 * DESK_PADDING,
+        height: desk.height - 2 * DESK_PADDING - PAGE_BAR_HEIGHT,
       })
     : null;
   /** The corner radius of a page at the desk's zoom, for the slab. */
   const cornerPx = fit ? mmToCssPx(theme.page.cornerMm, fit.zoom) : 0;
+  /** Top of the page in the desk: the sheet (page and bar) is centred vertically. */
+  const pageTop = desk && fit ? Math.max(0, (desk.height - fit.height - PAGE_BAR_HEIGHT) / 2) : 0;
+  /**
+   * The app bar's right-hand group lines up with the right edge of the page or spread.
+   * The bar and the workspace share the column's width, so the inset from the bar's right
+   * edge is the desk's margin beside the sheet.
+   */
+  const barInset =
+    desk && fit ? Math.max(DESK_PADDING, (desk.width - fit.width) / 2) : DESK_PADDING;
 
   /** Makes another page of the spread the open one, before the pointer reaches its editor. */
   const openInSpread = (i: number) => {
@@ -369,7 +371,7 @@ export function App() {
       minPanel={MIN_PANEL_WIDTH}
       main={
         <>
-          <header className="app-header">
+          <header className="app-header" style={{ paddingRight: barInset }}>
             <button
               type="button"
               className="wordmark wordmark--link"
@@ -378,67 +380,19 @@ export function App() {
             >
               typestill
             </button>
-            <nav className="page-nav" aria-label="Pages">
-              <IconButton
-                label="Previous page"
-                shortcut={shortcutLabel("previousPage")}
-                onClick={() => session.goTo(index - 1)}
-                disabled={index === 0}
-              >
-                <ChevronLeft />
-              </IconButton>
-              <span className="page-nav__label">
-                {index + 1} / {pages.length}
-              </span>
-              <IconButton
-                label="Next page"
-                shortcut={shortcutLabel("nextPage")}
-                onClick={() => session.goTo(index + 1)}
-                disabled={index === pages.length - 1}
-              >
-                <ChevronRight />
-              </IconButton>
-              <Menu
-                label="New page"
-                shortcut={shortcutLabel("newLinedPage")}
-                off={!canAdd}
-                offReason={ADD_PAGE_HINT}
-                items={[
-                  { label: "Lined page", onSelect: () => void session.newPage("lined") },
-                  { label: "Zine page", onSelect: () => void session.newPage("zine") },
-                ]}
-              >
-                <NewPage />
-              </Menu>
-            </nav>
-            <NotebookSwitcher
-              notebooks={session.notebooks}
-              currentId={notebook.id}
-              currentPageCount={pages.length}
-              onOpen={(id) => void session.openNotebook(id)}
-              onShelf={() => void session.closeNotebook()}
-            />
             <div className="app-header__actions">
+              <NotebookSwitcher
+                notebooks={session.notebooks}
+                currentId={notebook.id}
+                currentPageCount={pages.length}
+                onOpen={(id) => void session.openNotebook(id)}
+                onShelf={() => void session.closeNotebook()}
+              />
               <SearchBox
                 pages={pages}
                 elements={canvasElements}
                 onOpenPage={session.goTo}
                 onOpenElement={openElement}
-              />
-              <PageSettings
-                page={page}
-                number={index + 1}
-                count={pages.length}
-                canChangeKind={pageIsEmpty}
-                onKindChange={(kind) => void session.setKind(kind)}
-                tags={notebook.tags}
-                onTagChange={session.setPageTag}
-                onNewTag={() => void newTag()}
-                onMarksChange={session.setPageMarks}
-                onMarginChange={(margin) => void session.setPageMargin(margin)}
-                twoColumns={page.divider !== null}
-                onTwoColumnsChange={setTwoColumns}
-                onPaddingChange={setPadding}
               />
               <Menu
                 label="Notebook"
@@ -521,84 +475,112 @@ export function App() {
               pages={pages}
               index={index}
               onSelect={session.goTo}
-              offsetTop={desk && fit ? Math.max(0, (desk.height - fit.height) / 2) : 0}
+              offsetTop={pageTop}
               tags={notebook.tags}
               filterTagId={filterTagId}
               onFilterChange={setFilterTagId}
               thumbnails={session.thumbnails}
-              canAdd={canAdd}
-              addShortcut={shortcutLabel("newLinedPage")}
-              onAdd={(kind) => void session.newPage(kind)}
-              onDelete={() => void deletePage()}
             />
-            <main className={`desk${spread ? " is-spread" : ""}`} ref={attachDesk}>
-              {fit &&
-                slots.map((i, slot) => {
-                  if (i === null) {
-                    const side = slot === 0 ? "left" : "right";
-                    return (
-                      <div
-                        key={`slab-${side}`}
-                        className={`desk__slab desk__slab--${side}`}
-                        style={
-                          {
-                            width: geometry.width * fit.zoom,
-                            height: fit.height,
-                            background: notebook.cover.color,
-                            "--page-corner": `${cornerPx}px`,
-                          } as CSSProperties
-                        }
-                        aria-hidden
-                      />
-                    );
-                  }
-                  const shownPage = pages[i];
-                  const isOpen = i === index;
-                  return (
-                    <div
-                      key={shownPage.id}
-                      className={`desk__page${isOpen ? " is-open" : ""}`}
-                      data-page-id={shownPage.id}
-                      onPointerDownCapture={() => openInSpread(i)}
-                    >
-                      {shownPage.kind === "zine" && shownPage.zine ? (
-                        <ZinePage
-                          size={notebook.pageSize}
-                          orientation={notebook.orientation}
-                          theme={theme}
-                          zoom={fit.zoom}
-                          zine={shownPage.zine}
-                          files={session.files}
-                          preview={preview}
-                          readOnly={!isOpen}
-                          number={shownPage.showPageNumber ? i + 1 : null}
-                          side={pageSide(i)}
-                          onChange={session.setZine}
-                          onAddImages={(cell, files) => void addImages(cell, files)}
-                          onPlaceFile={session.placeFile}
-                          selectedCell={isOpen ? selectedCell : null}
-                          onSelectCell={setSelectedCell}
-                        />
-                      ) : (
-                        <TextPage
-                          size={notebook.pageSize}
-                          orientation={notebook.orientation}
-                          theme={theme}
-                          zoom={fit.zoom}
-                          margin={shownPage.margin}
-                          columns={shownPage.columns}
-                          divider={shownPage.divider}
-                          preview={preview}
-                          readOnly={!isOpen}
-                          number={shownPage.showPageNumber ? i + 1 : null}
-                          side={pageSide(i)}
-                          onChange={session.setColumns}
-                          onDividerChange={(offset) => void session.setDivider(offset)}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
+            <main className="desk" ref={attachDesk}>
+              {fit && (
+                <div className="desk__sheet" style={{ width: fit.width }}>
+                  <div className={`desk__spread${spread ? " is-spread" : ""}`}>
+                    {slots.map((i, slot) => {
+                      if (i === null) {
+                        const side = slot === 0 ? "left" : "right";
+                        return (
+                          <div
+                            key={`slab-${side}`}
+                            className={`desk__slab desk__slab--${side}`}
+                            style={
+                              {
+                                width: geometry.width * fit.zoom,
+                                height: fit.height,
+                                background: notebook.cover.color,
+                                "--page-corner": `${cornerPx}px`,
+                              } as CSSProperties
+                            }
+                            aria-hidden
+                          />
+                        );
+                      }
+                      const shownPage = pages[i];
+                      const isOpen = i === index;
+                      return (
+                        <div
+                          key={shownPage.id}
+                          className={`desk__page${isOpen ? " is-open" : ""}`}
+                          data-page-id={shownPage.id}
+                          onPointerDownCapture={() => openInSpread(i)}
+                        >
+                          {shownPage.kind === "zine" && shownPage.zine ? (
+                            <ZinePage
+                              size={notebook.pageSize}
+                              orientation={notebook.orientation}
+                              theme={theme}
+                              zoom={fit.zoom}
+                              zine={shownPage.zine}
+                              files={session.files}
+                              preview={preview}
+                              readOnly={!isOpen}
+                              number={shownPage.showPageNumber ? i + 1 : null}
+                              side={pageSide(i)}
+                              onChange={session.setZine}
+                              onAddImages={(cell, files) => void addImages(cell, files)}
+                              onPlaceFile={session.placeFile}
+                              selectedCell={isOpen ? selectedCell : null}
+                              onSelectCell={setSelectedCell}
+                            />
+                          ) : (
+                            <TextPage
+                              size={notebook.pageSize}
+                              orientation={notebook.orientation}
+                              theme={theme}
+                              zoom={fit.zoom}
+                              margin={shownPage.margin}
+                              columns={shownPage.columns}
+                              divider={shownPage.divider}
+                              preview={preview}
+                              readOnly={!isOpen}
+                              number={shownPage.showPageNumber ? i + 1 : null}
+                              side={pageSide(i)}
+                              onChange={session.setColumns}
+                              onDividerChange={(offset) => void session.setDivider(offset)}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <PageBar
+                    index={index}
+                    count={pages.length}
+                    onSelect={session.goTo}
+                    previousShortcut={shortcutLabel("previousPage")}
+                    nextShortcut={shortcutLabel("nextPage")}
+                    canAdd={canAdd}
+                    addShortcut={shortcutLabel("newLinedPage")}
+                    onAdd={(kind) => void session.newPage(kind)}
+                    onDelete={() => void deletePage()}
+                  >
+                    <PageSettings
+                      page={page}
+                      number={index + 1}
+                      count={pages.length}
+                      canChangeKind={pageIsEmpty}
+                      onKindChange={(kind) => void session.setKind(kind)}
+                      tags={notebook.tags}
+                      onTagChange={session.setPageTag}
+                      onNewTag={() => void newTag()}
+                      onMarksChange={session.setPageMarks}
+                      onMarginChange={(margin) => void session.setPageMargin(margin)}
+                      twoColumns={page.divider !== null}
+                      onTwoColumnsChange={setTwoColumns}
+                      onPaddingChange={setPadding}
+                    />
+                  </PageBar>
+                </div>
+              )}
             </main>
           </div>
         </>

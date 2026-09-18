@@ -68,18 +68,21 @@ body {
   overflow: hidden;
 }
 
+/* The wordmark at the left; the right-hand group's inset is set by App so its right edge
+   lines up with the right edge of the page or spread on the desk. */
 .app-header {
   display: flex;
   align-items: center;
   gap: 12px;
   height: 44px;
-  padding: 0 12px 0 16px;
+  padding: 0 24px 0 16px;
   flex: none;
   white-space: nowrap;
 }
 
 .app-header__actions {
   margin-left: auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 2px;
@@ -190,13 +193,24 @@ button[aria-pressed="true"] {
   overflow: hidden;
 }
 
+/* The sheet is the page or spread with the page bar under it, centred on the desk. */
+.desk__sheet {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.desk__spread {
+  display: flex;
+}
+
 .desk__page {
   flex: none;
   display: flex;
 }
 
 /* In a spread, the page that is not open is dimmed a touch until it is clicked. */
-.desk.is-spread .desk__page:not(.is-open) {
+.desk__spread.is-spread .desk__page:not(.is-open) {
   opacity: 0.85;
 }
 
@@ -213,20 +227,6 @@ button[aria-pressed="true"] {
 
 .desk__slab--right {
   border-radius: 0 var(--page-corner) var(--page-corner) 0;
-}
-
-.page-nav {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  margin-left: 4px;
-}
-
-.page-nav__label {
-  min-width: 48px;
-  text-align: center;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
 }
 
 .icon-button:disabled,
