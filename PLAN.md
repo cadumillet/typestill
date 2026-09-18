@@ -20,12 +20,13 @@ Status (2026-09-18): the MVP is complete. Phases 1, 2 and 3 are done and on `mai
 - Simplicity over features. Each page kind does one thing well: lined pages hold writing, zine pages hold images. Images never go into lined pages.
 - The owner holds the data: browser storage plus backup files they keep. No accounts, no backend.
 - It behaves like a real notebook in human hands. Things stay tied together, and the user plays by its rules rather than the app quietly untying them.
+- The spread is the notebook's true unit. Pages have sides, pairs face each other, covers have insides, and printing a notebook means printing spreads. Decisions about pages keep spreads first-class.
 
 ## 2. Product spec
 
 ### Notebooks
 - Multiple notebooks. Each one is a separate storage record with its own backup.
-- A simple shelf screen on launch (name, page count, last opened). Notebooks are created, renamed and deleted only from the shelf.
+- The app opens on the notebook that was open last, where it was left. The shelf (every notebook as its cover, with page count and when it was last opened) is a screen reached from the notebook switcher, and the one a first run lands on after the welcome. Notebooks are created, renamed and deleted only from the shelf.
 - Inside a notebook there is a switcher in the header.
 - A notebook has many pages and exactly one canvas.
 - Every notebook has a cover: a colour from a small palette, an optional emoji or initial, the name, and an optional subtitle. The cover is what the notebook looks like when closed: the card on the shelf, and a small swatch next to the name in the switcher and the app bar. It is set in notebook settings. Image covers are not planned.
@@ -298,10 +299,12 @@ Larger chunks, one pull request each, squash-merged. Behaviour and layout only; 
 - Page controls at the rail and the one-page rule: add (lined or zine) and delete pinned under the squares, delete gone from the page settings popover, `canAddPage` applied to the rail, the app bar and the shortcuts
 - The media pool as a photo grid: square thumbnails edge to edge, usage badges, hover delete for unused images, everything else kept
 - Zine pages as blocks composed in place: the rows-of-blocks shape with the converter, hover affordances and block tools, padding the only layout setting left in page settings; backup version 6 and Dexie version 7, which also drop the date stamp fields
+- Open on the last notebook: the app starts where it was left instead of on the shelf; the shelf is reached from the switcher (and on a first run)
 
 ### Later, not now
 - The page's creation date shown below the page as a UI element, outside the page
 - A second cover, an inside cover and a counter cover, on the ground laid by the sided spreads
+- Spread print: a print version of a notebook laid out as spreads (facing pairs, covers and their insides, imposition for folding and binding), so the owner can print and bind a physical copy. Not now, but it is a goal, which is why spreads stay first-class in every page decision
 - Images on text pages with text wrapping around them: superseded by zine pages on 2026-09-17. The float approach stays documented in the decisions log in case it is ever wanted.
 - Cursor alternatives for pages: highlighting the active rule, or only the piece of rule under the next character, instead of a caret. Tried on 2026-09-17, not adopted for now.
 - Custom themes made in settings, user font files stored in the notebook, and notebook templates (theme plus defaults plus page size)
@@ -364,3 +367,4 @@ Larger chunks, one pull request each, squash-merged. Behaviour and layout only; 
 - Shelf, built (2026-09-18): the app starts on the shelf, as the spec says, rather than inside the last notebook; the welcome dialog still opens the first notebook directly. The shelf shows every notebook as its cover (the swatch at 150px, the name, the subtitle, the page count and when it was last opened), most recently opened first. Notebooks are created ("New notebook", a browser prompt for the name, the cover colour fewest notebooks wear), renamed and deleted (a confirm naming the page count) only here, from a menu on each card; the switcher inside a notebook lost its "New notebook…" entry and gained "Shelf…". The wordmark in the app bar goes back to the shelf, saving everything pending first. "Open a backup…" sits on the shelf too. Deleting the last notebook lands on the welcome dialog.
 - Feedback round (2026-09-18), Phase 4 in section 6. Date stamp: descoped from the page; the user writes a date or not; the creation date and time are metadata in page settings; the `showDate` fields are ignored until the zine block change bumps the formats, when they are removed, so there is one migration rather than two. Sides: page 1 is a right-hand page (recto), so spreads are (inside cover | 1), (2 | 3) and so on; the side is derived from position, never stored; sided corners are screen and thumbnail chrome, exports stay rectangular; an empty side of a spread shows a flat slab in the cover colour. Page controls: adding and deleting pages live under the rail's squares; the popover loses its delete row so the action has one home. One-page rule: no new page while the open page is empty, one predicate for every entry point. Pool: a photo-library grid with usage badges and hover delete for unused images. Zine pages: composed in place from blocks; at most one media block, one text beside it, one text below; two blocks in a row split the width equally; padding defaults to zero and is the only layout setting left in page settings; the stored shape is rows of blocks, more general than what the app allows, so the limits can be relaxed later without a format change. The page number footer is the lined font on every page kind.
 - Workflow (2026-09-18): larger chunks, one pull request per Phase 4 item, squash-merged, so the repository's history stays quiet. Behaviour and layout are being touched now; branding and visual refinement remain a later pass.
+- Open on the last notebook (2026-09-18): reverses the Phase 3 choice of starting on the shelf. The app opens on the notebook that was open last; the shelf is a destination. Spread print is recorded as a later goal and the spread as a product principle.
