@@ -152,7 +152,8 @@ export interface FirstRun {
 }
 
 /**
- * What the hook returns while no notebook is open: the shelf, where notebooks are
+ * What the hook returns while no notebook is open (a destination reached from the
+ * switcher, or the fallback when the last notebook fails to open): the shelf, where notebooks are
  * created, renamed, deleted and opened. This is where the app starts.
  */
 export interface Shelf {
@@ -300,20 +301,30 @@ export function useNotebookSession(
     [db, attachPage],
   );
 
-  // Start on the shelf. With nothing in storage this is a first run: the welcome dialog
-  // creates the notebook (or restores a backup) instead of the hook.
+  // Start where the owner left off: the notebook opened last, at its remembered page.
+  // With nothing in storage this is a first run: the welcome dialog creates the notebook
+  // (or restores a backup) instead of the hook. A notebook that fails to open leaves
+  // the app on the shelf, where the others still are.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const list = await listNotebooks(db);
       if (cancelled) return;
-      if (list.length === 0) setFirstRun(true);
-      else setShelf(list);
+      if (list.length === 0) {
+        setFirstRun(true);
+        return;
+      }
+      try {
+        await load(list[0].id);
+      } catch (error) {
+        report(error);
+        if (!cancelled) setShelf(list);
+      }
     })().catch(report);
     return () => {
       cancelled = true;
     };
-  }, [db]);
+  }, [db, load]);
 
   // Nothing pending is lost when the tab goes away or is hidden.
   useEffect(() => {
