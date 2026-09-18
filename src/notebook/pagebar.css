@@ -27,8 +27,10 @@
   bottom: calc(100% + 4px);
 }
 
-/* Tooltips too, so they are not clipped by the desk's edge. */
-.page-bar .icon-button[data-tooltip]::after {
+/* Tooltips too, so they are not clipped by the desk's edge. The selectors match the
+   app-wide tooltip rule's, so this one wins on order rather than losing on specificity. */
+.page-bar .icon-button[data-tooltip]:hover:not(:disabled)::after,
+.page-bar .icon-button[data-tooltip]:focus-visible::after {
   top: auto;
   bottom: calc(100% + 6px);
 }
