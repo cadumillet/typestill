@@ -1,0 +1,20 @@
+/* Date stamp and page number, in the page's ink and font, a little muted. */
+
+.page-marks__date,
+.page-marks__number {
+  position: absolute;
+  z-index: 2;
+  font-size: var(--mark-size);
+  line-height: 1;
+  color: var(--page-ink, #26241f);
+  opacity: 0.6;
+  pointer-events: none;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.page-marks__number {
+  left: 0;
+  right: 0;
+  text-align: center;
+}

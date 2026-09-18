@@ -285,6 +285,7 @@ export function App() {
                 tags={notebook.tags}
                 onTagChange={session.setPageTag}
                 onNewTag={() => void newTag()}
+                onMarksChange={session.setPageMarks}
                 twoColumns={page.divider !== null}
                 onTwoColumnsChange={setTwoColumns}
                 onZineChange={changeZine}
@@ -372,6 +373,8 @@ export function App() {
                           files={session.files}
                           preview={preview}
                           readOnly={!isOpen}
+                          date={shownPage.showDate ? new Date(shownPage.createdAt) : null}
+                          number={shownPage.showPageNumber ? i + 1 : null}
                           onChange={session.setZine}
                           onAddImages={(cell, files) => void addImages(cell, files)}
                           onPlaceFile={session.placeFile}
@@ -389,6 +392,8 @@ export function App() {
                           divider={shownPage.divider}
                           preview={preview}
                           readOnly={!isOpen}
+                          date={shownPage.showDate ? new Date(shownPage.createdAt) : null}
+                          number={shownPage.showPageNumber ? i + 1 : null}
                           onChange={session.setColumns}
                           onDividerChange={(offset) => void session.setDivider(offset)}
                         />

@@ -4,6 +4,7 @@ import { columnFromText, type Column as ColumnValue } from "./document";
 import { useBaseline } from "../theme/baseline";
 import type { Theme } from "../theme/theme";
 import { FormatBar } from "./FormatBar";
+import { PageMarks } from "./PageMarks";
 import {
   SCENE_PX_PER_MM,
   columnBoxes,
@@ -34,6 +35,10 @@ export interface TextPageProps {
   /** Preview: no rules, margin or divider, and no editing. */
   preview?: boolean;
   readOnly?: boolean;
+  /** The date stamp in the top right corner, when the page shows one. */
+  date?: Date | null;
+  /** The page number at the bottom centre, when the page shows one. */
+  number?: number | null;
   onChange?: (columns: ColumnValue[]) => void;
   /** The divider was dragged to a new offset (already snapped), in mm. */
   onDividerChange?: (divider: number) => void;
@@ -57,6 +62,8 @@ export function TextPage({
   divider,
   preview = false,
   readOnly = false,
+  date = null,
+  number = null,
   onChange,
   onDividerChange,
 }: TextPageProps) {
@@ -192,6 +199,7 @@ export function TextPage({
               </div>
             ),
         )}
+      <PageMarks date={date} number={number} zoom={zoom} />
       {!locked && bar.selection && (
         <FormatBar
           anchor={bar.selection.anchor}
