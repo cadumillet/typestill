@@ -16,7 +16,13 @@ import { THEMES, getTheme, isDarkTheme } from "../theme/themes";
 import { formatBytes } from "../store/zip";
 import { COVER_COLORS, coverFromFields } from "./cover";
 import { CoverSwatch } from "./CoverSwatch";
-import { SECTION_COLORS, nextSectionColor, sectionOf, sectionRange } from "./sections";
+import {
+  SECTION_COLORS,
+  lastSectionCanGive,
+  sectionOf,
+  sectionRange,
+  sheetCount,
+} from "./sections";
 import "./settings.css";
 
 export type NotebookSettings = Pick<
@@ -31,11 +37,13 @@ export interface NotebookBoxProps {
   /** The pages in position order, and the open one. */
   pages: readonly Page[];
   index: number;
-  /** Section edits apply at once; the cuts go through the store's rules (the caller reports a refusal). */
-  onCut: (start: number, input: { name: string; color: string }) => void;
+  /** Section edits apply at once; the lengths go through the store's rules (the caller reports a refusal). */
   onUpdateSection: (sectionId: string, patch: Partial<Pick<Section, "name" | "color">>) => void;
-  /** Moves a section's cut to a sheet boundary between its neighbours. */
-  onMoveCut: (sectionId: string, start: number) => void;
+  /** A sheet more or less at the section's end; the last section absorbs the difference. */
+  onAppendSheet: (sectionId: string) => void;
+  onRemoveSheet: (sectionId: string) => void;
+  /** A new section at the end, out of the last section's last sheet. */
+  onAddSection: () => void;
   /** Removes a cut, merging the section into the one before: the caller asks first. */
   onRemoveCut: (sectionId: string) => void;
   /** This page: the open page and what can be set on it. */
@@ -101,9 +109,10 @@ export function NotebookBox({
   notebook,
   pages,
   index,
-  onCut,
   onUpdateSection,
-  onMoveCut,
+  onAppendSheet,
+  onRemoveSheet,
+  onAddSection,
   onRemoveCut,
   page,
   onClearPage,
@@ -130,9 +139,9 @@ export function NotebookBox({
   const shownName = name.trim() || notebook.name;
   const zine = page.zine;
   const width = pageMm(notebook.pageSize, notebook.orientation).width;
-  /** A new section takes the last section's last sheet, which must not be its only one. */
-  const lastRange = sectionRange(notebook.sections, notebook.size, notebook.sections.length - 1);
-  const canAddSection = lastRange.end - lastRange.start >= 2 * SHEET;
+  /** Growing a section and adding one both take a sheet off the last section, which keeps one. */
+  const lastCanGive = lastSectionCanGive(notebook.sections, notebook.size);
+  const lastIndex = notebook.sections.length - 1;
 
   // Native dialog: showModal traps focus and closes on Escape. The fields are reset from
   // the notebook each time the box opens, at the top, on the map.
@@ -198,103 +207,109 @@ export function NotebookBox({
         <ul className="settings__sections">
           {notebook.sections.map((section, i) => {
             const range = sectionRange(notebook.sections, notebook.size, i);
-            const before = notebook.sections[i - 1]?.start ?? -SHEET;
-            const after = notebook.sections[i + 1]?.start ?? notebook.size;
+            const sheets = sheetCount(notebook.sections, notebook.size, i);
+            const canShrink = sheets >= 2;
             return (
               <li key={section.id} className="settings__section">
-                <input
-                  type="text"
-                  value={section.name}
-                  aria-label="Section name"
-                  onChange={(event) => onUpdateSection(section.id, { name: event.target.value })}
-                />
-                <span className="settings__swatches" role="radiogroup" aria-label="Section colour">
-                  {SECTION_COLORS.map((choice) => (
-                    <button
-                      key={choice.value}
-                      type="button"
-                      role="radio"
-                      aria-checked={choice.value === section.color}
-                      aria-label={choice.name}
-                      className="settings__swatch settings__swatch--small"
-                      style={{ background: choice.value }}
-                      onClick={() => onUpdateSection(section.id, { color: choice.value })}
-                    />
-                  ))}
-                </span>
-                <label className="settings__unit settings__start">
-                  <span>from</span>
+                <div className="settings__section-row">
                   <input
-                    type="number"
-                    aria-label={`${section.name} starts at page`}
+                    type="text"
+                    value={section.name}
+                    aria-label="Section name"
+                    onChange={(event) => onUpdateSection(section.id, { name: event.target.value })}
+                  />
+                  <span
+                    className="settings__swatches"
+                    role="radiogroup"
+                    aria-label="Section colour"
+                  >
+                    {SECTION_COLORS.map((choice) => (
+                      <button
+                        key={choice.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={choice.value === section.color}
+                        aria-label={choice.name}
+                        className="settings__swatch settings__swatch--small"
+                        style={{ background: choice.value }}
+                        onClick={() => onUpdateSection(section.id, { color: choice.value })}
+                      />
+                    ))}
+                  </span>
+                </div>
+                <div className="settings__section-row">
+                  <span className="settings__length">
+                    {sheets} {sheets === 1 ? "sheet" : "sheets"} · pages {range.start + 1}–
+                    {range.end}
+                  </span>
+                  {i < lastIndex && (
+                    <span className="settings__sheet-buttons">
+                      <button
+                        type="button"
+                        className={`settings__sheet${canShrink ? "" : " is-off"}`}
+                        aria-disabled={!canShrink || undefined}
+                        aria-label={`Take a sheet off ${section.name}`}
+                        title={
+                          canShrink
+                            ? `Four pages fewer, given to ${notebook.sections[lastIndex].name}`
+                            : "A section keeps at least one sheet"
+                        }
+                        onClick={() => canShrink && onRemoveSheet(section.id)}
+                      >
+                        − sheet
+                      </button>
+                      <button
+                        type="button"
+                        className={`settings__sheet${lastCanGive ? "" : " is-off"}`}
+                        aria-disabled={!lastCanGive || undefined}
+                        aria-label={`Add a sheet to ${section.name}`}
+                        title={
+                          lastCanGive
+                            ? `Four pages more, taken from ${notebook.sections[lastIndex].name}`
+                            : `${notebook.sections[lastIndex].name}, the last section, has one sheet and keeps it`
+                        }
+                        onClick={() => lastCanGive && onAppendSheet(section.id)}
+                      >
+                        + sheet
+                      </button>
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="settings__section-delete"
+                    aria-label={`Delete section ${section.name}`}
+                    disabled={i === 0}
                     title={
                       i === 0
-                        ? "The first section starts at page 1"
-                        : `Starts at page: a sheet boundary between ${before + SHEET + 1} and ${after - SHEET + 1}`
+                        ? "The first section cannot be deleted"
+                        : "Its pages merge into the section before it"
                     }
-                    min={before + SHEET + 1}
-                    max={after - SHEET + 1}
-                    step={SHEET}
-                    value={section.start + 1}
-                    disabled={i === 0}
-                    className="settings__number"
-                    onChange={(event) => {
-                      const start = Number(event.target.value) - 1;
-                      if (
-                        Number.isInteger(start) &&
-                        start % SHEET === 0 &&
-                        start > before &&
-                        start < after
-                      ) {
-                        onMoveCut(section.id, start);
-                      }
-                    }}
-                  />
-                  <span className="settings__pages">
-                    {range.end - range.start} {range.end - range.start === 1 ? "page" : "pages"}
-                  </span>
-                </label>
-                <button
-                  type="button"
-                  className="settings__section-delete"
-                  aria-label={`Delete section ${section.name}`}
-                  disabled={i === 0}
-                  title={
-                    i === 0
-                      ? "The first section cannot be deleted"
-                      : "Its pages merge into the section before it"
-                  }
-                  onClick={() => onRemoveCut(section.id)}
-                >
-                  Delete
-                </button>
+                    onClick={() => onRemoveCut(section.id)}
+                  >
+                    Delete
+                  </button>
+                </div>
               </li>
             );
           })}
         </ul>
         <button
           type="button"
-          className={`settings__add-section${canAddSection ? "" : " is-off"}`}
-          aria-disabled={!canAddSection || undefined}
+          className={`settings__add-section${lastCanGive ? "" : " is-off"}`}
+          aria-disabled={!lastCanGive || undefined}
           title={
-            canAddSection
-              ? undefined
-              : "The last section has one sheet; cut a longer one in the grid"
+            lastCanGive
+              ? "A new section out of the last section's last sheet"
+              : `${notebook.sections[lastIndex].name}, the last section, has one sheet and keeps it`
           }
-          onClick={() =>
-            canAddSection &&
-            onCut(notebook.size - SHEET, {
-              name: "Section",
-              color: nextSectionColor(notebook.sections),
-            })
-          }
+          onClick={() => lastCanGive && onAddSection()}
         >
           Add section
         </button>
         <p className="settings__note">
-          Sections are cuts on sheet boundaries (page 1, 5, 9, …), each at least a sheet of four
-          pages; a new one takes the last section's last sheet. The grid view (⌥M) cuts them where
-          you see them.
+          A section is so many sheets of four pages, cut on page 1, 5, 9, …; the last section is
+          what remains. A sheet added to one is taken from the last; a new section takes the last
+          sheet.
         </p>
       </fieldset>
       <fieldset className="settings__group">

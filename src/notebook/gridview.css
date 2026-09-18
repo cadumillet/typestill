@@ -1,4 +1,5 @@
-/* The grid view: the whole notebook over the desk (see GridView.tsx). */
+/* The grid view: the whole notebook over the desk (see GridView.tsx), drawn at the
+   density of GitHub's activity graph: 10px squares, 3px gaps both ways, 2px corners. */
 
 .grid-view {
   position: absolute;
@@ -17,53 +18,56 @@
   overflow: visible;
 }
 
-/* Section names above their first column, in the section's colour, as wide as the section. */
+/* Section names above their first column, in the section's colour, as GitHub's month
+   labels: small text, nothing else. A name without room is left out. */
 .grid-view__names {
   position: relative;
-  height: 24px;
+  height: 20px;
 }
 
 .grid-view__name {
   position: absolute;
   top: 0;
-  padding: 0 2px;
+  padding: 0;
   border: 0;
   background: transparent;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 20px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
   white-space: nowrap;
   cursor: pointer;
+}
+
+.grid-view__name.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .grid-view__name:hover {
   text-decoration: underline;
 }
 
-/* One column per sheet, laid out by pitch; the gap before a column holds its cut or plus. */
+/* One column per sheet; the gap between columns is the gap between squares. */
 .grid-view__sheets {
-  position: relative;
+  display: flex;
+  gap: 3px;
 }
 
 .grid-view__sheet {
-  position: absolute;
-  top: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
-/* A page's square: the section's colour at the page's fill, grey when empty; the open
-   page's is ringed. */
+/* A page's square: the section's colour at the page's fill, grey when empty. Nothing
+   marks the open page. */
 .grid-view__square {
   display: block;
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   padding: 0;
   border: 0;
-  border-radius: 3px;
+  border-radius: 2px;
   background: var(--section);
   cursor: pointer;
   transition: filter 120ms;
@@ -83,92 +87,6 @@
 
 .grid-view__square:hover {
   filter: brightness(1.15);
-}
-
-.grid-view__square[aria-current="page"] {
-  box-shadow:
-    0 0 0 2px var(--desk),
-    0 0 0 3.5px var(--ink);
-}
-
-/* A cut: a line in the gap before the section's first sheet, dragged by sheets; its
-   cross, above the line, merges the section into the one before. */
-.grid-view__cut {
-  position: absolute;
-  top: -2px;
-  bottom: -2px;
-  left: -7px;
-  width: 4px;
-  border-radius: 2px;
-  cursor: ew-resize;
-  touch-action: none;
-}
-
-.grid-view__cut.is-dragging {
-  opacity: 0.3;
-}
-
-.grid-view__cut.is-ghost {
-  opacity: 0.7;
-  pointer-events: none;
-}
-
-.grid-view__cut-remove {
-  position: absolute;
-  top: -22px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-color: var(--line);
-  border-radius: 50%;
-  background: var(--surface);
-  color: var(--muted);
-  opacity: 0;
-  cursor: pointer;
-  transition: opacity 120ms;
-}
-
-.grid-view__cut:hover .grid-view__cut-remove,
-.grid-view__cut-remove:focus-visible {
-  opacity: 1;
-}
-
-.grid-view__cut-remove:hover {
-  color: var(--danger);
-  background: var(--danger-soft);
-}
-
-/* The plus in the gap between two sheets, shown while the gap is hovered. */
-.grid-view__plus {
-  position: absolute;
-  top: 50%;
-  left: -14px;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transform: translateY(-50%);
-  border-color: transparent;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--muted);
-  opacity: 0;
-  cursor: pointer;
-  transition: opacity 120ms;
-}
-
-.grid-view__plus:hover,
-.grid-view__plus:focus-visible {
-  opacity: 1;
-  background: var(--hover);
-  color: var(--ink);
 }
 
 /* Hover label and thumbnail beside the square. */

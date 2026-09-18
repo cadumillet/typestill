@@ -4,9 +4,11 @@ import type { BinaryFileData, BinaryFiles } from "@excalidraw/excalidraw/types";
 import { DEFAULT_COVER, type Cover } from "../notebook/cover";
 import {
   DEFAULT_SECTION_NAME,
+  addSectionAtEnd as addSectionAtEndOf,
+  appendSheet as appendSheetOf,
   cut,
-  moveCut as moveCutOf,
   removeCut as removeCutOf,
+  removeSheet as removeSheetOf,
   sectionRange,
   validateSections,
 } from "../notebook/sections";
@@ -242,23 +244,65 @@ export async function cutSection(
 }
 
 /**
- * Moves a section's cut to `start`, between its neighbours' cuts; the pages between the
- * old and the new start change section, nothing else. Throws FirstSectionError for the
- * first section.
+ * Makes a section a sheet longer: the cuts after it move on by one sheet and the last
+ * section, the notebook's remainder, gives the sheet up. Returns the sections. Throws
+ * for the last section and when the last section has one sheet.
  */
-export async function moveCut(
+export async function appendSheet(
   db: TypestillDb,
   notebookId: string,
   sectionId: string,
-  start: number,
-): Promise<void> {
-  await db.transaction("rw", db.notebooks, async () => {
+): Promise<Section[]> {
+  return db.transaction("rw", db.notebooks, async () => {
     const notebook = await notebookOf(db, notebookId);
     const index = sectionIndexIn(notebook, sectionId);
-    if (index === 0) throw new FirstSectionError(sectionId);
-    const sections = moveCutOf(notebook.sections, index, start);
+    const sections = appendSheetOf(notebook.sections, notebook.size, index);
     validateSections(sections, notebook.size);
     await db.notebooks.update(notebookId, { sections });
+    return sections;
+  });
+}
+
+/**
+ * Makes a section a sheet shorter: the cuts after it move back by one sheet and the last
+ * section takes the sheet. Returns the sections. Throws for the last section and for a
+ * section of one sheet.
+ */
+export async function removeSheet(
+  db: TypestillDb,
+  notebookId: string,
+  sectionId: string,
+): Promise<Section[]> {
+  return db.transaction("rw", db.notebooks, async () => {
+    const notebook = await notebookOf(db, notebookId);
+    const index = sectionIndexIn(notebook, sectionId);
+    const sections = removeSheetOf(notebook.sections, notebook.size, index);
+    validateSections(sections, notebook.size);
+    await db.notebooks.update(notebookId, { sections });
+    return sections;
+  });
+}
+
+/**
+ * Adds a section at the end, made of the last section's last sheet, and returns the
+ * sections. Throws when the last section has one sheet.
+ */
+export async function addSectionAtEnd(
+  db: TypestillDb,
+  notebookId: string,
+  input: { name: string; color: string },
+): Promise<Section[]> {
+  return db.transaction("rw", db.notebooks, async () => {
+    const notebook = await notebookOf(db, notebookId);
+    const sections = addSectionAtEndOf(
+      notebook.sections,
+      notebook.size,
+      input.name.trim(),
+      input.color,
+    );
+    validateSections(sections, notebook.size);
+    await db.notebooks.update(notebookId, { sections });
+    return sections;
   });
 }
 

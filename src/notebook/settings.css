@@ -138,17 +138,30 @@ button.primary {
   list-style: none;
 }
 
+/* A section is two lines: its name and colour, then its length with the sheet buttons
+   and Delete at the right. */
 .settings__section {
+  margin-bottom: 10px;
+}
+
+.settings__section-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
+}
+
+.settings__section-row + .settings__section-row {
+  margin-top: 4px;
 }
 
 .settings__section input {
   flex: 1;
   min-width: 0;
   width: 0;
+}
+
+.settings__section .settings__section-delete {
+  margin-left: auto;
 }
 
 .settings__section .settings__swatches {
@@ -232,18 +245,35 @@ button.primary {
   white-space: nowrap;
 }
 
-/* A section's "starts at page" field and its page count. */
-.settings__start {
+/* A section's length in sheets, its "− sheet" and "+ sheet", and "Add section": an off
+   button keeps its tooltip, so it is aria-disabled and dimmed rather than disabled. */
+.settings__length {
   flex: none;
-  gap: 4px;
   font-size: 12px;
   color: var(--muted);
 }
 
-.settings__start input[type="number"] {
-  width: 48px;
+.settings__sheet-buttons {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
 }
 
-.settings__pages {
-  min-width: 52px;
+.settings__sheet {
+  padding: 2px 6px;
+  font-size: 11px;
+  border-color: transparent;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.settings__sheet:hover:not(.is-off) {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+.settings__sheet.is-off,
+.settings__add-section.is-off {
+  opacity: 0.35;
+  cursor: default;
 }

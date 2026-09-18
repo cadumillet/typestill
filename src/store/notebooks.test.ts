@@ -13,6 +13,8 @@ import {
   NotebookNotBlankError,
   SectionPastEndError,
   addFile,
+  addSectionAtEnd,
+  appendSheet,
   clearPage,
   createNotebook,
   cutSection,
@@ -28,9 +30,9 @@ import {
   listPages,
   loadNotebookFiles,
   loadThumbnails,
-  moveCut,
   pruneFiles,
   removeCut,
+  removeSheet,
   saveCanvasContent,
   savePageDrawing,
   savePageText,
@@ -824,23 +826,49 @@ describe("sections", () => {
     expect(SHEET).toBe(4);
   });
 
-  it("moves a cut by whole sheets between its neighbours", async () => {
+  it("lengthens and shortens a section by sheets, the last section absorbing the difference", async () => {
     const { notebook } = await createNotebook(db, { name: "A", size: 64 });
     const [notes] = notebook.sections;
     const ideas = await cutSection(db, notebook.id, 8, { name: "Ideas", color: "#b8342c" });
     const quotes = await cutSection(db, notebook.id, 40, { name: "Quotes", color: "#2f5b9e" });
     const starts = async () => (await sectionsOf(notebook.id)).map((s) => s.start);
-    await moveCut(db, notebook.id, ideas.id, 20);
-    expect(await starts()).toEqual([0, 20, 40]);
-    await moveCut(db, notebook.id, quotes.id, 60);
-    expect(await starts()).toEqual([0, 20, 60]);
-    await expect(moveCut(db, notebook.id, notes.id, 4)).rejects.toThrow(FirstSectionError);
-    await expect(moveCut(db, notebook.id, ideas.id, 0)).rejects.toThrow(/cross/);
-    await expect(moveCut(db, notebook.id, ideas.id, 60)).rejects.toThrow(/cross/);
-    await expect(moveCut(db, notebook.id, ideas.id, 22)).rejects.toThrow(/multiple of 4/);
-    await expect(moveCut(db, notebook.id, quotes.id, 64)).rejects.toThrow(/past the end/);
-    await expect(moveCut(db, notebook.id, "missing", 4)).rejects.toThrow(/not found/);
-    expect(await starts()).toEqual([0, 20, 60]);
+    expect((await appendSheet(db, notebook.id, notes.id)).map((s) => s.start)).toEqual([0, 12, 44]);
+    expect(await starts()).toEqual([0, 12, 44]);
+    await appendSheet(db, notebook.id, ideas.id);
+    expect(await starts()).toEqual([0, 12, 48]);
+    await removeSheet(db, notebook.id, notes.id);
+    expect(await starts()).toEqual([0, 8, 44]);
+    await removeSheet(db, notebook.id, ideas.id);
+    expect(await starts()).toEqual([0, 8, 40]);
+    await expect(appendSheet(db, notebook.id, quotes.id)).rejects.toThrow(/last section/);
+    await expect(removeSheet(db, notebook.id, quotes.id)).rejects.toThrow(/last section/);
+    await expect(appendSheet(db, notebook.id, "missing")).rejects.toThrow(/not found/);
+    await expect(removeSheet(db, notebook.id, "missing")).rejects.toThrow(/not found/);
+    // Ideas down to one sheet keeps it; Quotes down to one sheet has none to give.
+    for (let i = 0; i < 7; i++) await removeSheet(db, notebook.id, ideas.id);
+    expect(await starts()).toEqual([0, 8, 12]);
+    await expect(removeSheet(db, notebook.id, ideas.id)).rejects.toThrow(/at least one sheet/);
+    for (let i = 0; i < 12; i++) await appendSheet(db, notebook.id, ideas.id);
+    expect(await starts()).toEqual([0, 8, 60]);
+    await expect(appendSheet(db, notebook.id, ideas.id)).rejects.toThrow(/one sheet/);
+    await expect(appendSheet(db, notebook.id, notes.id)).rejects.toThrow(/one sheet/);
+    expect(await starts()).toEqual([0, 8, 60]);
+    expect(await db.pages.count()).toBe(64);
+  });
+
+  it("adds a section at the end out of the last section's last sheet", async () => {
+    const { notebook } = await createNotebook(db, { name: "A", size: 8 });
+    const [notes] = notebook.sections;
+    const sections = await addSectionAtEnd(db, notebook.id, { name: " Section ", color: "#111" });
+    expect(sections).toEqual([
+      notes,
+      { id: sections[1].id, name: "Section", color: "#111", start: 4, lastPageId: null },
+    ]);
+    expect(await sectionsOf(notebook.id)).toEqual(sections);
+    await expect(addSectionAtEnd(db, notebook.id, { name: "More", color: "#222" })).rejects.toThrow(
+      /one sheet/,
+    );
+    expect(await sectionsOf(notebook.id)).toEqual(sections);
   });
 
   it("removes a cut, its pages merging into the section before it", async () => {

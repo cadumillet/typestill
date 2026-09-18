@@ -23,9 +23,10 @@ import {
 } from "../store/model";
 import {
   addFile,
+  addSectionAtEnd as addSectionAtEndRecord,
+  appendSheet as appendSheetRecord,
   clearPage as clearPageRecord,
   createNotebook as createNotebookRecord,
-  cutSection as cutSectionRecord,
   deleteFile,
   deleteNotebook as deleteNotebookRecord,
   exportNotebook,
@@ -37,9 +38,9 @@ import {
   listPages,
   loadNotebookFiles,
   loadThumbnails,
-  moveCut as moveCutRecord,
   pruneFiles,
   removeCut as removeCutRecord,
+  removeSheet as removeSheetRecord,
   renameNotebook as renameNotebookRecord,
   saveCanvasContent,
   savePageDrawing,
@@ -112,15 +113,19 @@ export interface NotebookSession {
   /** Removes an image from the notebook. Throws FileInUseError while a page or the canvas uses it. */
   deleteImage: (fileId: string) => Promise<void>;
   /**
-   * Sections are cuts on sheet boundaries (src/notebook/sections.ts). Cutting, moving and
-   * removing a cut edit the sections alone; the store enforces the rules and throws.
+   * Sections are cuts on sheet boundaries (src/notebook/sections.ts), edited by their
+   * length in sheets. Every edit changes the sections alone; the store enforces the rules
+   * and throws.
    */
-  cutSection: (start: number, input: { name: string; color: string }) => Promise<Section>;
   updateSection: (
     sectionId: string,
     patch: Partial<Pick<Section, "name" | "color">>,
   ) => Promise<void>;
-  moveCut: (sectionId: string, start: number) => Promise<void>;
+  /** A sheet more or less at the section's end; the last section absorbs the difference. */
+  appendSheet: (sectionId: string) => Promise<void>;
+  removeSheet: (sectionId: string) => Promise<void>;
+  /** A new section at the end, out of the last section's last sheet. */
+  addSection: (input: { name: string; color: string }) => Promise<void>;
   /** Removes a cut: its pages merge into the section before. The caller asks first. */
   removeCut: (sectionId: string) => Promise<void>;
   /** Opens a section where it was left (its remembered page, else its first page). */
@@ -617,26 +622,6 @@ export function useNotebookSession(
     [db, state],
   );
 
-  const cutSection = useCallback(
-    async (start: number, input: { name: string; color: string }) => {
-      if (!state) throw new Error("No notebook open");
-      const section = await cutSectionRecord(db, state.notebook.id, start, input);
-      setState((current) =>
-        current
-          ? {
-              ...current,
-              notebook: {
-                ...current.notebook,
-                sections: [...current.notebook.sections, section].sort((a, b) => a.start - b.start),
-              },
-            }
-          : current,
-      );
-      return section;
-    },
-    [db, state],
-  );
-
   const updateSection = useCallback(
     async (sectionId: string, patch: Partial<Pick<Section, "name" | "color">>) => {
       if (!state) return;
@@ -658,26 +643,38 @@ export function useNotebookSession(
     [db, state],
   );
 
-  // Moving a cut changes which pages are whose; no page moves and the open page stays.
-  const moveCut = useCallback(
-    async (sectionId: string, start: number) => {
-      if (!state) return;
-      await moveCutRecord(db, state.notebook.id, sectionId, start);
+  // Editing sections by length changes which pages are whose; no page moves and the open
+  // page stays. The store returns the sections as written.
+  const withSections = useCallback(
+    (sections: Section[]) =>
       setState((current) =>
-        current
-          ? {
-              ...current,
-              notebook: {
-                ...current.notebook,
-                sections: current.notebook.sections
-                  .map((section) => (section.id === sectionId ? { ...section, start } : section))
-                  .sort((a, b) => a.start - b.start),
-              },
-            }
-          : current,
-      );
+        current ? { ...current, notebook: { ...current.notebook, sections } } : current,
+      ),
+    [],
+  );
+
+  const appendSheet = useCallback(
+    async (sectionId: string) => {
+      if (!state) return;
+      withSections(await appendSheetRecord(db, state.notebook.id, sectionId));
     },
-    [db, state],
+    [db, state, withSections],
+  );
+
+  const removeSheet = useCallback(
+    async (sectionId: string) => {
+      if (!state) return;
+      withSections(await removeSheetRecord(db, state.notebook.id, sectionId));
+    },
+    [db, state, withSections],
+  );
+
+  const addSection = useCallback(
+    async (input: { name: string; color: string }) => {
+      if (!state) return;
+      withSections(await addSectionAtEndRecord(db, state.notebook.id, input));
+    },
+    [db, state, withSections],
   );
 
   const removeCut = useCallback(
@@ -1084,9 +1081,10 @@ export function useNotebookSession(
     addImages,
     placeFile,
     deleteImage,
-    cutSection,
     updateSection,
-    moveCut,
+    appendSheet,
+    removeSheet,
+    addSection,
     removeCut,
     openSection,
     growNotebook,

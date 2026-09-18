@@ -327,21 +327,20 @@ export function App() {
     );
   };
 
-  /** Cuts a new section at a sheet boundary: named "Section", in the least-used colour. */
-  const cutSection = async (start: number) => {
+  /** Adds a section at the end, out of the last sheet: named "Section", in the least-used colour. */
+  const addSection = async () => {
     try {
-      await session.cutSection(start, {
-        name: "Section",
-        color: nextSectionColor(notebook.sections),
-      });
+      await session.addSection({ name: "Section", color: nextSectionColor(notebook.sections) });
     } catch (error) {
       refused(error);
     }
   };
 
-  const moveCut = async (sectionId: string, start: number) => {
+  /** A sheet more or less at a section's end; the store's refusals are said plainly. */
+  const resizeSection = async (sectionId: string, by: 1 | -1) => {
     try {
-      await session.moveCut(sectionId, start);
+      if (by > 0) await session.appendSheet(sectionId);
+      else await session.removeSheet(sectionId);
     } catch (error) {
       refused(error);
     }
@@ -490,11 +489,10 @@ export function App() {
             notebook={notebook}
             pages={pages}
             index={index}
-            onCut={(start, input) =>
-              void session.cutSection(start, input).catch((error: unknown) => refused(error))
-            }
             onUpdateSection={(sectionId, patch) => void session.updateSection(sectionId, patch)}
-            onMoveCut={(sectionId, start) => void moveCut(sectionId, start)}
+            onAppendSheet={(sectionId) => void resizeSection(sectionId, 1)}
+            onRemoveSheet={(sectionId) => void resizeSection(sectionId, -1)}
+            onAddSection={() => void addSection()}
             onRemoveCut={(sectionId) => void removeCut(sectionId)}
             page={page}
             onClearPage={() => void clearPage()}
@@ -632,9 +630,6 @@ export function App() {
                   thumbnails={session.thumbnails}
                   onSelect={(i) => openFromGrid(() => session.goTo(i))}
                   onOpenSection={(sectionId) => openFromGrid(() => session.openSection(sectionId))}
-                  onCut={(start) => void cutSection(start)}
-                  onMoveCut={(sectionId, start) => void moveCut(sectionId, start)}
-                  onRemoveCut={(sectionId) => void removeCut(sectionId)}
                   onClose={() => setGridOpen(false)}
                 />
               )}

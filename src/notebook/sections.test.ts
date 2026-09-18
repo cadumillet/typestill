@@ -5,15 +5,19 @@ import { SHEET } from "../store/model";
 import {
   DEFAULT_SECTION_NAME,
   SECTION_COLORS,
+  addSectionAtEnd,
+  appendSheet,
   cut,
-  moveCut,
+  lastSectionCanGive,
   nextSectionColor,
   padToSheet,
   removeCut,
+  removeSheet,
   sectionIndexOf,
   sectionOf,
   sectionRange,
   sectionsFromTags,
+  sheetCount,
   sizeFor,
   slotsFromSections,
   validateSections,
@@ -87,21 +91,6 @@ describe("sections", () => {
     expect(() => cut(cuts, 8, "x", "#111")).toThrow(/already starts at 8/);
   });
 
-  it("moves a cut between its neighbours by whole sheets", () => {
-    expect(moveCut(cuts, 1, 4).map((s) => s.start)).toEqual([0, 4, 20]);
-    expect(moveCut(cuts, 1, 16).map((s) => s.start)).toEqual([0, 16, 20]);
-    expect(moveCut(cuts, 2, 60).map((s) => s.start)).toEqual([0, 8, 60]);
-    expect(moveCut(cuts, 1, 4)[1]).toEqual({ ...cuts[1], start: 4 });
-    expect(cuts.map((s) => s.start)).toEqual([0, 8, 20]);
-    expect(() => moveCut(cuts, 0, 4)).toThrow(/first section/);
-    expect(() => moveCut(cuts, 3, 4)).toThrow(/No section/);
-    expect(() => moveCut(cuts, 1, 6)).toThrow(/multiple of 4/);
-    expect(() => moveCut(cuts, 1, 0)).toThrow(/cross/);
-    expect(() => moveCut(cuts, 1, 20)).toThrow(/cross/);
-    expect(() => moveCut(cuts, 1, 24)).toThrow(/cross/);
-    expect(() => moveCut(cuts, 2, 8)).toThrow(/cross/);
-  });
-
   it("removes a cut, its pages falling to the section before", () => {
     const next = removeCut(cuts, 1);
     expect(next.map((s) => s.id)).toEqual(["a", "c"]);
@@ -110,6 +99,63 @@ describe("sections", () => {
     expect(cuts).toHaveLength(3);
     expect(() => removeCut(cuts, 0)).toThrow(/first section/);
     expect(() => removeCut(cuts, 3)).toThrow(/No section/);
+  });
+
+  it("counts a section's sheets, the last section's to the size", () => {
+    expect([0, 1, 2].map((i) => sheetCount(cuts, 64, i))).toEqual([2, 3, 11]);
+    expect(sheetCount(cuts, 24, 2)).toBe(1);
+    expect(lastSectionCanGive(cuts, 64)).toBe(true);
+    expect(lastSectionCanGive(cuts, 24)).toBe(false);
+    expect(lastSectionCanGive([section("only")], 4)).toBe(false);
+  });
+
+  it("appends a sheet to a section, the cuts after it moving on and the last section giving it", () => {
+    expect(appendSheet(cuts, 64, 0).map((s) => s.start)).toEqual([0, 12, 24]);
+    expect(appendSheet(cuts, 64, 1).map((s) => s.start)).toEqual([0, 8, 24]);
+    const next = appendSheet(cuts, 64, 1);
+    expect(sheetCount(next, 64, 1)).toBe(4);
+    expect(sheetCount(next, 64, 2)).toBe(10);
+    expect(next[2]).toEqual({ ...cuts[2], start: 24 });
+    // Page numbers do not move: the input is left alone and only starts change.
+    expect(cuts.map((s) => s.start)).toEqual([0, 8, 20]);
+    expect(() => appendSheet(cuts, 64, 2)).toThrow(/last section/);
+    expect(() => appendSheet(cuts, 64, 3)).toThrow(/No section/);
+    // With the last section down to one sheet, no section can grow.
+    expect(() => appendSheet(cuts, 24, 0)).toThrow(/one sheet/);
+    expect(() => appendSheet(cuts, 24, 1)).toThrow(/one sheet/);
+    expect(() => appendSheet([section("only")], 64, 0)).toThrow(/last section/);
+    // The result is valid for the size it was made for.
+    expect(() => validateSections(appendSheet(cuts, 28, 1), 28)).not.toThrow();
+  });
+
+  it("takes a sheet off a section, the cuts after it moving back and the last section taking it", () => {
+    expect(removeSheet(cuts, 64, 0).map((s) => s.start)).toEqual([0, 4, 16]);
+    expect(removeSheet(cuts, 64, 1).map((s) => s.start)).toEqual([0, 8, 16]);
+    expect(sheetCount(removeSheet(cuts, 64, 1), 64, 2)).toBe(12);
+    expect(cuts.map((s) => s.start)).toEqual([0, 8, 20]);
+    expect(() => removeSheet(cuts, 64, 2)).toThrow(/last section/);
+    expect(() => removeSheet(cuts, 64, 3)).toThrow(/No section/);
+    const thin = [section("a"), section("b", { start: 4 }), section("c", { start: 8 })];
+    expect(() => removeSheet(thin, 64, 0)).toThrow(/at least one sheet/);
+    expect(() => removeSheet(thin, 64, 1)).toThrow(/at least one sheet/);
+  });
+
+  it("adds a section at the end out of the last section's last sheet", () => {
+    const next = addSectionAtEnd(cuts, 64, "Section", "#111");
+    expect(next.map((s) => s.start)).toEqual([0, 8, 20, 60]);
+    expect(next[3]).toEqual({
+      id: next[3].id,
+      name: "Section",
+      color: "#111",
+      start: 60,
+      lastPageId: null,
+    });
+    expect(sheetCount(next, 64, 2)).toBe(10);
+    expect(sheetCount(next, 64, 3)).toBe(1);
+    expect(cuts).toHaveLength(3);
+    expect(() => addSectionAtEnd(cuts, 24, "x", "#111")).toThrow(/one sheet/);
+    expect(addSectionAtEnd([section("only")], 8, "x", "#111").map((s) => s.start)).toEqual([0, 4]);
+    expect(() => addSectionAtEnd([section("only")], 4, "x", "#111")).toThrow(/one sheet/);
   });
 
   it("rounds up to whole sheets and picks the size for a page count", () => {

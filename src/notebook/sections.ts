@@ -127,24 +127,6 @@ export function cut(
 }
 
 /**
- * Section `index` moved to `start`: a multiple of SHEET strictly between its neighbours'
- * starts, so the order is kept and no section empties. Throws for the first section,
- * which cannot move, and for a start off a boundary or outside the neighbours.
- */
-export function moveCut(sections: readonly Section[], index: number, start: number): Section[] {
-  if (index === 0) throw new Error("The first section cannot move");
-  const section = sections[index];
-  if (!section) throw new Error(`No section at index ${index}`);
-  if (start % SHEET !== 0) throw new Error(`A cut must fall at a multiple of ${SHEET}`);
-  const before = sections[index - 1].start;
-  const after = sections[index + 1]?.start ?? Infinity;
-  if (!(start > before && start < after)) {
-    throw new Error(`A cut at ${start} would cross the section next to it`);
-  }
-  return sections.map((s, i) => (i === index ? { ...s, start } : s));
-}
-
-/**
  * The sections without section `index`: its pages fall to the section before it, which
  * now runs to the next cut. Throws for the first section, which cannot go.
  */
@@ -152,6 +134,67 @@ export function removeCut(sections: readonly Section[], index: number): Section[
   if (index === 0) throw new Error("The first section cannot be removed");
   if (!sections[index]) throw new Error(`No section at index ${index}`);
   return sections.filter((_, i) => i !== index);
+}
+
+// ---------------------------------------------------------------------------
+// Editing by length. A section is so many sheets; the last section is what remains of
+// the notebook and keeps at least one sheet, so nothing grows past the end.
+
+/** The length of section `index` in sheets. */
+export function sheetCount(sections: readonly Section[], size: number, index: number): number {
+  const { start, end } = sectionRange(sections, size, index);
+  return (end - start) / SHEET;
+}
+
+/** True when the last section can give a sheet up: it has more than one. */
+export function lastSectionCanGive(sections: readonly Section[], size: number): boolean {
+  return sheetCount(sections, size, sections.length - 1) >= 2;
+}
+
+/**
+ * Section `index` one sheet longer: every cut after it moves on by a sheet, so the last
+ * section gives the sheet up. Throws for the last section, which has nothing after it,
+ * and when the last section has one sheet.
+ */
+export function appendSheet(sections: readonly Section[], size: number, index: number): Section[] {
+  if (!sections[index]) throw new Error(`No section at index ${index}`);
+  if (index === sections.length - 1) {
+    throw new Error("The last section is what remains of the notebook and cannot grow");
+  }
+  if (!lastSectionCanGive(sections, size)) {
+    throw new Error("The last section has one sheet and cannot give it up");
+  }
+  return sections.map((s, i) => (i > index ? { ...s, start: s.start + SHEET } : s));
+}
+
+/**
+ * Section `index` one sheet shorter: every cut after it moves back by a sheet, so the
+ * last section takes the sheet. Throws for the last section and for a section of one
+ * sheet, which keeps it.
+ */
+export function removeSheet(sections: readonly Section[], size: number, index: number): Section[] {
+  if (!sections[index]) throw new Error(`No section at index ${index}`);
+  if (index === sections.length - 1) {
+    throw new Error("The last section is what remains of the notebook and cannot shrink");
+  }
+  if (sheetCount(sections, size, index) < 2) throw new Error("A section keeps at least one sheet");
+  return sections.map((s, i) => (i > index ? { ...s, start: s.start - SHEET } : s));
+}
+
+/**
+ * A new section at the end, made of the last section's last sheet. Throws when the last
+ * section has one sheet.
+ */
+export function addSectionAtEnd(
+  sections: readonly Section[],
+  size: number,
+  name: string,
+  color: string,
+): Section[] {
+  if (!lastSectionCanGive(sections, size)) {
+    throw new Error("The last section has one sheet and cannot give it up");
+  }
+  return cut(sections, size - SHEET, name, color);
 }
 
 // ---------------------------------------------------------------------------
