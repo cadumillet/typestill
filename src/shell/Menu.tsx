@@ -12,16 +12,19 @@ export interface MenuProps {
   /** Icon for the trigger button. */
   children: ReactNode;
   label: string;
+  /** Keyboard shortcut shown after the label in the trigger's tooltip. */
+  shortcut?: string;
   items: MenuItem[];
 }
 
 /** An icon button that opens a small list of actions below it. */
-export function Menu({ children, label, items }: MenuProps) {
+export function Menu({ children, label, shortcut, items }: MenuProps) {
   return (
     <Popover
       trigger={({ open, toggle, controls }) => (
         <IconButton
           label={label}
+          shortcut={shortcut}
           onClick={toggle}
           aria-haspopup="menu"
           aria-expanded={open}
