@@ -1,14 +1,16 @@
-import { useCallback, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { Column } from "./Column";
 import { columnFromText, type Column as ColumnValue } from "./document";
 import { useBaseline } from "../theme/baseline";
 import type { Theme } from "../theme/theme";
 import { FormatBar } from "./FormatBar";
 import {
+  SCENE_PX_PER_MM,
   columnBoxes,
   mmToCssPx,
   pageMm,
   ruleCount,
+  snapDivider,
   type Orientation,
   type PageSize,
 } from "./paper";
@@ -33,6 +35,8 @@ export interface TextPageProps {
   preview?: boolean;
   readOnly?: boolean;
   onChange?: (columns: ColumnValue[]) => void;
+  /** The divider was dragged to a new offset (already snapped), in mm. */
+  onDividerChange?: (divider: number) => void;
 }
 
 const EMPTY_COLUMN = columnFromText("");
@@ -54,6 +58,7 @@ export function TextPage({
   preview = false,
   readOnly = false,
   onChange,
+  onDividerChange,
 }: TextPageProps) {
   const mm = pageMm(size, orientation);
   const px = (value: number) => mmToCssPx(value, zoom);
@@ -66,6 +71,8 @@ export function TextPage({
   const page = useRef<HTMLDivElement>(null);
   const bar = useFormatBar(page);
   const [fullColumns, setFullColumns] = useState<boolean[]>([]);
+  /** Where the divider is while it is being dragged, in mm; null otherwise. */
+  const [dragDivider, setDragDivider] = useState<number | null>(null);
 
   const setColumnFull = useCallback((index: number, full: boolean) => {
     setFullColumns((current) => {
@@ -87,8 +94,34 @@ export function TextPage({
     "--font-size": `${fontSize}px`,
   } as CSSProperties;
 
-  const boxes = columnBoxes(mm.width, margin, divider, lined);
   const locked = preview || readOnly;
+  const shownDivider = dragDivider ?? divider;
+  const boxes = columnBoxes(mm.width, margin, shownDivider, lined);
+
+  // The divider is dragged in 10mm steps; the columns follow live and the new offset is
+  // reported once the pointer is released.
+  const dividerAt = (event: PointerEvent) => {
+    const box = page.current?.getBoundingClientRect();
+    if (!box) return null;
+    const at = (event.clientX - box.left) / zoom / SCENE_PX_PER_MM;
+    return snapDivider(at, mm.width, margin, lined);
+  };
+  const onDividerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (locked || event.button !== 0 || divider === null) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDragDivider(divider);
+  };
+  const onDividerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (dragDivider === null) return;
+    const at = dividerAt(event);
+    if (at !== null && at !== dragDivider) setDragDivider(at);
+  };
+  const onDividerUp = () => {
+    if (dragDivider === null) return;
+    setDragDivider(null);
+    if (dragDivider !== divider) onDividerChange?.(dragDivider);
+  };
   const className = [
     "text-page",
     `rules-${lined.rules}`,
@@ -100,9 +133,28 @@ export function TextPage({
     .join(" ");
 
   return (
-    <div className={className} style={style} ref={page}>
-      {divider !== null && (
-        <div className="text-page__divider" style={{ left: px(divider) }} aria-hidden="true" />
+    <div
+      className={`${className}${dragDivider !== null ? " is-dragging-divider" : ""}`}
+      style={style}
+      ref={page}
+    >
+      {shownDivider !== null && !locked && (
+        <div
+          className="text-page__divider-handle"
+          style={{ left: px(shownDivider) }}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Divider"
+          aria-valuenow={Math.round(shownDivider)}
+          title="Drag to move the divider"
+          onPointerDown={onDividerDown}
+          onPointerMove={onDividerMove}
+          onPointerUp={onDividerUp}
+          onPointerCancel={onDividerUp}
+        />
+      )}
+      {shownDivider !== null && (
+        <div className="text-page__divider" style={{ left: px(shownDivider) }} aria-hidden="true" />
       )}
       {boxes.map((box, index) => (
         <Column
