@@ -41,6 +41,12 @@ export const Trash = () => (
   </svg>
 );
 
+export const Cross = () => (
+  <svg {...base}>
+    <path d="M5 5l8 8M13 5l-8 8" />
+  </svg>
+);
+
 export const PageSettings = () => (
   <svg {...base}>
     <path d="M10 2.5H5a1.5 1.5 0 0 0-1.5 1.5v10A1.5 1.5 0 0 0 5 15.5h8a1.5 1.5 0 0 0 1.5-1.5V7z" />

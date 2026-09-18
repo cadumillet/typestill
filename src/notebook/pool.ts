@@ -62,10 +62,20 @@ export function poolEntries(
     }));
 }
 
-/** "p. 2, 5 · canvas", or "unused". */
+/** The usage badge on a thumbnail: "p. 2", "3 pages", "canvas", "p. 2 · canvas"; null when unused. */
+export function usageBadge(usage: FileUsage): string | null {
+  const parts: string[] = [];
+  if (usage.pages.length === 1) parts.push(`p. ${usage.pages[0]}`);
+  else if (usage.pages.length > 1) parts.push(`${usage.pages.length} pages`);
+  if (usage.canvas) parts.push("canvas");
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+/** Where an image is used, in words, for a tooltip: "page 2 and the canvas". */
 export function describeUsage(usage: FileUsage): string {
   const parts: string[] = [];
-  if (usage.pages.length > 0) parts.push(`p. ${usage.pages.join(", ")}`);
-  if (usage.canvas) parts.push("canvas");
-  return parts.length > 0 ? parts.join(" · ") : "unused";
+  if (usage.pages.length === 1) parts.push(`page ${usage.pages[0]}`);
+  else if (usage.pages.length > 1) parts.push(`pages ${usage.pages.join(", ")}`);
+  if (usage.canvas) parts.push("the canvas");
+  return parts.length > 0 ? parts.join(" and ") : "unused";
 }

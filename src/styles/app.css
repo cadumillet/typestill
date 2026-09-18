@@ -44,6 +44,7 @@
 
 :root[data-appearance="dark"] .icon-button[data-tooltip]::after,
 :root[data-appearance="dark"] .page-rail__label,
+:root[data-appearance="dark"] .media-pool__badge,
 :root[data-appearance="dark"] .format-bar__swatch[data-tooltip]::after {
   color: #191917;
 }
