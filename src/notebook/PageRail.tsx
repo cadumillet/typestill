@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { IconButton } from "../shell/IconButton";
-import { Menu } from "../shell/Menu";
 import { Popover } from "../shell/Popover";
-import { Filter, NewPage, Trash } from "../shell/icons";
+import { Filter } from "../shell/icons";
 import { pageSide } from "../page/sides";
-import type { Page, PageKind, Tag } from "../store/model";
-import { ADD_PAGE_HINT } from "./pageRules";
+import type { Page, Tag } from "../store/model";
 import { passesFilter, tagOf } from "./tags";
 import "./pagerail.css";
 
@@ -23,13 +21,6 @@ export interface PageRailProps {
   onFilterChange: (tagId: string | null) => void;
   /** Rendered previews by page id, shown beside the hovered square when there is one. */
   thumbnails: Record<string, string>;
-  /** Whether a page may be added now (the one-page rule); off otherwise, with a hint. */
-  canAdd: boolean;
-  /** The tooltip of the add control when it is off. */
-  addShortcut?: string;
-  onAdd: (kind: PageKind) => void;
-  /** Delete the open page: the caller asks first. */
-  onDelete: () => void;
 }
 
 interface Hover {
@@ -54,8 +45,7 @@ const closePopovers = () => document.dispatchEvent(new PointerEvent("pointerdown
  * tag, the open page highlighted. Filtering by tag only hides squares; page order and
  * numbering stay the same. Hovering a square shows its label and, once one has been
  * rendered, a thumbnail of the page; both float outside the scrolling list so they are
- * never clipped. Pinned under the squares: add a page (lined or zine) and delete the
- * open page.
+ * never clipped. The rail holds nothing else: the page controls are in the page bar.
  */
 export function PageRail({
   pages,
@@ -66,10 +56,6 @@ export function PageRail({
   filterTagId,
   onFilterChange,
   thumbnails,
-  canAdd,
-  addShortcut,
-  onAdd,
-  onDelete,
 }: PageRailProps) {
   const rail = useRef<HTMLElement>(null);
   const current = useRef<HTMLButtonElement>(null);
@@ -180,24 +166,6 @@ export function PageRail({
           );
         })}
       </ol>
-      <div className="page-rail__controls">
-        <Menu
-          label="New page"
-          shortcut={addShortcut}
-          align="left"
-          off={!canAdd}
-          offReason={ADD_PAGE_HINT}
-          items={[
-            { label: "Lined page", onSelect: () => onAdd("lined") },
-            { label: "Zine page", onSelect: () => onAdd("zine") },
-          ]}
-        >
-          <NewPage />
-        </Menu>
-        <IconButton label="Delete page" onClick={onDelete}>
-          <Trash />
-        </IconButton>
-      </div>
       {hover && (
         <div className="page-rail__hover" style={{ top: hover.top }} aria-hidden>
           <div className="page-rail__label">
