@@ -24,6 +24,7 @@ import {
   loadNotebookFiles,
   loadThumbnails,
   isPageEmpty,
+  neighbourIndex,
   pruneFiles,
   saveCanvasContent,
   savePageText,
@@ -202,8 +203,61 @@ describe("pages", () => {
     expect(stored?.columns).toEqual([columnFromText("hello")]);
     expect(stored?.showDate).toBe(false);
     expect(stored?.canvasView).toEqual({ scrollX: 1, scrollY: 2, zoom: 0.5 });
-    await deletePage(db, firstPage.id);
+    expect((await deletePage(db, firstPage.id)).id).toBe(second.id);
     expect((await listPages(db, notebook.id)).map((p) => p.id)).toEqual([second.id]);
+  });
+
+  it("picks the previous page as the neighbour, else the next", () => {
+    expect(neighbourIndex(0, 1)).toBeNull();
+    expect(neighbourIndex(0, 2)).toBe(1);
+    expect(neighbourIndex(1, 2)).toBe(0);
+    expect(neighbourIndex(2, 5)).toBe(1);
+    expect(neighbourIndex(4, 5)).toBe(3);
+  });
+
+  it("opens the neighbour after a deletion and keeps the remembered page valid", async () => {
+    const { notebook, firstPage } = await createNotebook(db, { name: "A" });
+    const second = await createPage(db, notebook.id);
+    const third = await createPage(db, notebook.id);
+    // The first page has no previous page, so the next one opens.
+    await setLastPage(db, notebook.id, firstPage.id);
+    expect((await deletePage(db, firstPage.id)).id).toBe(second.id);
+    expect((await db.notebooks.get(notebook.id))?.lastPageId).toBe(second.id);
+    // Deleting a page other than the remembered one leaves the memory alone.
+    expect((await deletePage(db, third.id)).id).toBe(second.id);
+    expect((await db.notebooks.get(notebook.id))?.lastPageId).toBe(second.id);
+    expect((await listPages(db, notebook.id)).map((p) => p.id)).toEqual([second.id]);
+  });
+
+  it("replaces the only page with a fresh lined page from the defaults", async () => {
+    const { notebook, firstPage } = await createNotebook(db, {
+      name: "A",
+      defaults: { divider: 70 },
+    });
+    const zine = await setPageKind(db, firstPage.id, "zine");
+    await savePageZine(db, zine.id, {
+      ...emptyZine(),
+      media: { layout: "single", images: [{ fileId: "f1", fit: "cover" }] },
+    });
+    await addFile(db, notebook.id, fileData("f1"));
+    await updatePage(db, zine.id, { showDate: false, margin: 30 });
+    const fresh = await deletePage(db, zine.id);
+    expect(fresh.id).not.toBe(zine.id);
+    expect(fresh.kind).toBe("lined");
+    expect(fresh.divider).toBe(70);
+    expect(fresh.columns).toEqual([columnFromText(""), columnFromText("")]);
+    expect(fresh.showDate).toBe(notebook.defaults.showDate);
+    expect(fresh.margin).toBe(notebook.defaults.margin);
+    expect(fresh.createdAt).toBeGreaterThan(zine.createdAt);
+    expect((await listPages(db, notebook.id)).map((p) => p.id)).toEqual([fresh.id]);
+    expect((await db.notebooks.get(notebook.id))?.lastPageId).toBe(fresh.id);
+    // The image stays in the pool; deleting it is the pool's business.
+    expect(Object.keys(await loadNotebookFiles(db, notebook.id))).toEqual(["f1"]);
+  });
+
+  it("refuses to delete a page that does not exist", async () => {
+    await createNotebook(db, { name: "A" });
+    await expect(deletePage(db, "missing")).rejects.toThrow(/not found/);
   });
 
   it("adds, moves and removes the divider without losing text", async () => {
