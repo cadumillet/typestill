@@ -7,6 +7,7 @@ import { NotebookSwitcher } from "./notebook/NotebookSwitcher";
 import { PageSettings } from "./notebook/PageSettings";
 import { SearchBox } from "./notebook/SearchBox";
 import { SettingsDialog } from "./notebook/SettingsDialog";
+import { Shelf } from "./notebook/Shelf";
 import { WelcomeDialog } from "./notebook/WelcomeDialog";
 import { useNotebookSession } from "./notebook/useNotebookSession";
 import { isBlankDocument } from "./page/document";
@@ -117,7 +118,7 @@ export function App() {
 
   // The open page's thumbnail follows its content and its look. The key is everything
   // that changes how the page renders; nothing is rendered while the session loads.
-  const loaded = session && !("firstRun" in session) ? session : null;
+  const loaded = session && !("firstRun" in session) && !("shelf" in session) ? session : null;
   const current = loaded?.page;
   usePageThumbnail(
     deskElement,
@@ -160,6 +161,36 @@ export function App() {
           onRestore={session.restoreBackup}
         />
       </div>
+    );
+  }
+
+  // No notebook open: the shelf, where notebooks are made, renamed, deleted and opened.
+  if ("shelf" in session) {
+    const shelf = session;
+    return (
+      <Shelf
+        notebooks={shelf.notebooks}
+        onOpen={(id) => void shelf.openNotebook(id)}
+        onCreate={(name, color) => void shelf.createNotebook(name, { color })}
+        onRename={(id, name) => void shelf.renameNotebook(id, name)}
+        onDelete={(id) => {
+          const target = shelf.notebooks.find((n) => n.id === id);
+          if (!target) return;
+          const pages = `${target.pageCount} ${target.pageCount === 1 ? "page" : "pages"}`;
+          if (
+            window.confirm(
+              `Delete the notebook "${target.name}" with its ${pages}, its canvas and its images? Only a backup file brings it back.`,
+            )
+          ) {
+            void shelf.deleteNotebook(id);
+          }
+        }}
+        onRestore={(file) =>
+          void shelf.restoreBackup(file).catch((error: unknown) => {
+            window.alert(error instanceof Error ? error.message : "Could not open the backup.");
+          })
+        }
+      />
     );
   }
 
@@ -356,7 +387,14 @@ export function App() {
       main={
         <>
           <header className="app-header">
-            <span className="wordmark">typestill</span>
+            <button
+              type="button"
+              className="wordmark wordmark--link"
+              onClick={() => void session.closeNotebook()}
+              title="Back to the shelf"
+            >
+              typestill
+            </button>
             <nav className="page-nav" aria-label="Pages">
               <IconButton
                 label="Previous page"
@@ -393,7 +431,7 @@ export function App() {
               currentId={notebook.id}
               currentPageCount={pages.length}
               onOpen={(id) => void session.openNotebook(id)}
-              onCreate={(name) => void session.createNotebook(name)}
+              onShelf={() => void session.closeNotebook()}
             />
             <div className="app-header__actions">
               <SearchBox

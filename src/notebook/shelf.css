@@ -1,0 +1,92 @@
+/* The shelf: covers in a grid, most recently opened first. */
+
+.shelf {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.shelf__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 44px;
+  padding: 0 24px 0 16px;
+}
+
+.shelf__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.shelf__grid {
+  margin: 0;
+  padding: 24px;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 28px 24px;
+}
+
+.shelf__card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.shelf__cover {
+  display: block;
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.1),
+    0 8px 20px rgb(0 0 0 / 0.15);
+  transition: transform 120ms;
+}
+
+.shelf__cover:hover {
+  transform: translateY(-2px);
+}
+
+.shelf__cover:focus-visible {
+  outline: 2px solid var(--accent-line);
+  outline-offset: 3px;
+}
+
+.shelf__cover .cover-swatch {
+  border-radius: 3px 6px 6px 3px;
+  box-shadow: inset 4px 0 0 rgb(0 0 0 / 0.18);
+}
+
+.shelf__meta {
+  min-width: 0;
+}
+
+.shelf__title {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.shelf__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.shelf__subtitle {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shelf__detail {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
