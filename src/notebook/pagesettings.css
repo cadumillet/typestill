@@ -91,25 +91,3 @@
   opacity: 0.6;
   cursor: default;
 }
-
-.page-settings__footer {
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid var(--line-soft);
-}
-
-.page-settings__delete {
-  display: block;
-  width: 100%;
-  padding: 6px;
-  text-align: left;
-  font-size: 12px;
-  border-color: transparent;
-  background: transparent;
-  color: var(--muted);
-}
-
-.page-settings__delete:hover {
-  color: var(--danger);
-  background: var(--danger-soft);
-}

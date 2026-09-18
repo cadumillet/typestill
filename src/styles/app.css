@@ -228,7 +228,8 @@ button[aria-pressed="true"] {
   font-variant-numeric: tabular-nums;
 }
 
-.icon-button:disabled {
+.icon-button:disabled,
+.icon-button.is-off {
   opacity: 0.35;
   cursor: default;
   background: transparent;

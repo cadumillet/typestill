@@ -34,6 +34,13 @@ export const NewPage = () => (
   </svg>
 );
 
+export const Trash = () => (
+  <svg {...base}>
+    <path d="M3.5 5h11M7 5V3.5h4V5M5 5l.7 9.3a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9L13 5" />
+    <path d="M7.5 8v4M10.5 8v4" />
+  </svg>
+);
+
 export const PageSettings = () => (
   <svg {...base}>
     <path d="M10 2.5H5a1.5 1.5 0 0 0-1.5 1.5v10A1.5 1.5 0 0 0 5 15.5h8a1.5 1.5 0 0 0 1.5-1.5V7z" />

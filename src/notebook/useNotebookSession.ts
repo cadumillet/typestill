@@ -8,6 +8,7 @@ import { getDb, type TypestillDb } from "../store/db";
 import { clampMargin, pageMm, snapDivider } from "../page/paper";
 import { placeImages, type Zine } from "../page/zine";
 import { getTheme } from "../theme/themes";
+import { canAddPage } from "./pageRules";
 import {
   columnsForDivider,
   referencedFileIds,
@@ -345,9 +346,10 @@ export function useNotebookSession(
     [db, attachPage],
   );
 
+  // Refused while the open page is empty (the one-page rule), whichever control asked.
   const newPage = useCallback(
     async (kind: PageKind = "lined") => {
-      if (!state) return;
+      if (!state || !canAddPage(state.pages[state.index])) return;
       const page = await createPage(db, state.notebook.id, {
         kind,
         divider: state.pages[state.index].divider,
