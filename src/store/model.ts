@@ -92,6 +92,15 @@ export interface NotebookFile {
   data: BinaryFileData;
 }
 
+/** A page's rendered thumbnail. A cache, not part of the backup. */
+export interface Thumbnail {
+  pageId: string;
+  notebookId: string;
+  /** A PNG data URL. */
+  dataURL: string;
+  updatedAt: number;
+}
+
 /** The whole notebook as one document: what a backup file contains. */
 export interface NotebookDocument extends Notebook {
   pages: Page[];

@@ -30,9 +30,11 @@ import {
   listNotebooks,
   listPages,
   loadNotebookFiles,
+  loadThumbnails,
   saveCanvasContent,
   savePageText,
   savePageZine,
+  saveThumbnail as saveThumbnailRecord,
   setCanvasGrid,
   setLastPage,
   setPageDivider,
@@ -58,6 +60,8 @@ export interface NotebookSession {
   files: Record<string, BinaryFileData>;
   /** File ids the canvas's image elements use right now. Feeds the media pool's usage. */
   canvasFileIds: string[];
+  /** Rendered page thumbnails by page id, a cache the rail shows on hover. */
+  thumbnails: Record<string, string>;
   /** The view the open page remembers. Changes only when a page is opened. */
   restoreView: CanvasView | null;
   /** Increments each time a notebook is loaded. Key the canvas editor by it so it starts over. */
@@ -88,6 +92,8 @@ export interface NotebookSession {
   /** Removes the tag and untags its pages. */
   deleteTag: (tagId: string) => Promise<void>;
   setPageTag: (tagId: string | null) => void;
+  /** Stores a fresh thumbnail of the open page. */
+  saveThumbnail: (dataURL: string) => void;
   /** Canvas callbacks carry the loadId of the editor that sent them; stale editors are ignored. */
   onCanvasChange: (content: CanvasContent, loadId: number) => void;
   onCanvasViewChange: (view: CanvasView, loadId: number) => void;
@@ -118,6 +124,7 @@ interface Loaded {
   canvas: Canvas;
   files: Record<string, BinaryFileData>;
   canvasFileIds: string[];
+  thumbnails: Record<string, string>;
   restoreView: CanvasView | null;
 }
 
@@ -197,11 +204,12 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
   /** Opens a notebook: loads it, points the savers at it, and shows its remembered page. */
   const load = useCallback(
     async (notebookId: string) => {
-      const [notebook, pages, canvas, files] = await Promise.all([
+      const [notebook, pages, canvas, files, thumbnails] = await Promise.all([
         getNotebook(db, notebookId),
         listPages(db, notebookId),
         getCanvas(db, notebookId),
         loadNotebookFiles(db, notebookId),
+        loadThumbnails(db, notebookId),
       ]);
       if (!notebook) throw new Error(`Notebook ${notebookId} not found`);
       await touchNotebook(db, notebookId);
@@ -225,6 +233,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
         canvas,
         files,
         canvasFileIds: referencedFileIds(canvas.elements),
+        thumbnails,
         restoreView: pages[index].canvasView,
       });
     },
@@ -493,6 +502,20 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     [db, state],
   );
 
+  const saveThumbnail = useCallback(
+    (dataURL: string) => {
+      if (!state) return;
+      const page = state.pages[state.index];
+      saveThumbnailRecord(db, state.notebook.id, page.id, dataURL).catch(report);
+      setState((current) =>
+        current
+          ? { ...current, thumbnails: { ...current.thumbnails, [page.id]: dataURL } }
+          : current,
+      );
+    },
+    [db, state],
+  );
+
   // An editor from a previous load can still fire (for instance on a resize) while it is
   // being replaced; its content must never reach the current notebook.
   const onCanvasChange = useCallback((content: CanvasContent, loadId: number) => {
@@ -604,6 +627,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     updateTag,
     deleteTag,
     setPageTag,
+    saveThumbnail,
     onCanvasChange,
     onCanvasViewChange,
     onGridChange,

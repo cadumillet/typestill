@@ -22,11 +22,13 @@ import {
   listNotebooks,
   listPages,
   loadNotebookFiles,
+  loadThumbnails,
   isPageEmpty,
   pruneFiles,
   saveCanvasContent,
   savePageText,
   savePageZine,
+  saveThumbnail,
   setCanvasGrid,
   setLastPage,
   setPageDivider,
@@ -299,6 +301,24 @@ describe("pages", () => {
     } finally {
       await upgraded.delete();
     }
+  });
+});
+
+describe("thumbnails", () => {
+  it("caches thumbnails by page and drops them with the page or the notebook", async () => {
+    const { notebook, firstPage } = await createNotebook(db, { name: "A" });
+    const second = await createPage(db, notebook.id);
+    await saveThumbnail(db, notebook.id, firstPage.id, "data:image/png;base64,AAAA");
+    await saveThumbnail(db, notebook.id, second.id, "data:image/png;base64,BBBB");
+    await saveThumbnail(db, notebook.id, second.id, "data:image/png;base64,CCCC");
+    expect(await loadThumbnails(db, notebook.id)).toEqual({
+      [firstPage.id]: "data:image/png;base64,AAAA",
+      [second.id]: "data:image/png;base64,CCCC",
+    });
+    await deletePage(db, second.id);
+    expect(Object.keys(await loadThumbnails(db, notebook.id))).toEqual([firstPage.id]);
+    await deleteNotebook(db, notebook.id);
+    expect(await db.thumbnails.count()).toBe(0);
   });
 });
 
