@@ -1,5 +1,7 @@
 .settings {
   width: 360px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
   padding: 20px 22px;
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -188,4 +190,9 @@ button.primary {
 
 .settings__number {
   width: 56px;
+}
+
+.settings__prune {
+  margin-top: 4px;
+  font-size: 12px;
 }

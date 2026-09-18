@@ -124,7 +124,7 @@ export function WelcomeDialog({ onOpen, onRestore }: WelcomeDialogProps) {
         <input
           ref={fileInput}
           type="file"
-          accept=".json,application/json"
+          accept=".json,.zip,application/json,application/zip"
           hidden
           onChange={(event) => {
             const file = event.target.files?.[0];
