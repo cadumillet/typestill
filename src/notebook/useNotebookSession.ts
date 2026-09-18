@@ -24,6 +24,7 @@ import {
   createNotebook as createNotebookRecord,
   createPage,
   deleteFile,
+  deletePage as deletePageRecord,
   deleteTag as deleteTagRecord,
   exportNotebook,
   getCanvas,
@@ -71,6 +72,12 @@ export interface NotebookSession {
   goTo: (index: number) => void;
   /** Appends a page of the given kind (lined by default) and opens it. */
   newPage: (kind?: PageKind) => Promise<void>;
+  /**
+   * Deletes the open page and opens its neighbour: the previous page, else the next.
+   * The only page of a notebook is replaced by a fresh lined page instead, so a notebook
+   * never has zero pages. Images a zine page used stay in the notebook's files.
+   */
+  deletePage: () => Promise<void>;
   setColumns: (columns: Column[]) => void;
   setDivider: (divider: number | null) => Promise<void>;
   /** Zine pages: the media block and its text. */
@@ -313,6 +320,30 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     },
     [db, state, attachPage],
   );
+
+  const deletePage = useCallback(async () => {
+    if (!state) return;
+    const page = state.pages[state.index];
+    await Promise.all([
+      pageSaver.current?.flush(),
+      zineSaver.current?.flush(),
+      viewSaver.current?.flush(),
+    ]);
+    const opened = await deletePageRecord(db, page.id);
+    setState((current) => {
+      if (!current) return current;
+      const pages = current.pages.filter((p) => p.id !== page.id);
+      let index = pages.findIndex((p) => p.id === opened.id);
+      if (index < 0) {
+        // The only page was deleted: the store made a fresh one in its place.
+        pages.push(opened);
+        index = pages.length - 1;
+      }
+      const next = pages[index];
+      attachPage(next);
+      return { ...current, pages, index, restoreView: next.canvasView };
+    });
+  }, [db, state, attachPage]);
 
   const setColumns = useCallback((columns: Column[]) => {
     pageSaver.current?.onChange(columns);
@@ -670,6 +701,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     page: state.pages[state.index],
     goTo,
     newPage,
+    deletePage,
     setColumns,
     setDivider,
     setZine,
