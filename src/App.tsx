@@ -21,6 +21,7 @@ import { IconButton } from "./shell/IconButton";
 import { Menu } from "./shell/Menu";
 import { Panel } from "./shell/Panel";
 import { SplitView } from "./shell/SplitView";
+import { shortcutLabel, useShortcuts } from "./shell/useShortcuts";
 import { FileInUseError } from "./store/notebooks";
 import { getTheme } from "./theme/themes";
 import {
@@ -119,6 +120,15 @@ export function App() {
     Boolean(session) && !preview,
     session ? session.saveThumbnail : () => undefined,
   );
+
+  // The shell's shortcuts mirror the app bar: page navigation, new page, the panel.
+  useShortcuts({
+    previousPage: () => session?.goTo(session.index - 1),
+    nextPage: () => session?.goTo(session.index + 1),
+    newLinedPage: () => void session?.newPage("lined"),
+    newZinePage: () => void session?.newPage("zine"),
+    togglePanel: () => setPanelOpen((open) => !open),
+  });
 
   if (!session) {
     return <div className="loading">Opening notebook…</div>;
@@ -243,6 +253,7 @@ export function App() {
             <nav className="page-nav" aria-label="Pages">
               <IconButton
                 label="Previous page"
+                shortcut={shortcutLabel("previousPage")}
                 onClick={() => session.goTo(index - 1)}
                 disabled={index === 0}
               >
@@ -253,6 +264,7 @@ export function App() {
               </span>
               <IconButton
                 label="Next page"
+                shortcut={shortcutLabel("nextPage")}
                 onClick={() => session.goTo(index + 1)}
                 disabled={index === pages.length - 1}
               >
@@ -260,6 +272,7 @@ export function App() {
               </IconButton>
               <Menu
                 label="New page"
+                shortcut={shortcutLabel("newLinedPage")}
                 items={[
                   { label: "Lined page", onSelect: () => void session.newPage("lined") },
                   { label: "Zine page", onSelect: () => void session.newPage("zine") },
@@ -317,6 +330,7 @@ export function App() {
               </IconButton>
               <IconButton
                 label={panelOpen ? "Hide canvas" : "Show canvas"}
+                shortcut={shortcutLabel("togglePanel")}
                 pressed={panelOpen}
                 onClick={() => setPanelOpen((open) => !open)}
               >
