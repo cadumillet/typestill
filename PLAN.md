@@ -19,6 +19,7 @@ Status (2026-09-17): Phase 1 is complete and on `main`: the store, the page edit
 - Everything drawn on the canvas is plain Excalidraw. We only build the shell around it.
 - Simplicity over features. Each page kind does one thing well: lined pages hold writing, zine pages hold images. Images never go into lined pages.
 - The owner holds the data: browser storage plus backup files they keep. No accounts, no backend.
+- It behaves like a real notebook in human hands. Things stay tied together, and the user plays by its rules rather than the app quietly untying them.
 
 ## 2. Product spec
 
@@ -238,7 +239,7 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - First-run onboarding
 
 ### Ideas under discussion (2026-09-17, not yet specified)
-- Media pool: on a zine page the side panel shows the notebook's image pool instead of the drawing canvas. The pool is a view over the notebook's files table (every image, whether used on a zine page or the canvas) with import by drop or picker, and images are placed on the page from it.
+- Media pool: on a zine page the side panel shows the notebook's image pool instead of the drawing canvas. The pool is a view over the notebook's files table (every image, whether used on a zine page or the canvas) with import by drop or picker, and images are placed on the page from it. An image that is used on a page or the canvas cannot be deleted from the pool; the user replaces it on the page first, then deletes it. The pool shows where each image is used.
 - Zine text blocks use a different font style from lined pages (a typeface rather than handwriting), set by the theme.
 - Themes: the page layout's variables (font, line pitch, rules and margin line on or off, insets, paper and ink colours, the zine text font and defaults) extracted from the code into a theme the notebook references. Built-in themes first (the current ruled look, a plain monospaced one without lines); user-made themes and "notebook templates" (theme plus notebook defaults) later. Themes change the page look only, nothing else in the app. Assessed as feasible; see the decisions log once specified.
 
@@ -279,3 +280,4 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - Mission (2026-09-17): typestill is a digital notebook made to be the bridge between digital notes and real commonplace notebooks and zines. Opinionated but flexible, simplicity at its core. Note-taking is close to its end behaviour; the remaining area is images, handled by zine pages.
 - Zine pages (2026-09-17): a second page kind with one media block (a single image or a grid of up to four) and optional text below and/or beside it; padding as a page setting, no free placement, a fixed number of text rows. Text blocks reuse the lined editor without rules. Images are downscaled on import, stored in the notebook's files table by content hash and inlined in backups. No backend: browser storage plus owner-held backups remain the whole story.
 - Page sizes: A4 may be descoped, since zine pages want small pages. Not decided.
+- Media pool (2026-09-18): an image in use on a page or the canvas cannot be deleted from the pool. Replace it first, then delete. Things stay tied, as in a real notebook; the user plays by its rules.
