@@ -5,7 +5,6 @@ import {
   PAGE_SIZES_MM,
   clampMargin,
   defaultDivider,
-  maxSections,
   pageMm,
   type Orientation,
   type PageSize,
@@ -16,7 +15,6 @@ import type { Notebook, Page, PageKind, Section } from "../store/model";
 import { APPEARANCES, resolveAppearance, type Appearance } from "../shell/appearance";
 import { THEMES, getTheme, isDarkTheme } from "../theme/themes";
 import { formatBytes } from "../store/zip";
-import { features } from "../features";
 import { COVER_COLORS, coverFromFields } from "./cover";
 import { CoverSwatch } from "./CoverSwatch";
 import { PageRail } from "./PageRail";
@@ -142,20 +140,6 @@ export function NotebookBox({
   const shownName = name.trim() || notebook.name;
   const zine = page.zine;
   const width = pageMm(notebook.pageSize, notebook.orientation).width;
-  // The tabs experiment limits the sections to what the page's height fits.
-  const limit = features.tabs ? maxSections(notebook.pageSize, notebook.orientation) : Infinity;
-  const atLimit = notebook.sections.length >= limit;
-
-  /** Refuses a paper that would not fit the notebook's sections, with the count. */
-  const setPaper = (pageSize: PageSize, orientation: Orientation) => {
-    if (features.tabs && notebook.sections.length > maxSections(pageSize, orientation)) {
-      window.alert(
-        `This paper fits up to ${maxSections(pageSize, orientation)} sections and the notebook has ${notebook.sections.length}. Remove sections first.`,
-      );
-      return;
-    }
-    onUpdateSettings({ pageSize, orientation });
-  };
 
   // Native dialog: showModal traps focus and closes on Escape. The fields are reset from
   // the notebook each time the box opens, at the top, on the map.
@@ -290,11 +274,8 @@ export function NotebookBox({
         </ul>
         <button
           type="button"
-          className={`settings__add-section${atLimit ? " is-off" : ""}`}
-          aria-disabled={atLimit || undefined}
-          title={atLimit ? `Up to ${limit} sections on this paper` : undefined}
+          className="settings__add-section"
           onClick={() =>
-            atLimit ||
             onAddSection({ name: "New section", color: nextSectionColor(notebook.sections) })
           }
         >
@@ -449,7 +430,7 @@ export function NotebookBox({
           <span>Page size</span>
           <select
             value={notebook.pageSize}
-            onChange={(event) => setPaper(event.target.value as PageSize, notebook.orientation)}
+            onChange={(event) => onUpdateSettings({ pageSize: event.target.value as PageSize })}
           >
             {PAGE_SIZES.map((size) => (
               <option key={size} value={size}>
@@ -462,7 +443,9 @@ export function NotebookBox({
           <span>Orientation</span>
           <select
             value={notebook.orientation}
-            onChange={(event) => setPaper(notebook.pageSize, event.target.value as Orientation)}
+            onChange={(event) =>
+              onUpdateSettings({ orientation: event.target.value as Orientation })
+            }
           >
             {ORIENTATIONS.map((value) => (
               <option key={value} value={value}>
