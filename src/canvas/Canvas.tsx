@@ -12,7 +12,15 @@ import type {
   ExcalidrawProps,
   NormalizedZoomValue,
 } from "@excalidraw/excalidraw/types";
-import { useCallback, useEffect, useMemo, useRef, type DragEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  type DragEvent,
+  type Ref,
+} from "react";
 import { POOL_DRAG_TYPE } from "../notebook/pool";
 import { GRID_PITCH_MM, SCENE_PX_PER_MM } from "../page/paper";
 import type { CanvasView } from "../store/model";
@@ -23,7 +31,18 @@ export interface CanvasContent {
   files: BinaryFiles;
 }
 
+/** What the shell can ask the canvas to do. */
+export interface CanvasHandle {
+  /**
+   * Pans to an element and selects it, zooming in as far as 100% if it is too small to
+   * read. An element the editor does not have yet (it is still loading its scene) is
+   * shown as soon as it arrives.
+   */
+  scrollTo: (elementId: string) => void;
+}
+
 export interface CanvasProps {
+  ref?: Ref<CanvasHandle>;
   /** Drawing to start from. Read once, when the editor mounts. */
   initial?: CanvasContent;
   /**
@@ -79,12 +98,22 @@ const UI_OPTIONS: ExcalidrawProps["UIOptions"] = {
 
 const EMPTY: CanvasContent = { elements: [], files: {} };
 
+/** Selects an element and brings it into view, animated. */
+function showElement(api: ExcalidrawImperativeAPI, element: ExcalidrawElement): void {
+  api.updateScene({
+    appState: { selectedElementIds: { [element.id]: true } },
+    captureUpdate: CaptureUpdateAction.NEVER,
+  });
+  api.scrollToContent(element, { fitToContent: true, animate: true, maxZoom: 1 });
+}
+
 /**
  * The notebook's drawing surface: plain infinite Excalidraw. The toolbar is stripped in
  * canvas.css. Its container must stay wider than about 730px or Excalidraw switches to
  * its mobile layout, so the shell collapses the text side rather than squeezing this.
  */
 export function Canvas({
+  ref,
   initial = EMPTY,
   initialGridEnabled,
   view,
@@ -98,6 +127,8 @@ export function Canvas({
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const latest = useRef<CanvasContent>(initial);
   const gridRef = useRef(initialGridEnabled);
+  /** An element asked for before the editor had it. */
+  const pendingScroll = useRef<string | null>(null);
   const unmountRef = useRef(onUnmount);
   useEffect(() => {
     unmountRef.current = onUnmount;
@@ -143,6 +174,27 @@ export function Canvas({
     apiRef.current = api;
   }, []);
 
+  /** Shows the pending element if the editor has it now. */
+  const showPending = useCallback((api: ExcalidrawImperativeAPI) => {
+    const id = pendingScroll.current;
+    if (!id) return;
+    const element = api.getSceneElements().find((e) => e.id === id);
+    if (!element) return;
+    pendingScroll.current = null;
+    showElement(api, element);
+  }, []);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      scrollTo(elementId) {
+        pendingScroll.current = elementId;
+        if (apiRef.current) showPending(apiRef.current);
+      },
+    }),
+    [showPending],
+  );
+
   const handleChange = useCallback<NonNullable<ExcalidrawProps["onChange"]>>(
     (elements, appState, files) => {
       latest.current = { elements, files };
@@ -151,8 +203,10 @@ export function Canvas({
         gridRef.current = appState.gridModeEnabled;
         onGridChange?.(appState.gridModeEnabled);
       }
+      // The scene arrives after the API does; a jump asked for on mount waits for it.
+      if (pendingScroll.current && apiRef.current) showPending(apiRef.current);
     },
-    [onChange, onGridChange],
+    [onChange, onGridChange, showPending],
   );
 
   const handleScroll = useCallback<NonNullable<ExcalidrawProps["onScrollChange"]>>(
