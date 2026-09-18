@@ -12,6 +12,8 @@ import { TextPage } from "./page/TextPage";
 import { ZinePage } from "./page/ZinePage";
 import { defaultDivider, fitPage, pageGeometry, pageMm } from "./page/paper";
 import { imagesForLayout, isZineEmpty, type Zine } from "./page/zine";
+import { exportFileName, exportPdf } from "./notebook/export";
+import { downloadBlob } from "./notebook/files";
 import { nextTagColor } from "./notebook/tags";
 import { usePageThumbnail } from "./notebook/usePageThumbnail";
 import { columnsKey } from "./store/autosave";
@@ -224,6 +226,15 @@ export function App() {
     await session.deleteTag(tagId);
   };
 
+  // Exports run on the saved pages and the latest drawing; failures are reported plainly.
+  const exportSource = { notebook, files: session.files };
+  const runExport = async (make: () => Promise<Blob>, name: string) => {
+    try {
+      downloadBlob(name, await make());
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "The export failed.");
+    }
+  };
   const panelMode = peek?.pageId === page.id ? peek.mode : page.kind === "zine" ? "pool" : "canvas";
   const selectedCell = chosenCell?.pageId === page.id ? chosenCell.cell : null;
   const setSelectedCell = (cell: number | null) =>
@@ -295,6 +306,14 @@ export function App() {
                 label="Notebook"
                 items={[
                   { label: "Settings…", onSelect: () => setSettingsOpen(true) },
+                  {
+                    label: "Export PDF",
+                    onSelect: () =>
+                      void runExport(
+                        () => exportPdf(pages, exportSource),
+                        exportFileName(notebook, { kind: "pdf" }),
+                      ),
+                  },
                   { label: "Download backup", onSelect: () => void session.downloadBackup() },
                   { label: "Open backup…", onSelect: () => fileInput.current?.click() },
                 ]}
