@@ -241,7 +241,7 @@ Notes:
 
 **Search.** Pages are plain strings. For the canvas, walk the text elements (they carry a `.text` field).
 
-**PDF.** Render each page to PNG at 2x and place it on a PDF page of the matching physical size (A5 148x210mm, A4 210x297mm, Letter 8.5x11in), respecting orientation.
+**PDF.** Render each page to PNG at 2x (off screen, at zoom 1, in preview mode, through the same renderer as thumbnails) and place it on a PDF page of the matching physical size (A5 148x210mm, A4 210x297mm, Letter 8.5x11in), respecting orientation, with pdf-lib.
 
 **Multiple notebooks.** Notebook metadata is one record; pages, canvas and files are their own records under the notebook id. The shelf reads only metadata. A notebook is loaded fully when opened.
 
@@ -279,8 +279,8 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 
 ### Phase 3: get it out
 - Full-text search
-- PDF export (all pages)
-- PNG export (current page, canvas)
+- PDF export (all pages) (done)
+- PNG export (current page, canvas) (done)
 - Zip backup with images as files; storage size shown in notebook settings; prune unreferenced images
 - Delete page with confirm (done)
 - Keyboard shortcuts for page navigation
@@ -340,4 +340,6 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - Zine pages, built (2026-09-18): "New page" is a small menu, lined or zine, so the kind is chosen at creation; the page settings popover also switches the kind of an empty page (the store refuses otherwise). The media block's images array has one slot per cell, null while empty, so the grid presets can show placeholders. The padding is the gap between cells and blocks too; text beside runs the full height of the padded area and text below sits under the media only; text is inset 2mm inside its block (4mm when the page bleeds). Images enter by paste anywhere on the page (into the clicked cell, else the first empty one), by drop on a cell, or from the cell's file picker; the first goes into the chosen cell and the rest into the empty cells after it. Removing an image from a cell leaves it in the notebook's files (the media pool decides deletion). A layout with fewer cells, or turning off a text block with writing, asks first. Zine text is Assistant, bundled from Excalidraw's fonts, until themes make it a theme slot; zine defaults (8mm padding, four rows) are constants for the same reason. Backup format and IndexedDB schema are at version 4.
 - Notebook cover, built (2026-09-18): the palette is eight classic notebook colours (black, red, orange, olive, green, blue, purple, brown), all dark enough for white lettering; a new notebook is black. The emoji field keeps one grapheme; without one, the swatch shows the name's initial. The subtitle appears under the name in the switcher list. Renaming stays out of the settings dialog, since the shelf owns naming. Backup format and IndexedDB schema are at version 3; older data gets the default cover.
 - Dark (2026-09-18): a built-in Dark page theme, implemented right after the first themes, paired with an app appearance setting for the chrome and the canvas. Appearance is not part of a theme; themes stay page-only.
+- PDF export, built (2026-09-18): "Export PDF" in the notebook menu renders every page off screen at zoom 1 in preview mode (no rules, margin or divider; the date stamp and page number stay, dark themes keep their paper) through the thumbnail renderer at 2x, about 192 dpi, and places each PNG on a pdf-lib page of the paper's physical size. Pages are mounted one at a time in a hidden host with the fonts primed and measured first, so baselines match the screen. The file is named after the notebook and the day. Fonts are rasterised, not embedded, so the PDF has no live text; search-friendly PDFs are not planned.
+- PNG export, built (2026-09-18): "Export page as PNG" renders the open page the way the PDF does, one page at 2x of the paper's size at 96 dpi (1119×1587 for A5 portrait), in preview mode. "Export canvas as PNG" uses Excalidraw's `exportToBlob` over the live elements by content bounds at 2x with 24px of padding, on white and without the grid, whatever the app appearance; the drawing comes from the mounted editor's latest change, else the snapshot kept while the panel is closed, else the saved canvas. An empty canvas refuses with a message.
 - Delete page, built (2026-09-18): "Delete page…" is the last row of the page settings popover, a quiet button that turns red on hover, and it asks with a browser confirm naming the page number before anything happens. It deletes by page id, so it reaches the real notebook whatever the rail's filter, and the store keeps the notebook's remembered page valid. The previous page opens afterwards, or the next when the first page goes. A notebook never has zero pages: deleting the only page replaces it with a fresh lined page built from the notebook defaults (kind, divider, margin, marks), after the same confirm, and that fresh page opens. Images a zine page used stay in the media pool, which owns their deletion; nothing is pruned on the way out. Remaining pages renumber by themselves, the number being the position.

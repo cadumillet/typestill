@@ -12,6 +12,8 @@ import { TextPage } from "./page/TextPage";
 import { ZinePage } from "./page/ZinePage";
 import { defaultDivider, fitPage, pageGeometry, pageMm } from "./page/paper";
 import { imagesForLayout, isZineEmpty, type Zine } from "./page/zine";
+import { exportCanvasPng, exportFileName, exportPagePng, exportPdf } from "./notebook/export";
+import { downloadBlob } from "./notebook/files";
 import { nextTagColor } from "./notebook/tags";
 import { usePageThumbnail } from "./notebook/usePageThumbnail";
 import { columnsKey } from "./store/autosave";
@@ -74,6 +76,8 @@ export function App() {
     loadId: number;
     content: CanvasContent;
   }>();
+  /** The latest drawing the mounted canvas reported, for the canvas export. */
+  const latestCanvas = useRef<{ loadId: number; content: CanvasContent } | null>(null);
   const [deskRef, desk] = useElementSize<HTMLElement>();
   const deskElement = useRef<HTMLElement | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -238,6 +242,22 @@ export function App() {
     await session.deleteTag(tagId);
   };
 
+  // Exports run on the saved pages and the latest drawing; failures are reported plainly.
+  const exportSource = { notebook, files: session.files };
+  const runExport = async (make: () => Promise<Blob>, name: string) => {
+    try {
+      downloadBlob(name, await make());
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "The export failed.");
+    }
+  };
+  const currentCanvas = () =>
+    latestCanvas.current?.loadId === session.loadId
+      ? latestCanvas.current.content
+      : canvasSnapshot?.loadId === session.loadId
+        ? canvasSnapshot.content
+        : { elements: session.canvas.elements, files: session.files };
+
   const panelMode = peek?.pageId === page.id ? peek.mode : page.kind === "zine" ? "pool" : "canvas";
   const selectedCell = chosenCell?.pageId === page.id ? chosenCell.cell : null;
   const setSelectedCell = (cell: number | null) =>
@@ -310,6 +330,33 @@ export function App() {
                 label="Notebook"
                 items={[
                   { label: "Settings…", onSelect: () => setSettingsOpen(true) },
+                  {
+                    label: "Export PDF",
+                    onSelect: () =>
+                      void runExport(
+                        () => exportPdf(pages, exportSource),
+                        exportFileName(notebook, { kind: "pdf" }),
+                      ),
+                  },
+                  {
+                    label: "Export page as PNG",
+                    onSelect: () =>
+                      void runExport(
+                        () => exportPagePng(pages, index, exportSource),
+                        exportFileName(notebook, { kind: "page", number: index + 1 }),
+                      ),
+                  },
+                  {
+                    label: "Export canvas as PNG",
+                    onSelect: () =>
+                      void runExport(
+                        () => {
+                          const { elements, files } = currentCanvas();
+                          return exportCanvasPng(elements, files);
+                        },
+                        exportFileName(notebook, { kind: "canvas" }),
+                      ),
+                  },
                   { label: "Download backup", onSelect: () => void session.downloadBackup() },
                   { label: "Open backup…", onSelect: () => fileInput.current?.click() },
                 ]}
@@ -443,7 +490,10 @@ export function App() {
               }
               initialGridEnabled={session.canvas.gridEnabled}
               view={session.restoreView}
-              onChange={(content) => session.onCanvasChange(content, session.loadId)}
+              onChange={(content) => {
+                latestCanvas.current = { loadId: session.loadId, content };
+                session.onCanvasChange(content, session.loadId);
+              }}
               onViewChange={(view) => session.onCanvasViewChange(view, session.loadId)}
               onGridChange={session.onGridChange}
               onUnmount={(content) => setCanvasSnapshot({ loadId: session.loadId, content })}
