@@ -70,6 +70,7 @@ Status (2026-09-17): Phase 1 is complete and on `main`: the store, the page edit
 - A theme is the look of the pages and nothing else: the fonts, the line grid, the rules and margin line, the colours, the zine defaults. The app's chrome is not themed.
 - Every notebook references one theme. Changing it re-lays out every page at once; text keeps its lines, and the usual rule for text past the last line applies.
 - Built-in themes come with the app. "Ruled" is today's look: Excalifont on lines at 7mm with the red margin line. "Plain" is a monospaced typeface with no visible rules and no margin line, on the same invisible grid. Rules can be lines, dots or none; the grid and the hard stop are always there, since they are the constraint, not the decoration.
+- "Dark" is the third built-in theme, right after the first two: dark paper, light ink, dimmed rules and margin line, the same five colour picks. Because the pages are themed and the chrome is not, Dark comes with an app appearance setting, light, dark or system, that the chrome and the canvas follow (Excalidraw has its own dark theme). Picking the Dark theme suggests the dark appearance; the two stay separate settings.
 - Custom themes come later: made in settings from the same fields, with user-provided font files stored in the notebook, travelling in backups. A notebook template, meaning a theme plus notebook defaults and a page size, is also later.
 
 ### Canvas (drawing)
@@ -267,6 +268,7 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - Zine pages: the page kind and its picker on new page, the media block (single image or grid preset), optional text below and beside, padding and reservations in page settings, image import with downscaling, files shared with the canvas
 - Media pool: the panel's pool mode on zine pages, usage index, placing by drag or click, drag onto the canvas, deletion refused while in use
 - Themes: the theme model with the built-in Ruled and Plain themes, a theme field on the notebook and a picker in settings, runtime baseline measurement, the zine text font
+- Dark: the built-in Dark theme, and the app appearance setting (light, dark, system) for the chrome and the canvas, right after the themes land
 - Divider drag and inheritance polish (two columns exist since Phase 1)
 - Tags: create, assign, color; rail coloring and filtering
 - Hover thumbnails in the rail
@@ -326,3 +328,4 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - Media pool (2026-09-18): an image in use on a page or the canvas cannot be deleted from the pool. Replace it first, then delete. Things stay tied, as in a real notebook; the user plays by its rules. The pool is one per notebook, over the same files table the canvas uses, and the side panel shows it on zine pages in place of the canvas.
 - Themes (2026-09-18): the page look is a theme the notebook references; built-in Ruled and Plain first, custom themes and templates later. Rules may be lines, dots or none, but the line grid and the hard stop are never themed away. Fonts are bundled or stored in the notebook, never fetched from the network; the baseline offset is measured at runtime rather than stored. This brings dot and blank paper back as theme choices without the page-level paper setting that was removed on 2026-09-17.
 - Zine text blocks use the theme's zine font, a typeface rather than the lined pages' handwriting.
+- Dark (2026-09-18): a built-in Dark page theme, implemented right after the first themes, paired with an app appearance setting for the chrome and the canvas. Appearance is not part of a theme; themes stay page-only.
