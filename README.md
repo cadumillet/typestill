@@ -2,7 +2,7 @@
 
 A commonplace notebook built on top of Excalidraw. Fixed-size pages, one after the other, in one file. See [PLAN.md](PLAN.md) for the product spec, data model and phases.
 
-Status: Phase 1 (lined text pages, one infinite canvas per notebook, IndexedDB storage, backups) is done; Phase 2 is under way, starting with text formatting.
+Status: Phases 1 and 2 are done (lined and zine pages, one infinite canvas per notebook, media pool, themes, tags, spreads, IndexedDB storage, backups); Phase 3 (search, exports, the shelf) is under way.
 
 ## Development
 

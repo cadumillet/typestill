@@ -6,6 +6,7 @@ import {
   fitPage,
   mmToCssPx,
   pageGeometry,
+  clampMargin,
   ruleCount,
   snapDivider,
 } from "./paper";
@@ -99,5 +100,14 @@ describe("snapDivider", () => {
     // Right column: 148 - 6 - 2 - 20 = 120 is the farthest.
     expect(snapDivider(140, 148, 20)).toBe(120);
     expect(snapDivider(125, 148, 20)).toBe(120);
+  });
+});
+
+describe("clampMargin", () => {
+  it("keeps the margin line in range and on whole millimetres", () => {
+    expect(clampMargin(20)).toBe(20);
+    expect(clampMargin(20.4)).toBe(20);
+    expect(clampMargin(0)).toBe(5);
+    expect(clampMargin(200)).toBe(60);
   });
 });
