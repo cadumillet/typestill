@@ -2,6 +2,8 @@
 // measures its scene in pixels; we map the two at 96 dpi so 1 scene px = 1 CSS px at
 // zoom 1. Text pages are laid out in mm scaled by a zoom, the same way.
 
+import type { LinedMetrics } from "../theme/theme";
+
 export type PageSize = "A5" | "A4" | "Letter";
 export type Orientation = "portrait" | "landscape";
 
@@ -33,8 +35,15 @@ export const GRID_PITCH_MM = 5;
 
 /** Excalifont line height as Excalidraw sets it. Font size = rule pitch / this. */
 export const TEXT_LINE_HEIGHT = 1.25;
-/** Where Excalifont's baseline sits within a line box, as a fraction of the line height. */
-export const TEXT_BASELINE = 0.7;
+
+/** The grid above as a theme's lined metrics: the Ruled theme, and the default elsewhere. */
+export const RULED_GRID: LinedMetrics = {
+  pitchMm: RULE_PITCH_MM,
+  firstRuleMm: RULE_TOP_MM,
+  bottomMm: RULE_BOTTOM_MM,
+  textInsetMm: TEXT_INSET_MM,
+  rightInsetMm: TEXT_RIGHT_INSET_MM,
+};
 
 export function pageMm(
   size: PageSize,
@@ -56,8 +65,8 @@ export function pageGeometry(size: PageSize, orientation: Orientation): PageGeom
 }
 
 /** How many rules (text lines) fit on a page of the given height in mm. */
-export function ruleCount(heightMm: number): number {
-  return Math.max(1, Math.floor((heightMm - RULE_TOP_MM - RULE_BOTTOM_MM) / RULE_PITCH_MM) + 1);
+export function ruleCount(heightMm: number, grid: LinedMetrics = RULED_GRID): number {
+  return Math.max(1, Math.floor((heightMm - grid.firstRuleMm - grid.bottomMm) / grid.pitchMm) + 1);
 }
 
 /** Divider position that halves the writable area between the margin line and the right edge. */
@@ -70,13 +79,15 @@ export function columnBoxes(
   widthMm: number,
   marginMm: number,
   divider: number | null,
+  grid: LinedMetrics = RULED_GRID,
 ): { left: number; width: number }[] {
-  const textLeft = marginMm + TEXT_INSET_MM;
-  const textRight = widthMm - TEXT_RIGHT_INSET_MM;
+  const inset = grid.textInsetMm;
+  const textLeft = marginMm + inset;
+  const textRight = widthMm - grid.rightInsetMm;
   if (divider === null) return [{ left: textLeft, width: textRight - textLeft }];
   return [
-    { left: textLeft, width: divider - TEXT_INSET_MM - textLeft },
-    { left: divider + TEXT_INSET_MM, width: textRight - divider - TEXT_INSET_MM },
+    { left: textLeft, width: divider - inset - textLeft },
+    { left: divider + inset, width: textRight - divider - inset },
   ];
 }
 

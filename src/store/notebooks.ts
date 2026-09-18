@@ -5,6 +5,7 @@ import { DEFAULT_COVER, type Cover } from "../notebook/cover";
 import { isBlankDocument } from "../page/document";
 import type { Orientation, PageSize } from "../page/paper";
 import { emptyZine, isZineEmpty, type Zine } from "../page/zine";
+import { DEFAULT_THEME_ID, getTheme } from "../theme/themes";
 import type { TypestillDb } from "./db";
 import {
   DEFAULT_NOTEBOOK_DEFAULTS,
@@ -41,6 +42,7 @@ export interface NotebookSummary {
 export interface CreateNotebookInput {
   name: string;
   cover?: Partial<Cover>;
+  themeId?: string;
   pageSize?: PageSize;
   orientation?: Orientation;
   defaults?: Partial<NotebookDefaults>;
@@ -65,7 +67,7 @@ function buildPage(
     divider: kind === "lined" ? divider : null,
     canvasView: null,
   };
-  if (kind === "zine") page.zine = emptyZine();
+  if (kind === "zine") page.zine = emptyZine(getTheme(notebook.themeId).zine);
   return page;
 }
 
@@ -102,6 +104,7 @@ export async function createNotebook(
   input: CreateNotebookInput,
 ): Promise<{ notebook: Notebook; firstPage: Page }> {
   const now = Date.now();
+  const themeId = input.themeId ?? DEFAULT_THEME_ID;
   const notebook: Notebook = {
     id: newId(),
     name: input.name,
@@ -109,9 +112,14 @@ export async function createNotebook(
     lastOpenedAt: now,
     lastPageId: null,
     cover: { ...DEFAULT_COVER, ...input.cover },
+    themeId,
     pageSize: input.pageSize ?? "A5",
     orientation: input.orientation ?? "portrait",
-    defaults: { ...DEFAULT_NOTEBOOK_DEFAULTS, ...input.defaults },
+    defaults: {
+      ...DEFAULT_NOTEBOOK_DEFAULTS,
+      margin: getTheme(themeId).lined.defaultMarginMm,
+      ...input.defaults,
+    },
     tags: [],
   };
   const firstPage = buildPage(notebook, now, "lined", notebook.defaults.divider);
@@ -161,7 +169,7 @@ export async function renameNotebook(db: TypestillDb, id: string, name: string):
 export async function updateNotebookSettings(
   db: TypestillDb,
   id: string,
-  patch: Partial<Pick<Notebook, "cover" | "pageSize" | "orientation" | "defaults">>,
+  patch: Partial<Pick<Notebook, "cover" | "themeId" | "pageSize" | "orientation" | "defaults">>,
 ): Promise<void> {
   await db.notebooks.update(id, patch);
 }

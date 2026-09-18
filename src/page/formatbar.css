@@ -48,7 +48,7 @@
 .format-bar__swatch[aria-pressed="true"] {
   box-shadow:
     0 0 0 2px #fff,
-    0 0 0 3.5px var(--ink);
+    0 0 0 3.5px var(--page-ink);
 }
 
 /* Same tooltip as the icon buttons. */

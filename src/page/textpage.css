@@ -1,31 +1,36 @@
 /* A lined text page. Sizes come from custom properties set by TextPage. */
 
+/* The look comes from the theme through the --page-* properties (see pageLook.ts). */
 .text-page {
   position: relative;
   box-sizing: border-box;
-  background: var(--paper, #fff);
-  border: 1px solid #e6e4de;
-  border-radius: 12px;
+  background: var(--page-paper, #fff);
+  border: 1px solid transparent;
+  border-radius: var(--page-corner, 12px);
   overflow: hidden;
-  font-family: "Excalifont", "Segoe Print", "Comic Sans MS", cursive;
+  font-family: var(--page-font, "Excalifont"), "Segoe Print", "Comic Sans MS", sans-serif;
+}
+
+.text-page.has-border {
+  border-color: #e6e4de;
 }
 
 /* Stacking: paper marks 0, text 1, labels 2. */
 
-/* Margin line, full height. */
-.text-page::before {
+/* Margin line, full height, when the theme draws one. */
+.text-page.has-margin-line::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: linear-gradient(var(--margin, #f0b4b4), var(--margin, #f0b4b4)) no-repeat;
+  background: linear-gradient(var(--page-margin, #f0b4b4), var(--page-margin, #f0b4b4)) no-repeat;
   background-size: 1px 100%;
   background-position: var(--margin-left) 0;
 }
 
 /* Rules: one line at the top of each tile, starting at the first rule. */
-.text-page::after {
+.text-page.rules-lines::after {
   content: "";
   position: absolute;
   left: 0;
@@ -34,8 +39,24 @@
   height: var(--rules-height);
   z-index: 0;
   pointer-events: none;
-  background-image: linear-gradient(to bottom, var(--rule, #c7d3e3) 0 1px, transparent 1px);
+  background-image: linear-gradient(to bottom, var(--page-rule, #c7d3e3) 0 1px, transparent 1px);
   background-size: 100% var(--rule-pitch);
+}
+
+/* Dots: a grid at the rule pitch, with a dot on every rule. The box grows by half a pitch
+   above and below so the dots on the first and last rules are whole. */
+.text-page.rules-dots::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--rule-top) - var(--rule-pitch) / 2);
+  height: calc(var(--rules-height) + var(--rule-pitch));
+  z-index: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, var(--page-rule, #c7d3e3) 0.8px, transparent 1.4px);
+  background-size: var(--rule-pitch) var(--rule-pitch);
+  background-position: calc(var(--rule-pitch) / 2) 0;
 }
 
 .text-page__divider {
@@ -44,7 +65,7 @@
   bottom: 0;
   z-index: 0;
   width: 1px;
-  background: var(--divider, #dedede);
+  background: var(--page-divider, #dedede);
   pointer-events: none;
 }
 
@@ -73,8 +94,8 @@
   outline: none;
   overflow: hidden;
   background: transparent;
-  color: var(--ink, #26241f);
-  caret-color: var(--ink, #26241f);
+  color: var(--page-ink, #26241f);
+  caret-color: var(--page-ink, #26241f);
   cursor: text;
 }
 

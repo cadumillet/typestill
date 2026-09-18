@@ -2,12 +2,7 @@
    the sheet and the column styles of textpage.css; there are no rules or margin line. */
 
 .zine-page {
-  font-family: "Assistant", ui-sans-serif, system-ui, sans-serif;
-}
-
-.zine-page::before,
-.zine-page::after {
-  display: none;
+  font-family: var(--page-font, "Assistant"), ui-sans-serif, system-ui, sans-serif;
 }
 
 .zine-cell {

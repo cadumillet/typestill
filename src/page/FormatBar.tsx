@@ -85,7 +85,7 @@ export function FormatBar({ anchor, bounds, format, onAction }: FormatBarProps) 
             key={color.name}
             type="button"
             className="format-bar__swatch"
-            style={{ background: color.value ?? "var(--ink)" }}
+            style={{ background: color.value ?? "var(--page-ink)" }}
             aria-label={color.name}
             aria-pressed={format.color === color.value}
             data-tooltip={color.name}

@@ -2,19 +2,20 @@
 //
 // Versions: 1 had plain-string columns; 2 (text formatting) has { text, doc } columns;
 // 3 (notebook cover) adds the cover; 4 (zine pages) adds the page kind and the zine
-// block. Older files are still read: version 1 columns are converted, each line break
-// becoming a paragraph boundary, a missing cover is the default one, and a page without
-// a kind is lined.
+// block; 5 (themes) adds the notebook's theme id. Older files are still read: version 1
+// columns are converted, each line break becoming a paragraph boundary, a missing cover
+// is the default one, a page without a kind is lined, and a missing theme is Ruled.
 
 import { DEFAULT_COVER, isCover } from "../notebook/cover";
 import { columnFromText, isColumn } from "../page/document";
 import { DEFAULT_MARGIN_MM, PAGE_SIZES_MM } from "../page/paper";
 import { isZine } from "../page/zine";
+import { DEFAULT_THEME_ID } from "../theme/themes";
 import type { Column, NotebookDocument } from "./model";
 
 export const BACKUP_FORMAT = "typestill-notebook";
-export const BACKUP_VERSION = 4;
-const READABLE_VERSIONS = new Set([1, 2, 3, 4]);
+export const BACKUP_VERSION = 5;
+const READABLE_VERSIONS = new Set([1, 2, 3, 4, 5]);
 
 export interface BackupFile {
   format: typeof BACKUP_FORMAT;
@@ -86,6 +87,10 @@ export function parseBackup(text: string): NotebookDocument {
     "Unknown orientation",
   );
   expect(nb.cover === undefined || isCover(nb.cover), "Invalid cover");
+  expect(
+    nb.themeId === undefined || (typeof nb.themeId === "string" && nb.themeId.length > 0),
+    "Invalid theme",
+  );
   expect(isRecord(nb.defaults) && isNumberOrNull(nb.defaults.divider), "Invalid defaults");
   expect(Array.isArray(nb.tags), "Invalid tags");
   expect(isRecord(nb.files), "Invalid files");
@@ -132,6 +137,7 @@ export function parseBackup(text: string): NotebookDocument {
     lastOpenedAt: typeof nb.lastOpenedAt === "number" ? nb.lastOpenedAt : nb.createdAt,
     lastPageId: typeof nb.lastPageId === "string" ? nb.lastPageId : null,
     cover: isCover(nb.cover) ? nb.cover : { ...DEFAULT_COVER },
+    themeId: typeof nb.themeId === "string" ? nb.themeId : DEFAULT_THEME_ID,
     defaults: {
       ...doc.defaults,
       margin: typeof defaults.margin === "number" ? defaults.margin : DEFAULT_MARGIN_MM,

@@ -11,15 +11,10 @@ import { imageFilesOf } from "../notebook/images";
 import { POOL_DRAG_TYPE } from "../notebook/pool";
 import { Column } from "./Column";
 import type { Column as ColumnValue } from "./document";
+import type { Theme } from "../theme/theme";
 import { FormatBar } from "./FormatBar";
-import {
-  RULE_PITCH_MM,
-  TEXT_LINE_HEIGHT,
-  mmToCssPx,
-  pageMm,
-  type Orientation,
-  type PageSize,
-} from "./paper";
+import { mmToCssPx, pageMm, type Orientation, type PageSize } from "./paper";
+import { pageLookStyle } from "./pageLook";
 import { useFormatBar } from "./useFormatBar";
 import { defaultCell, zineGeometry, type Box, type Zine, type ZineImage } from "./zine";
 import "./textpage.css";
@@ -28,6 +23,8 @@ import "./zinepage.css";
 export interface ZinePageProps {
   size: PageSize;
   orientation: Orientation;
+  /** The look of the page: the zine font, the row pitch, colours. */
+  theme: Theme;
   /** CSS px per scene px. Sets the rendered size of the page. */
   zoom: number;
   zine: Zine;
@@ -59,6 +56,7 @@ const BESIDE = 1;
 export function ZinePage({
   size,
   orientation,
+  theme,
   zoom,
   zine,
   files,
@@ -72,7 +70,8 @@ export function ZinePage({
 }: ZinePageProps) {
   const mm = pageMm(size, orientation);
   const px = (value: number) => mmToCssPx(value, zoom);
-  const pitch = px(RULE_PITCH_MM);
+  const pitchMm = theme.lined.pitchMm;
+  const pitch = px(pitchMm);
   const page = useRef<HTMLDivElement>(null);
   const bar = useFormatBar(page);
   const [fullBlocks, setFullBlocks] = useState<boolean[]>([]);
@@ -87,7 +86,7 @@ export function ZinePage({
     });
   }, []);
 
-  const geometry = zineGeometry(mm, zine);
+  const geometry = zineGeometry(mm, zine, pitchMm, theme.lined.textInsetMm);
   const cells = geometry.cells;
 
   const setImage = (cell: number, image: ZineImage | null) => {
@@ -111,10 +110,11 @@ export function ZinePage({
   };
 
   const style = {
+    ...pageLookStyle(theme, theme.zine.font, zoom),
     width: px(mm.width),
     height: px(mm.height),
     "--rule-pitch": `${pitch}px`,
-    "--font-size": `${pitch / TEXT_LINE_HEIGHT}px`,
+    "--font-size": `${pitch / theme.zine.font.lineHeight}px`,
   } as CSSProperties;
 
   const boxStyle = (box: Box): CSSProperties => ({
@@ -134,7 +134,7 @@ export function ZinePage({
 
   return (
     <div
-      className={`text-page zine-page${preview ? " is-preview" : ""}`}
+      className={`text-page zine-page${theme.page.border ? " has-border" : ""}${preview ? " is-preview" : ""}`}
       style={style}
       ref={page}
       onPaste={onPaste}
@@ -160,7 +160,7 @@ export function ZinePage({
         />
       ))}
       {textBlocks.map(({ index, value, box }) => {
-        const lines = Math.max(1, Math.floor(box.height / RULE_PITCH_MM + 1e-6));
+        const lines = Math.max(1, Math.floor(box.height / pitchMm + 1e-6));
         return (
           <Column
             key={index}
