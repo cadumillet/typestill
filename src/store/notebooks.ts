@@ -2,13 +2,16 @@ import Dexie from "dexie";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData, BinaryFiles } from "@excalidraw/excalidraw/types";
 import { DEFAULT_COVER, type Cover } from "../notebook/cover";
+import { isBlankDocument } from "../page/document";
 import type { Orientation, PageSize } from "../page/paper";
+import { emptyZine, isZineEmpty, type Zine } from "../page/zine";
 import type { TypestillDb } from "./db";
 import {
   DEFAULT_NOTEBOOK_DEFAULTS,
   columnsForDivider,
   emptyColumns,
   newId,
+  pageFileIds,
   referencedFileIds,
   type Canvas,
   type Column,
@@ -16,6 +19,7 @@ import {
   type NotebookDefaults,
   type NotebookDocument,
   type Page,
+  type PageKind,
 } from "./model";
 
 export class NotebookExistsError extends Error {
@@ -42,19 +46,33 @@ export interface CreateNotebookInput {
   defaults?: Partial<NotebookDefaults>;
 }
 
-function buildPage(notebook: Notebook, createdAt: number, divider: number | null): Page {
-  return {
+function buildPage(
+  notebook: Notebook,
+  createdAt: number,
+  kind: PageKind,
+  divider: number | null,
+): Page {
+  const page: Page = {
     id: newId(),
     notebookId: notebook.id,
     createdAt,
+    kind,
     tagId: null,
     showDate: notebook.defaults.showDate,
     showPageNumber: notebook.defaults.showPageNumber,
     margin: notebook.defaults.margin,
-    columns: emptyColumns(divider),
-    divider,
+    columns: kind === "lined" ? emptyColumns(divider) : [],
+    divider: kind === "lined" ? divider : null,
     canvasView: null,
   };
+  if (kind === "zine") page.zine = emptyZine();
+  return page;
+}
+
+/** A page with nothing written or placed on it. Only such a page can change kind. */
+export function isPageEmpty(page: Page): boolean {
+  if (page.kind === "zine") return !page.zine || isZineEmpty(page.zine);
+  return page.columns.every((column) => isBlankDocument(column.doc));
 }
 
 function emptyCanvas(notebookId: string): Canvas {
@@ -96,7 +114,7 @@ export async function createNotebook(
     defaults: { ...DEFAULT_NOTEBOOK_DEFAULTS, ...input.defaults },
     tags: [],
   };
-  const firstPage = buildPage(notebook, now, notebook.defaults.divider);
+  const firstPage = buildPage(notebook, now, "lined", notebook.defaults.divider);
   notebook.lastPageId = firstPage.id;
   await db.transaction("rw", [db.notebooks, db.pages, db.canvases], async () => {
     await db.notebooks.add(notebook);
@@ -167,14 +185,15 @@ export function getPage(db: TypestillDb, id: string): Promise<Page | undefined> 
 }
 
 /**
- * Appends a page. Pages never reorder, so createdAt is the order; it is kept strictly
- * increasing even when two pages are created within the same millisecond. The divider
- * is inherited from the page the user was on when given, else from the notebook defaults.
+ * Appends a page, lined unless a kind is given. Pages never reorder, so createdAt is the
+ * order; it is kept strictly increasing even when two pages are created within the same
+ * millisecond. The divider is inherited from the page the user was on when given, else
+ * from the notebook defaults.
  */
 export async function createPage(
   db: TypestillDb,
   notebookId: string,
-  options: { divider?: number | null } = {},
+  options: { kind?: PageKind; divider?: number | null } = {},
 ): Promise<Page> {
   return db.transaction("rw", [db.notebooks, db.pages], async () => {
     const notebook = await db.notebooks.get(notebookId);
@@ -182,9 +201,35 @@ export async function createPage(
     const last = await pagesOf(db, notebookId).last();
     const createdAt = Math.max(Date.now(), (last?.createdAt ?? 0) + 1);
     const divider = options.divider === undefined ? notebook.defaults.divider : options.divider;
-    const page = buildPage(notebook, createdAt, divider);
+    const page = buildPage(notebook, createdAt, options.kind ?? "lined", divider);
     await db.pages.add(page);
     return page;
+  });
+}
+
+/**
+ * Changes an empty page's kind. Returns the page as stored. Throws if the page has
+ * content, since a kind change would drop it.
+ */
+export async function setPageKind(db: TypestillDb, id: string, kind: PageKind): Promise<Page> {
+  return db.transaction("rw", [db.notebooks, db.pages], async () => {
+    const page = await db.pages.get(id);
+    if (!page) throw new Error(`Page ${id} not found`);
+    if (page.kind === kind) return page;
+    if (!isPageEmpty(page)) throw new Error("Only an empty page can change kind");
+    const notebook = await db.notebooks.get(page.notebookId);
+    if (!notebook) throw new Error(`Notebook ${page.notebookId} not found`);
+    const fresh = buildPage(notebook, page.createdAt, kind, notebook.defaults.divider);
+    const next: Page = {
+      ...page,
+      kind,
+      columns: fresh.columns,
+      divider: fresh.divider,
+    };
+    if (fresh.zine) next.zine = fresh.zine;
+    else delete next.zine;
+    await db.pages.put(next);
+    return next;
   });
 }
 
@@ -203,6 +248,11 @@ export async function savePageText(
   columns: readonly Column[],
 ): Promise<void> {
   await db.pages.update(id, { columns: [...columns] });
+}
+
+/** Saves a zine page's media block and text. */
+export async function savePageZine(db: TypestillDb, id: string, zine: Zine): Promise<void> {
+  await db.pages.update(id, { zine });
 }
 
 /**
@@ -277,11 +327,25 @@ export async function loadNotebookFiles(
   return Object.fromEntries(files.map((file) => [file.id, file.data]));
 }
 
-/** Removes files the canvas no longer references. Returns how many. */
+/** Stores an image with the notebook. The same content (same id) is stored once. */
+export async function addFile(
+  db: TypestillDb,
+  notebookId: string,
+  data: BinaryFileData,
+): Promise<void> {
+  await db.files.put({ notebookId, id: data.id, data });
+}
+
+/** File ids in use anywhere in the notebook: on zine pages or on the canvas. */
+export async function usedFileIds(db: TypestillDb, notebookId: string): Promise<Set<string>> {
+  const [pages, canvas] = await Promise.all([listPages(db, notebookId), getCanvas(db, notebookId)]);
+  return new Set([...pageFileIds(pages), ...referencedFileIds(canvas.elements)]);
+}
+
+/** Removes files neither the zine pages nor the canvas reference. Returns how many. */
 export async function pruneFiles(db: TypestillDb, notebookId: string): Promise<number> {
-  return db.transaction("rw", [db.canvases, db.files], async () => {
-    const canvas = await getCanvas(db, notebookId);
-    const used = new Set(referencedFileIds(canvas.elements));
+  return db.transaction("rw", [db.pages, db.canvases, db.files], async () => {
+    const used = await usedFileIds(db, notebookId);
     const keys = await db.files.where("notebookId").equals(notebookId).primaryKeys();
     const stale = keys.filter(([, id]) => !used.has(id));
     await db.files.bulkDelete(stale);

@@ -43,6 +43,17 @@ export class TypestillDb extends Dexie {
             notebook.cover ??= { ...DEFAULT_COVER };
           }),
       );
+    // Version 4: pages got a kind. Every existing page is lined.
+    this.version(4)
+      .stores(stores)
+      .upgrade((tx) =>
+        tx
+          .table("pages")
+          .toCollection()
+          .modify((page: { kind?: unknown }) => {
+            page.kind ??= "lined";
+          }),
+      );
   }
 }
 

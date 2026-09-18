@@ -5,8 +5,11 @@ import { NotebookSwitcher } from "./notebook/NotebookSwitcher";
 import { PageSettings } from "./notebook/PageSettings";
 import { SettingsDialog } from "./notebook/SettingsDialog";
 import { useNotebookSession } from "./notebook/useNotebookSession";
+import { isBlankDocument } from "./page/document";
 import { TextPage } from "./page/TextPage";
+import { ZinePage } from "./page/ZinePage";
 import { defaultDivider, fitPage, pageGeometry, pageMm } from "./page/paper";
+import { imagesForLayout, isZineEmpty, type Zine } from "./page/zine";
 import { useElementSize } from "./page/useElementSize";
 import { IconButton } from "./shell/IconButton";
 import { Menu } from "./shell/Menu";
@@ -86,6 +89,43 @@ export function App() {
     void session.setDivider(enabled ? defaultDivider(width, page.margin) : null);
   };
 
+  const pageIsEmpty =
+    page.kind === "zine"
+      ? !page.zine || isZineEmpty(page.zine)
+      : page.columns.every((column) => isBlankDocument(column.doc));
+
+  // Settings that would drop images or text ask first; nothing is untied silently.
+  const changeZine = (patch: Partial<Zine>) => {
+    const zine = page.zine;
+    if (!zine) return;
+    const next = { ...zine, ...patch };
+    if (patch.media && patch.media.layout !== zine.media.layout) {
+      const images = imagesForLayout(zine.media.images, patch.media.layout);
+      const dropped = zine.media.images.slice(images.length).filter(Boolean).length;
+      if (
+        dropped > 0 &&
+        !window.confirm(
+          `This layout has fewer cells. ${dropped === 1 ? "One image" : `${dropped} images`} will be taken off the page (they stay in the notebook). Continue?`,
+        )
+      ) {
+        return;
+      }
+      next.media = { layout: patch.media.layout, images };
+    }
+    for (const block of ["textBelow", "textBeside"] as const) {
+      const before = zine[block];
+      if (patch[block] === null && before && !isBlankDocument(before.doc)) {
+        if (!window.confirm("This text block has writing in it. Remove it?")) return;
+      }
+    }
+    session.setZine(next);
+  };
+
+  const addImages = async (cell: number, files: File[]) => {
+    const added = await session.addImages(cell, files);
+    if (added === 0) window.alert("None of these files could be read as an image.");
+  };
+
   return (
     <SplitView
       panelOpen={panelOpen}
@@ -115,9 +155,15 @@ export function App() {
               >
                 <ChevronRight />
               </IconButton>
-              <IconButton label="New page" onClick={() => void session.newPage()}>
+              <Menu
+                label="New page"
+                items={[
+                  { label: "Lined page", onSelect: () => void session.newPage("lined") },
+                  { label: "Zine page", onSelect: () => void session.newPage("zine") },
+                ]}
+              >
                 <NewPage />
-              </IconButton>
+              </Menu>
             </nav>
             <NotebookSwitcher
               notebooks={session.notebooks}
@@ -131,8 +177,11 @@ export function App() {
                 page={page}
                 number={index + 1}
                 count={pages.length}
+                canChangeKind={pageIsEmpty}
+                onKindChange={(kind) => void session.setKind(kind)}
                 twoColumns={page.divider !== null}
                 onTwoColumnsChange={setTwoColumns}
+                onZineChange={changeZine}
               />
               <Menu
                 label="Notebook"
@@ -181,7 +230,20 @@ export function App() {
               offsetTop={desk && fit ? Math.max(0, (desk.height - fit.height) / 2) : 0}
             />
             <main className="desk" ref={deskRef}>
-              {fit && (
+              {fit && page.kind === "zine" && page.zine && (
+                <ZinePage
+                  key={page.id}
+                  size={notebook.pageSize}
+                  orientation={notebook.orientation}
+                  zoom={fit.zoom}
+                  zine={page.zine}
+                  files={session.files}
+                  preview={preview}
+                  onChange={session.setZine}
+                  onAddImages={(cell, files) => void addImages(cell, files)}
+                />
+              )}
+              {fit && page.kind === "lined" && (
                 <TextPage
                   key={page.id}
                   size={notebook.pageSize}

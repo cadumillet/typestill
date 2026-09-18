@@ -1,0 +1,108 @@
+/* A zine page: the media block's cells and the text blocks in the zine typeface. Shares
+   the sheet and the column styles of textpage.css; there are no rules or margin line. */
+
+.zine-page {
+  font-family: "Assistant", ui-sans-serif, system-ui, sans-serif;
+}
+
+.zine-page::before,
+.zine-page::after {
+  display: none;
+}
+
+.zine-cell {
+  position: absolute;
+  z-index: 1;
+  overflow: hidden;
+  background: #f4f2ee;
+}
+
+.zine-cell.is-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #d6d2ca;
+  box-sizing: border-box;
+}
+
+.is-preview .zine-cell.is-empty {
+  border: 0;
+  background: transparent;
+}
+
+.zine-cell.is-selected {
+  outline: 2px solid #5b4fb5;
+  outline-offset: -2px;
+}
+
+.zine-cell.is-over {
+  outline: 2px dashed #5b4fb5;
+  outline-offset: -2px;
+  background: #eceaf6;
+}
+
+.zine-cell__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+}
+
+.zine-cell__add {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--muted, #7d786d);
+  background: #fff;
+}
+
+.zine-cell__add:hover {
+  color: var(--ink, #26241f);
+}
+
+.zine-cell__missing {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  color: #c0504d;
+}
+
+/* Fit and remove, shown while the pointer is over a filled cell. */
+.zine-cell__tools {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+
+.zine-cell:hover .zine-cell__tools,
+.zine-cell.is-selected .zine-cell__tools {
+  opacity: 1;
+}
+
+.zine-cell__tools button {
+  padding: 2px 8px;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px;
+  border-color: transparent;
+  background: rgb(255 255 255 / 0.9);
+  color: var(--ink, #26241f);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
+}
+
+.zine-page__full {
+  bottom: auto;
+  margin-top: 2px;
+}
+
+/* Zine text is a typeface with a real bold. */
+.zine-page .text-page__column strong,
+.zine-page .text-page__mirror strong {
+  font-weight: 700;
+}

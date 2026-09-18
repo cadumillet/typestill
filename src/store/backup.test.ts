@@ -42,6 +42,7 @@ const doc: NotebookDocument = {
       id: "p1",
       notebookId: "nb1",
       createdAt: 10,
+      kind: "lined",
       tagId: null,
       showDate: true,
       showPageNumber: true,
@@ -49,6 +50,27 @@ const doc: NotebookDocument = {
       columns: [{ text: "hello \nworld", doc: formatted }, columnFromText("world")],
       divider: 70,
       canvasView: { scrollX: 0, scrollY: 0, zoom: 1 },
+    },
+    {
+      id: "p2",
+      notebookId: "nb1",
+      createdAt: 11,
+      kind: "zine",
+      tagId: null,
+      showDate: true,
+      showPageNumber: true,
+      margin: 20,
+      columns: [],
+      zine: {
+        padding: 0,
+        media: { layout: "row", images: [{ fileId: "f1", fit: "cover" }, null] },
+        textBelow: columnFromText("caption"),
+        textBeside: null,
+        textSide: "right",
+        textRows: 4,
+      },
+      divider: null,
+      canvasView: null,
     },
   ],
   canvas: { notebookId: "nb1", gridEnabled: false, elements: [] },
@@ -65,6 +87,7 @@ describe("backup", () => {
   it("reads version 1, turning each line break into a paragraph boundary", () => {
     const raw = JSON.parse(serializeBackup(doc));
     raw.version = 1;
+    raw.notebook.pages.pop();
     raw.notebook.pages[0].columns = ["one\ntwo\n\nfour", ""];
     const parsed = parseBackup(JSON.stringify(raw));
     expect(parsed.pages[0].columns).toEqual([
@@ -115,6 +138,35 @@ describe("backup", () => {
       const raw = JSON.parse(serializeBackup(doc));
       raw.notebook.pages[0].columns = columns;
       expect(() => parseBackup(JSON.stringify(raw))).toThrow(/columns/);
+    }
+  });
+
+  it("reads pages without a kind as lined, and checks zine pages", () => {
+    const raw = JSON.parse(serializeBackup(doc));
+    raw.version = 3;
+    raw.notebook.pages.pop();
+    delete raw.notebook.pages[0].kind;
+    expect(parseBackup(JSON.stringify(raw)).pages[0].kind).toBe("lined");
+
+    const badKind = JSON.parse(serializeBackup(doc));
+    badKind.notebook.pages[0].kind = "sketch";
+    expect(() => parseBackup(JSON.stringify(badKind))).toThrow(/kind/);
+
+    const withColumns = JSON.parse(serializeBackup(doc));
+    withColumns.notebook.pages[1].columns = [columnFromText("x")];
+    expect(() => parseBackup(JSON.stringify(withColumns))).toThrow(/columns/);
+
+    for (const zine of [
+      undefined,
+      null,
+      { ...doc.pages[1].zine, media: { layout: "row", images: [null] } },
+      { ...doc.pages[1].zine, media: { layout: "grid", images: [null] } },
+      { ...doc.pages[1].zine, textRows: 0 },
+      { ...doc.pages[1].zine, textBelow: "caption" },
+    ]) {
+      const bad = JSON.parse(serializeBackup(doc));
+      bad.notebook.pages[1].zine = zine;
+      expect(() => parseBackup(JSON.stringify(bad))).toThrow(/zine/);
     }
   });
 

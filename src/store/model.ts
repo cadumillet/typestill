@@ -7,9 +7,14 @@ import type { BinaryFileData } from "@excalidraw/excalidraw/types";
 import type { Cover } from "../notebook/cover";
 import { columnFromDocument, columnFromText, joinDocuments, type Column } from "../page/document";
 import { DEFAULT_MARGIN_MM, type Orientation, type PageSize } from "../page/paper";
+import { zineFileIds, type Zine } from "../page/zine";
 
 export type { Cover } from "../notebook/cover";
 export type { Column } from "../page/document";
+export type { Zine } from "../page/zine";
+
+/** Lined pages hold writing; zine pages hold images. */
+export type PageKind = "lined" | "zine";
 
 export interface Tag {
   id: string;
@@ -49,19 +54,22 @@ export interface CanvasView {
   zoom: number;
 }
 
-/** A lined text page. */
+/** A page: lined, with one or two columns of text, or zine, with a media block. */
 export interface Page {
   id: string;
   notebookId: string;
   /** Also the page order. Strictly increasing within a notebook. */
   createdAt: number;
+  kind: PageKind;
   tagId: string | null;
   showDate: boolean;
   showPageNumber: boolean;
   /** Margin line offset in mm from the left edge. */
   margin: number;
-  /** One or two columns of text. */
+  /** Lined pages: one or two columns of text. Zine pages: none. */
   columns: Column[];
+  /** Zine pages: the media block and its text. */
+  zine?: Zine;
   /** Divider offset in mm from the left edge, null for one column. */
   divider: number | null;
   canvasView: CanvasView | null;
@@ -75,7 +83,7 @@ export interface Canvas {
   elements: ExcalidrawElement[];
 }
 
-/** An image the canvas references. Excalidraw file ids are content hashes. */
+/** An image, used by zine pages or the canvas. File ids are content hashes. */
 export interface NotebookFile {
   notebookId: string;
   id: string;
@@ -123,6 +131,15 @@ export function referencedFileIds(elements: readonly ExcalidrawElement[]): strin
   const ids = new Set<string>();
   for (const element of elements) {
     if (element.type === "image" && element.fileId && !element.isDeleted) ids.add(element.fileId);
+  }
+  return [...ids];
+}
+
+/** File ids the zine pages use, without duplicates. */
+export function pageFileIds(pages: readonly Page[]): string[] {
+  const ids = new Set<string>();
+  for (const page of pages) {
+    if (page.zine) for (const id of zineFileIds(page.zine)) ids.add(id);
   }
   return [...ids];
 }

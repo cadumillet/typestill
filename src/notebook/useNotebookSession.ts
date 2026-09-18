@@ -4,6 +4,7 @@ import type { CanvasContent } from "../canvas/Canvas";
 import { createAutosave, columnsKey, elementsKey, type Autosave } from "../store/autosave";
 import { backupFileName, parseBackup, serializeBackup } from "../store/backup";
 import { getDb, type TypestillDb } from "../store/db";
+import { placeImages, type Zine } from "../page/zine";
 import {
   columnsForDivider,
   type Canvas,
@@ -11,8 +12,10 @@ import {
   type Column,
   type Notebook,
   type Page,
+  type PageKind,
 } from "../store/model";
 import {
+  addFile,
   createNotebook as createNotebookRecord,
   createPage,
   exportNotebook,
@@ -24,15 +27,18 @@ import {
   loadNotebookFiles,
   saveCanvasContent,
   savePageText,
+  savePageZine,
   setCanvasGrid,
   setLastPage,
   setPageDivider,
+  setPageKind,
   touchNotebook,
   updateNotebookSettings,
   updatePage,
   type NotebookSummary,
 } from "../store/notebooks";
 import { downloadText } from "./files";
+import { importImage } from "./images";
 
 export interface NotebookSession {
   notebook: Notebook;
@@ -49,9 +55,21 @@ export interface NotebookSession {
   /** Increments each time a notebook is loaded. Key the canvas editor by it so it starts over. */
   loadId: number;
   goTo: (index: number) => void;
-  newPage: () => Promise<void>;
+  /** Appends a page of the given kind (lined by default) and opens it. */
+  newPage: (kind?: PageKind) => Promise<void>;
   setColumns: (columns: Column[]) => void;
   setDivider: (divider: number | null) => Promise<void>;
+  /** Zine pages: the media block and its text. */
+  setZine: (zine: Zine) => void;
+  /** Changes the open page's kind. Only an empty page can change; the store refuses otherwise. */
+  setKind: (kind: PageKind) => Promise<void>;
+  /**
+   * Imports images into the notebook's files (downscaled, keyed by content) and places
+   * them on the open zine page: the first in the given cell, the rest in the empty cells
+   * after it. Returns how many images were read; files the browser cannot decode are
+   * skipped.
+   */
+  addImages: (cell: number, files: File[]) => Promise<number>;
   /** Canvas callbacks carry the loadId of the editor that sent them; stale editors are ignored. */
   onCanvasChange: (content: CanvasContent, loadId: number) => void;
   onCanvasViewChange: (view: CanvasView, loadId: number) => void;
@@ -94,6 +112,7 @@ const report = (error: unknown) => console.error("typestill: save failed", error
 export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession | null {
   const [state, setState] = useState<Loaded | null>(null);
   const pageSaver = useRef<Autosave<Column[]> | null>(null);
+  const zineSaver = useRef<Autosave<Zine> | null>(null);
   const viewSaver = useRef<Autosave<CanvasView> | null>(null);
   const canvasSaver = useRef<Autosave<CanvasContent> | null>(null);
   /** Latest canvas view seen, written onto the page when it is left. */
@@ -102,6 +121,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
 
   const flushAll = useCallback(() => {
     void pageSaver.current?.flush();
+    void zineSaver.current?.flush();
     void viewSaver.current?.flush();
     void canvasSaver.current?.flush();
   }, []);
@@ -110,6 +130,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
   const attachPage = useCallback(
     (page: Page) => {
       void pageSaver.current?.flush();
+      void zineSaver.current?.flush();
       void viewSaver.current?.flush();
       pageSaver.current = createAutosave<Column[]>({
         save: (columns) => savePageText(db, page.id, columns),
@@ -117,6 +138,15 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
         onError: report,
       });
       pageSaver.current.markClean(page.columns);
+      zineSaver.current = null;
+      if (page.zine) {
+        zineSaver.current = createAutosave<Zine>({
+          save: (zine) => savePageZine(db, page.id, zine),
+          key: (zine) => JSON.stringify(zine),
+          onError: report,
+        });
+        zineSaver.current.markClean(page.zine);
+      }
       viewSaver.current = createAutosave<CanvasView>({
         save: (view) => updatePage(db, page.id, { canvasView: view }),
         key: viewKey,
@@ -133,10 +163,12 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
   const detach = useCallback(async () => {
     await Promise.all([
       pageSaver.current?.flush(),
+      zineSaver.current?.flush(),
       viewSaver.current?.flush(),
       canvasSaver.current?.flush(),
     ]);
     pageSaver.current = null;
+    zineSaver.current = null;
     viewSaver.current = null;
     canvasSaver.current = null;
   }, []);
@@ -224,22 +256,26 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     [db, attachPage],
   );
 
-  const newPage = useCallback(async () => {
-    if (!state) return;
-    const page = await createPage(db, state.notebook.id, {
-      divider: state.pages[state.index].divider,
-    });
-    setState((current) => {
-      if (!current) return current;
-      const pages = current.pages.map((p, i) =>
-        i === current.index ? { ...p, canvasView: latestView.current } : p,
-      );
-      pages.push(page);
-      attachPage(page);
-      setLastPage(db, current.notebook.id, page.id).catch(report);
-      return { ...current, pages, index: pages.length - 1, restoreView: null };
-    });
-  }, [db, state, attachPage]);
+  const newPage = useCallback(
+    async (kind: PageKind = "lined") => {
+      if (!state) return;
+      const page = await createPage(db, state.notebook.id, {
+        kind,
+        divider: state.pages[state.index].divider,
+      });
+      setState((current) => {
+        if (!current) return current;
+        const pages = current.pages.map((p, i) =>
+          i === current.index ? { ...p, canvasView: latestView.current } : p,
+        );
+        pages.push(page);
+        attachPage(page);
+        setLastPage(db, current.notebook.id, page.id).catch(report);
+        return { ...current, pages, index: pages.length - 1, restoreView: null };
+      });
+    },
+    [db, state, attachPage],
+  );
 
   const setColumns = useCallback((columns: Column[]) => {
     pageSaver.current?.onChange(columns);
@@ -267,6 +303,70 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
         );
         return { ...current, pages };
       });
+    },
+    [db, state],
+  );
+
+  const setZine = useCallback((zine: Zine) => {
+    zineSaver.current?.onChange(zine);
+    setState((current) => {
+      if (!current) return current;
+      const pages = current.pages.map((page, i) =>
+        i === current.index ? { ...page, zine } : page,
+      );
+      return { ...current, pages };
+    });
+  }, []);
+
+  const setKind = useCallback(
+    async (kind: PageKind) => {
+      if (!state) return;
+      const page = state.pages[state.index];
+      if (page.kind === kind) return;
+      await Promise.all([pageSaver.current?.flush(), zineSaver.current?.flush()]);
+      const changed = await setPageKind(db, page.id, kind);
+      attachPage(changed);
+      setState((current) => {
+        if (!current) return current;
+        const pages = current.pages.map((p, i) => (i === current.index ? changed : p));
+        return { ...current, pages };
+      });
+    },
+    [db, state, attachPage],
+  );
+
+  const addImages = useCallback(
+    async (cell: number, files: File[]) => {
+      if (!state) return 0;
+      const notebookId = state.notebook.id;
+      const pageId = state.pages[state.index].id;
+      const ids: string[] = [];
+      const added: Record<string, BinaryFileData> = {};
+      for (const file of files) {
+        try {
+          const data = await importImage(file);
+          await addFile(db, notebookId, data);
+          added[data.id] = data;
+          ids.push(data.id);
+        } catch (error) {
+          console.warn("typestill: could not import image", file.name, error);
+        }
+      }
+      if (ids.length === 0) return 0;
+      // The page is read again here: it may have been edited, or left, while the images
+      // were being read. Saving is keyed by content, so running twice is harmless.
+      setState((current) => {
+        if (!current || current.notebook.id !== notebookId) return current;
+        const at = current.pages.findIndex((page) => page.id === pageId);
+        const target = current.pages[at]?.zine;
+        if (!target) return current;
+        const zine = placeImages(target, cell, ids);
+        if (at === current.index) zineSaver.current?.onChange(zine);
+        else savePageZine(db, pageId, zine).catch(report);
+        const pages = current.pages.map((page, i) => (i === at ? { ...page, zine } : page));
+        return { ...current, pages, files: { ...current.files, ...added } };
+      });
+      return ids.length;
     },
     [db, state],
   );
@@ -332,6 +432,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     if (!state) return;
     await Promise.all([
       pageSaver.current?.flush(),
+      zineSaver.current?.flush(),
       viewSaver.current?.flush(),
       canvasSaver.current?.flush(),
     ]);
@@ -366,6 +467,9 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     newPage,
     setColumns,
     setDivider,
+    setZine,
+    setKind,
+    addImages,
     onCanvasChange,
     onCanvasViewChange,
     onGridChange,

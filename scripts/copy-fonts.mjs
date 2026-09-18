@@ -1,7 +1,8 @@
 // Copies the fonts bundled with @excalidraw/excalidraw into public/fonts so the app
 // serves them itself (index.html sets window.EXCALIDRAW_ASSET_PATH = "/") instead of
-// pulling them from a CDN at runtime, and writes public/fonts/excalifont.css so the page
-// editor can use Excalifont as a normal web font. Runs on postinstall. public/fonts is
+// pulling them from a CDN at runtime, and writes public/fonts/excalifont.css and
+// public/fonts/assistant.css so the page editor can use Excalifont (lined pages) and
+// Assistant (zine text) as normal web fonts. Runs on postinstall. public/fonts is
 // gitignored.
 import { cpSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -48,3 +49,25 @@ const css = faces
   .join("\n");
 writeFileSync(resolve(target, "excalifont.css"), css);
 console.log(`copy-fonts: wrote excalifont.css with ${faces.length} subsets`);
+
+// Assistant ships as whole files, one per weight. Zine text uses the regular and the bold.
+const assistant = [
+  ["Assistant-Regular.woff2", 400],
+  ["Assistant-Bold.woff2", 700],
+];
+for (const [file] of assistant) {
+  if (!existsSync(resolve(target, "Assistant", file))) {
+    console.error(`copy-fonts: ${file} not found in the Excalidraw bundle`);
+    process.exit(1);
+  }
+}
+writeFileSync(
+  resolve(target, "assistant.css"),
+  assistant
+    .map(
+      ([file, weight]) =>
+        `@font-face {\n  font-family: "Assistant";\n  src: url("/fonts/Assistant/${file}") format("woff2");\n  font-weight: ${weight};\n  font-display: swap;\n}\n`,
+    )
+    .join("\n"),
+);
+console.log("copy-fonts: wrote assistant.css");

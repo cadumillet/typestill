@@ -4,8 +4,10 @@ import { DEFAULT_COVER } from "../notebook/cover";
 import { columnFromText, documentFromText } from "../page/document";
 import { TypestillDb } from "./db";
 import { element, fileData, imageElement } from "./fixtures";
+import { emptyZine } from "../page/zine";
 import {
   NotebookExistsError,
+  addFile,
   createNotebook,
   createPage,
   deleteNotebook,
@@ -16,15 +18,19 @@ import {
   listNotebooks,
   listPages,
   loadNotebookFiles,
+  isPageEmpty,
   pruneFiles,
   saveCanvasContent,
   savePageText,
+  savePageZine,
   setCanvasGrid,
   setLastPage,
   setPageDivider,
+  setPageKind,
   touchNotebook,
   updateNotebookSettings,
   updatePage,
+  usedFileIds,
 } from "./notebooks";
 
 let db: TypestillDb;
@@ -44,6 +50,7 @@ describe("notebooks", () => {
     expect(notebook.orientation).toBe("portrait");
     expect(notebook.cover).toEqual(DEFAULT_COVER);
     expect(firstPage.notebookId).toBe(notebook.id);
+    expect(firstPage.kind).toBe("lined");
     expect(firstPage.columns).toEqual([columnFromText("")]);
     expect(firstPage.divider).toBeNull();
     expect(firstPage.margin).toBe(20);
@@ -180,6 +187,62 @@ describe("pages", () => {
     expect((await db.pages.get(firstPage.id))?.columns).toEqual([columnFromText("left\nright")]);
   });
 
+  it("creates zine pages with an empty media block and no columns", async () => {
+    const { notebook } = await createNotebook(db, { name: "A", defaults: { divider: 70 } });
+    const page = await createPage(db, notebook.id, { kind: "zine" });
+    expect(page.kind).toBe("zine");
+    expect(page.columns).toEqual([]);
+    expect(page.divider).toBeNull();
+    expect(page.zine).toEqual(emptyZine());
+    expect(isPageEmpty(page)).toBe(true);
+    const zine = {
+      ...emptyZine(),
+      media: { layout: "row" as const, images: [{ fileId: "f1", fit: "cover" as const }, null] },
+    };
+    await savePageZine(db, page.id, zine);
+    const stored = await db.pages.get(page.id);
+    expect(stored?.zine).toEqual(zine);
+    expect(isPageEmpty(stored!)).toBe(false);
+  });
+
+  it("changes the kind of an empty page only", async () => {
+    const { notebook, firstPage } = await createNotebook(db, { name: "A" });
+    const zine = await setPageKind(db, firstPage.id, "zine");
+    expect(zine.kind).toBe("zine");
+    expect(zine.columns).toEqual([]);
+    expect(zine.zine).toEqual(emptyZine());
+    expect(zine.createdAt).toBe(firstPage.createdAt);
+    const lined = await setPageKind(db, firstPage.id, "lined");
+    expect(lined.kind).toBe("lined");
+    expect(lined.columns).toEqual([columnFromText("")]);
+    expect(lined.zine).toBeUndefined();
+    expect((await db.pages.get(firstPage.id))?.zine).toBeUndefined();
+    await savePageText(db, firstPage.id, [columnFromText("written")]);
+    await expect(setPageKind(db, firstPage.id, "zine")).rejects.toThrow(/empty/);
+    expect((await listPages(db, notebook.id))[0].kind).toBe("lined");
+  });
+
+  it("upgrades pages from version 3 of the database to lined", async () => {
+    const name = `test-${crypto.randomUUID()}`;
+    const old = new Dexie(name);
+    old.version(3).stores({
+      notebooks: "id, lastOpenedAt",
+      pages: "id, notebookId, [notebookId+createdAt]",
+      canvases: "notebookId",
+      files: "[notebookId+id], notebookId",
+    });
+    await old
+      .table("pages")
+      .add({ id: "p1", notebookId: "nb", createdAt: 1, columns: [columnFromText("a")] });
+    old.close();
+    const upgraded = new TypestillDb(name);
+    try {
+      expect((await upgraded.pages.get("p1"))?.kind).toBe("lined");
+    } finally {
+      await upgraded.delete();
+    }
+  });
+
   it("upgrades plain-text columns from version 1 of the database", async () => {
     const name = `test-${crypto.randomUUID()}`;
     const old = new Dexie(name);
@@ -204,6 +267,26 @@ describe("pages", () => {
     } finally {
       await upgraded.delete();
     }
+  });
+});
+
+describe("files", () => {
+  it("stores an image once and counts zine pages and the canvas as uses", async () => {
+    const { notebook } = await createNotebook(db, { name: "A" });
+    await addFile(db, notebook.id, fileData("f1"));
+    await addFile(db, notebook.id, fileData("f1"));
+    await addFile(db, notebook.id, fileData("f2"));
+    await addFile(db, notebook.id, fileData("f3"));
+    expect(await db.files.count()).toBe(3);
+    const page = await createPage(db, notebook.id, { kind: "zine" });
+    await savePageZine(db, page.id, {
+      ...emptyZine(),
+      media: { layout: "single", images: [{ fileId: "f1", fit: "cover" }] },
+    });
+    await saveCanvasContent(db, notebook.id, [imageElement("img", "f2")], {});
+    expect([...(await usedFileIds(db, notebook.id))].sort()).toEqual(["f1", "f2"]);
+    expect(await pruneFiles(db, notebook.id)).toBe(1);
+    expect(Object.keys(await loadNotebookFiles(db, notebook.id)).sort()).toEqual(["f1", "f2"]);
   });
 });
 
