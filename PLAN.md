@@ -4,7 +4,7 @@ A digital notebook made to be the bridge between digital notes and real commonpl
 
 The idea: a notebook where each side has its own character. On the left, fixed-size lined pages you write on like a simple note editor, in Excalidraw's handwriting font, always on the lines. On the right, one infinite Excalidraw canvas per notebook for drawings, diagrams and images, with an optional grid that snaps. Pages remember where they left the canvas, so each page opens next to its own part of the drawing. Pages come in two kinds: lined pages for writing, and zine pages for images with a little text. No productivity-app machinery.
 
-Status (2026-09-18): the MVP is complete. Phases 1, 2 and 3 are done and on `main`. Phase 1: the store, the page editor, the canvas panel and split view, storage wiring with autosave and per-page canvas views, backup download and restore, notebook settings, the left rail and the notebook switcher. Phase 2: text formatting, the notebook cover, zine pages, the media pool, themes (Ruled and Plain), Dark with the app appearance setting, the divider drag, tags, hover thumbnails, the two-page spread, the date stamp and page number, and the page settings popover with the margin line. Phase 3: full-text search, PDF and PNG exports, the zip backup with storage figures and pruning, page deletion, keyboard shortcuts, the first-run welcome and the shelf. The backup format is at version 5 in both its JSON and zip shapes; the IndexedDB schema is at version 6. What comes next is the visual and branding pass that was deliberately left for the end, and the "Later, not now" list.
+Status (2026-09-18): the MVP is complete. Phases 1, 2 and 3 are done and on `main`. Phase 1: the store, the page editor, the canvas panel and split view, storage wiring with autosave and per-page canvas views, backup download and restore, notebook settings, the left rail and the notebook switcher. Phase 2: text formatting, the notebook cover, zine pages, the media pool, themes (Ruled and Plain), Dark with the app appearance setting, the divider drag, tags, hover thumbnails, the two-page spread, the date stamp and page number, and the page settings popover with the margin line. Phase 3: full-text search, PDF and PNG exports, the zip backup with storage figures and pruning, page deletion, keyboard shortcuts, the first-run welcome and the shelf. The backup format is at version 5 in both its JSON and zip shapes; the IndexedDB schema is at version 6. A feedback round on 2026-09-18 became Phase 4 (section 6): the date stamp descoped from the page, pages with sides and real facing spreads, page controls at the rail with a one-page rule, the media pool as a photo grid, and the zine page rebuilt as blocks composed in place. The visual and branding pass stays after that, with the "Later, not now" list.
 
 ---
 
@@ -20,12 +20,13 @@ Status (2026-09-18): the MVP is complete. Phases 1, 2 and 3 are done and on `mai
 - Simplicity over features. Each page kind does one thing well: lined pages hold writing, zine pages hold images. Images never go into lined pages.
 - The owner holds the data: browser storage plus backup files they keep. No accounts, no backend.
 - It behaves like a real notebook in human hands. Things stay tied together, and the user plays by its rules rather than the app quietly untying them.
+- The spread is the notebook's true unit. Pages have sides, pairs face each other, covers have insides, and printing a notebook means printing spreads. Decisions about pages keep spreads first-class.
 
 ## 2. Product spec
 
 ### Notebooks
 - Multiple notebooks. Each one is a separate storage record with its own backup.
-- A simple shelf screen on launch (name, page count, last opened). Notebooks are created, renamed and deleted only from the shelf.
+- The app opens on the notebook that was open last, where it was left. The shelf (every notebook as its cover, with page count and when it was last opened) is a screen reached from the notebook switcher, and the one a first run lands on after the welcome. Notebooks are created, renamed and deleted only from the shelf.
 - Inside a notebook there is a switcher in the header.
 - A notebook has many pages and exactly one canvas.
 - Every notebook has a cover: a colour from a small palette, an optional emoji or initial, the name, and an optional subtitle. The cover is what the notebook looks like when closed: the card on the shelf, and a small swatch next to the name in the switcher and the app bar. It is set in notebook settings. Image covers are not planned.
@@ -33,7 +34,7 @@ Status (2026-09-18): the MVP is complete. Phases 1, 2 and 3 are done and on `mai
 ### Layout: the split view
 - The text column on the left is the app. Its bar holds the page navigation (previous, next, new page) on the left, the notebook name in the middle, and on the right: page settings, the notebook menu (settings, backup), preview and the canvas panel toggle. Controls are icon buttons with a hover tooltip showing the label and, once one exists, the keyboard shortcut.
 - The canvas is a rounded side panel on the right, like an artifact panel next to a chat. It is resized from the gap between the two, the width is remembered per browser, and it can be closed and reopened from the bar. The text column is always visible.
-- The text column shows one page, fit to the available space at the paper's aspect ratio. With the panel closed: two-page spread of consecutive pages (Phase 2).
+- The text column shows one page, fit to the available space at the paper's aspect ratio. With the panel closed it shows the open page's spread: a left-hand page with the next page on its right, the two touching at the gutter with no gap, as a notebook lies open. Page 1 is a right-hand page, so the spreads are (inside cover | 1), (2 | 3), (4 | 5) and so on. An empty side of a spread, the inside of the front cover before page 1 or the inside of the back cover after a last left-hand page, shows a flat slab in the notebook's cover colour, page-sized, with nothing on it and nothing to click. This is the ground for a second cover, an inside cover and a counter cover later.
 - The two sides navigate independently. Flipping pages never moves the canvas by itself; opening a page restores the canvas view that page remembers (see Canvas).
 
 ### Pages (text)
@@ -42,19 +43,18 @@ Status (2026-09-18): the MVP is complete. Phases 1, 2 and 3 are done and on `mai
 - Writing works like a simple note editor: typing, line breaks, wrapping at the column edge, caret, selection, undo, copy and paste. Plain text only. The font is Excalifont, Excalidraw's handwriting font.
 - A page holds a fixed number of lines. When it is full, input stops. The user creates the next page.
 - Optional divider: a light gray vertical line that splits the page into two columns of text. It defaults to the middle of the writable area (from the margin line to the right edge), snaps to 10mm steps when moved, and can be removed. A new page inherits the divider of the page it was created from. "Two columns" is toggled from the page settings popover, next to the page's metadata (number, date).
-- The page is a white sheet with a thin border and rounded corners, no shadow, matching the canvas panel.
+- The page is a white sheet with a thin border, no shadow. Every page has a side, derived from its position and never stored: odd pages are right-hand pages, even pages left-hand. A right-hand page rounds its right corners and a left-hand page its left corners; the inner edge is square, in single-page view too.
 - Basic formatting: bold, italic, text colour from a small palette shared with the canvas (Excalidraw's five stroke colours), and paragraph alignment (left, centre, right). Alignment works like Google Docs: it applies to the whole paragraph, including its wrapped lines and any line breaks inside it, and to every paragraph a selection touches. Enter starts a new paragraph; Shift+Enter breaks a line within the paragraph. A small bar floats over a selection with bold, italic, the five swatches and the three alignments; the shortcuts are Cmd+B, Cmd+I and Cmd+Shift+L / E / R, as in Google Docs. Nothing else: no font sizes, lists or links. The text stays on the lines whatever the formatting.
-- Pages can be deleted (with a confirm). Remaining pages are renumbered, since the number is just the position in the notebook.
-- Optional date stamp in the top right corner, formatted like "September 16, 2026".
-- Optional page number at the bottom center.
-- Date stamp and page number are per-page toggles, with a notebook-level default for new pages. They are rendered by the shell as overlays and composited into exports.
+- Pages are added and deleted from the rail: an add control under the squares (lined or zine) and a delete for the open page, which asks first. Remaining pages are renumbered, since the number is just the position in the notebook. A new page cannot be added while the open page is empty; the user fills the page in front of them first.
+- Optional page number at the bottom centre: a per-page toggle with a notebook default for new pages, rendered inside the page in the lined font and ink on every page kind, so it is in thumbnails and exports as is. There is no date stamp on the page: the user writes a date if they want one. The creation date and time show in the page settings. (The date stamp existed in Phases 2 and 3 and was descoped in Phase 4.)
 - Preview: the page without rules, margin and divider, read-only.
 
 ### Pages (zine)
 - A second page kind, for images, next to lined pages. A notebook mixes both freely. The kind is chosen when a page is created and can change only while the page is empty.
-- A zine page is composed like a Behance project, but small: one media block, which is a single image or a grid of two to four images, plus optional text below the media, beside it, or both. Nothing else on the page; nothing is dragged.
-- The media block fills the page. Padding is a page setting: zero means the images bleed to the page edges; otherwise the same margin on every side and the same gap between blocks.
-- Text below reserves a fixed number of lines at the bottom (default four, a page setting). Text beside reserves a column on the right, a third of the page width (left is an option). Text blocks use the same editor as lined pages with the same formatting and the same hard stop when full, but no rules and the theme's zine font, a typeface rather than the handwriting of lined pages.
+- A zine page is composed in place from blocks, like a Behance project but small. An empty page shows a plus on hover; clicking it offers a single image, a grid or a text block. Once a block is there, hovering below it offers what can go beneath, and hovering the left or right edge of the media block offers a text block beside it. Nothing is dragged into position.
+- At most one media block per page (a single image or a grid of two to four), at most one text block beside it and one below it. A single image with nothing else fills the whole page, page number area included. A text block below reserves rows beneath the media; the taller the text block, the shorter the image, which stays cropped to cover. Two blocks in a row split the width in half.
+- Padding is the only layout setting left in page settings: zero (the default) bleeds images to the page edges; otherwise the same inset on every side and the same gap between blocks. Everything about a block (its rows of text, a grid's preset, an image's fit or replacement, removing it) is in the tools that appear when the block is hovered.
+- Text blocks use the same editor as lined pages with the same formatting and the same hard stop when full, but no rules and the theme's zine font, a typeface rather than the handwriting of lined pages. A text block's height is its rows of text, default four, changed from its hover tools.
 - Grid presets: two side by side, two stacked, two by two. Each cell fills with its image cropped to cover it; a per-image "fit" option letterboxes instead. Empty cells show a placeholder until an image is dropped in.
 - Images come from paste, drop or a file picker. They are downscaled on import (long edge 2048px, re-encoded), stored once per notebook by content hash in the same files table the canvas uses, and inlined in backups.
 - Zine pages remember a canvas view like lined pages, appear in the rail like any page, face each other in the two-page spread, and export at physical size like lined pages.
@@ -64,7 +64,8 @@ Status (2026-09-18): the MVP is complete. Phases 1, 2 and 3 are done and on `mai
 - The side panel shows the pool when a zine page is open and the canvas when a lined page is open. A control in the panel switches to the other for a look; the mode follows the page again on the next page change.
 - Images enter the pool by dropping files on the pool or on a page, by paste, or with a file picker. They are downscaled on import (see section 5). The same file imported twice is one image.
 - An image is placed by dragging it from the pool onto a cell of the page's media block, or by selecting a cell and clicking an image. Dropping onto a filled cell replaces the image there. Dragging an image onto the canvas adds it there as an Excalidraw image element.
-- Each image in the pool shows where it is used: page numbers and the canvas. An image in use cannot be deleted; the user replaces it first. Deleting an unused image removes it from the notebook.
+- The pool looks like a phone's photo library: square thumbnails edge to edge in a tight grid of three or more columns, newest first, no captions. Only a slim bar sits above it: the peek control, an add button (drop and paste work anywhere on the pool), and the count.
+- Usage is a small badge on the thumbnail, always visible: "p. 2", "3 pages", "canvas", or nothing when unused. An image in use cannot be deleted; the user replaces it first. Unused images show a delete control on hover, which asks first and removes the image from the notebook.
 
 ### Themes
 - A theme is the look of the pages and nothing else: the fonts, the line grid, the rules and margin line, the colours, the zine defaults. The app's chrome is not themed.
@@ -89,6 +90,7 @@ Status (2026-09-18): the MVP is complete. Phases 1, 2 and 3 are done and on `mai
 - Hovering a square shows a minified preview of the page.
 - Clicking jumps to the page and restores its canvas view.
 - The rail can be filtered by tag. Filtering only hides squares; page order and numbering stay the same. Deleting from a filtered view deletes from the real notebook.
+- Pinned under the squares: add a page (lined or zine) and delete the open page. Add is off while the open page is empty, and its tooltip says so.
 
 ### Search
 - Full-text search across all pages and the canvas's text of the current notebook. Results jump to the page, or pan the canvas to the element.
@@ -121,7 +123,6 @@ Notebook {
   pageSize: "A5" | "A4" | "Letter"
   orientation: "portrait" | "landscape"
   defaults: {
-    showDate: boolean
     showPageNumber: boolean
     margin: number                     // margin line offset in mm for new pages
     divider: number | null
@@ -135,7 +136,6 @@ Page {
   createdAt: number                    // also the page order
   kind: "lined" | "zine"
   tagId: string | null
-  showDate: boolean
   showPageNumber: boolean
   margin: number                       // margin line offset in mm
   columns: Column[]                    // lined pages: one or two columns
@@ -150,16 +150,17 @@ Column {
 }
 
 Zine {
-  padding: number                      // mm; 0 = images bleed to the page edges
-  media: {
-    layout: "single" | "row" | "column" | "square"   // one image, 2 side by side, 2 stacked, 2 by 2
-    images: ({ fileId: string, fit: "cover" | "contain" } | null)[]   // one slot per cell, null while empty
-  }
-  textBelow: Column | null             // reserves textRows lines at the bottom
-  textBeside: Column | null            // reserves a column of a third of the width
-  textSide: "right" | "left"
-  textRows: number
+  padding: number                      // mm; 0 = images bleed to the page edges; also the gap between blocks
+  rows: ZineRow[]                      // top to bottom; an empty page has none
 }
+
+ZineRow { blocks: ZineBlock[] }        // one block, or two side by side sharing the width equally
+
+ZineBlock =
+  | { kind: "image", image: { fileId: string, fit: "cover" | "contain" } | null }
+  | { kind: "grid", layout: "row" | "column" | "square", images: ({ fileId, fit } | null)[] }   // 2 side by side, 2 stacked, 2 by 2
+  | { kind: "text", column: Column, rows: number }                                              // rows of text at the zine line height
+                                       // the shape is general; the app allows one media block, one text beside it, one text below
 
 Theme {
   id: string
@@ -201,6 +202,7 @@ Notes:
 - The canvas's `elements` is valid Excalidraw data. It can be exported as a normal `.excalidraw` file at any time, and future sync/collab can reuse Excalidraw's own reconciliation instead of a custom one.
 - Backup file = notebook, pages, canvas and files as one JSON document, images base64 inside; or, once the notebook has images, a zip with the same JSON as `notebook.json` (file entries without their data) and each image as `files/<id>.<ext>`. Both open the same way. Format version 5; version 1 files (plain-string columns) are converted on open, each line break becoming a paragraph boundary, files from before version 3 get the default cover, pages from before version 4 are lined, and notebooks from before version 5 use the Ruled theme. The IndexedDB schema has the same upgrades (Dexie versions 2 to 5).
 - Page thumbnails are cached separately in IndexedDB (a `thumbnails` table, Dexie version 6) and are not part of the file, so the backup format stays at version 5.
+- Version 6 of the backup format and Dexie version 7 (Phase 4) remove the date stamp fields and store zine pages as rows of blocks: the old media block becomes the first row, with the text beside it as that row's second block on the side it had; the text below becomes a second row with the same rows of text; a page with no images and no text becomes an empty page. Nothing is lost. Until then the `showDate` fields are ignored, so the date stamp's removal and the zine change make one migration rather than two.
 - Built-in themes are code, not records. Custom themes (later) are records under the notebook and go into the backup with it.
 
 ## 4. Tech stack
@@ -221,11 +223,11 @@ Notes:
 
 **Text formatting.** Bold, italic, colour and paragraph alignment need a structured document rather than a string, and reliable caret, undo, paste and input-method handling around marks is exactly where hand-rolled editors bleed time. The column is a ProseMirror editor with a tiny schema: a document of paragraphs, each with an alignment attribute; text with bold, italic and colour marks; a hard break node for Shift+Enter; nothing else. Enter splits the paragraph (the new one keeps the alignment and the marks being typed with), so alignment is a block property exactly as in Google Docs: it applies to the whole paragraph (wrapped lines and hard breaks included) and to every paragraph a selection touches, never to a single visual line. The colour palette is Excalidraw's default stroke picks; "black" is the page's ink, stored as no colour mark. Pasted HTML keeps bold, italic, alignment and palette colours and drops every other colour; pasted plain text becomes one paragraph per line, blank lines included. A small bar floats over a selection (after the pointer is released, so it does not chase a drag) with bold, italic, the swatches and the three alignments; the page positions it from the column's report of where the selection is. Capacity is still measured by height; floats for images still work because the editor's content is not a new block formatting context; export still renders the same DOM. Storage: each column keeps a `doc` in ProseMirror's JSON and a plain `text` mirror derived from it (paragraphs and hard breaks as line breaks); the backup format is version 2, with a converter that turns version 1 strings into one paragraph per line (each existing line break becomes a paragraph boundary, since that is what Enter meant before), and the IndexedDB schema upgrades the same way.
 
-**Zine pages.** A zine page is a fixed layout, not a free canvas: the media block plus optional text below or beside it, computed from the page size, the padding and the text reservations. Nothing is dragged; the page settings popover holds the padding, the grid preset, the text placement and the rows reserved. The media block renders images with object-fit; the text blocks reuse the ProseMirror column with its capacity check and no rules. Export renders the same DOM as lined pages. Files are the notebook's existing files table, content-hashed and shared with the canvas; pruning walks zine pages as well as the canvas.
+**Zine pages.** A zine page is a stack of rows, each row one block or two side by side, laid out from the page size, the padding and the text blocks' rows: a text block's height is its rows times the zine line height plus the text inset, and the media block takes what is left, so a taller text block shortens the image. Nothing is dragged; composition happens in place through hover affordances: a plus on the empty page, "add below" under the last row, "add beside" on the media block's edges, and each block's own tools (rows, preset, fit, replace, remove). The app allows one media block, one text beside and one text below, though the stored shape is general. The media block renders images with object-fit; text blocks reuse the ProseMirror column with capacity equal to their rows and no rules. A single image alone covers the whole page, including where the page number sits; the number, if on, is drawn over it. Export renders the same DOM; search reads the text blocks; the pool's usage index reads the image and grid blocks; "only an empty page can change kind" means a zine page with no rows. Files are the notebook's existing files table, content-hashed and shared with the canvas; pruning walks zine pages as well as the canvas.
 
 **Images.** Photos would swamp browser storage and backups, so images are downscaled on import with a canvas in the browser (long edge 2048px, JPEG at quality 0.85, PNG kept only when transparent) and stored as data URLs. A 2048px JPEG is a few hundred KB, so a notebook with a hundred images is tens of MB in IndexedDB and in its backup, which browsers handle but is worth showing in notebook settings. Nothing here needs a backend: the owner's browser holds the data and the owner holds the backups; only sync or collaboration would, and both stay "later".
 
-**Media pool.** The pool is a view over the notebook's files table with a usage index: the image references of every zine page plus the file ids of the canvas's image elements, kept in the session and refreshed on save. The panel has two modes, canvas and pool, chosen from the open page's kind. Placing an image on a page writes its file id into the media block; dragging one onto the canvas goes through Excalidraw's API (add the file, then insert an image element). Deletion is refused while the usage index lists the image anywhere, and the pool shows those places.
+**Media pool.** The pool is a view over the notebook's files table with a usage index: the image references of every zine page plus the file ids of the canvas's image elements, kept in the session and refreshed on save. The panel has two modes, canvas and pool, chosen from the open page's kind. Placing an image on a page writes its file id into the media block; dragging one onto the canvas goes through Excalidraw's API (add the file, then insert an image element). Deletion is refused while the usage index lists the image anywhere, and the pool shows those places. The pool is a CSS grid of square thumbnails (object-fit cover) whose column count follows the panel width, three at least, with 2px gaps; the usage badge is a small pill on the thumbnail, and the delete control appears on hover for unused images only.
 
 **Themes.** The constants in the paper module (pitch, first rule, bottom margin, insets, the line height ratio) and the colour tokens become the fields of a theme, with today's values as the "Ruled" theme, and the page components take the theme as a prop and set the CSS custom properties from it. Two things stop being constants. Fonts load through the FontFace API from bundled files or from a file in the notebook's files table, never from the network. The baseline offset that puts text on the rules is measured at runtime per font and size (the browser reports a font's ascent and descent from a canvas text measurement) and cached, replacing the hand-tuned ratio, so any font lands on the rules without per-font numbers in the theme. Rules are drawn by CSS from the theme as lines, dots or nothing; the mirror-based capacity check does not change. The zine text font is a second font slot on the theme. Export renders the same DOM, so themes carry through to PDF and PNG.
 
@@ -237,7 +239,11 @@ Notes:
 
 **Thumbnails.** The same foreignObject render at roughly 120px wide, debounced after each change, stored in IndexedDB keyed by page id.
 
-**Date stamp and page number.** HTML overlays positioned inside the page element, so the page render (thumbnails, exports) carries them without a compositing step.
+**Page number and page sides.** The page number is an element inside the page (`src/page/PageMarks.tsx`) in the lined font and ink on every page kind, so thumbnails and exports carry it with no compositing step; the zine font applies to text blocks only. A page's side comes from its position: odd numbers are right-hand pages, even numbers left-hand. The side picks which corners the page rounds on screen and in thumbnails; PDF and PNG exports keep the rectangular paper. There is no date stamp; the creation date and time are metadata in page settings.
+
+**Facing pages.** With the panel closed the desk shows the spread the open page belongs to: pages 2k and 2k+1 side by side, the left one rounding its left corners and the right one its right corners, touching at the gutter. Page 1 sits alone on the right of the first spread with the inside-cover slab on its left; a last left-hand page has the slab on its right. Flipping moves through pages one at a time, so the spread changes when the open page crosses into the next pair. The other page of the spread behaves as before: read-only until clicked, when it becomes the open page in the same click.
+
+**One page at a time.** A single predicate, `canAddPage`, says whether a new page may be added: not while the open page is empty (a lined page with blank columns, a zine page with no rows). Every entry point asks it: the rail's add, the app bar, the shortcuts. It lives in one module so the rule can be relaxed or removed in one place.
 
 **Search.** Pages are plain strings. For the canvas, walk the text elements (they carry a `.text` field).
 
@@ -287,7 +293,18 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - Proper shelf screen, notebooks shown as their covers (done)
 - First-run onboarding (done)
 
+### Phase 4: feedback round (2026-09-18)
+Larger chunks, one pull request each, squash-merged. Behaviour and layout only; branding and visual refinement remain a later pass.
+- Pages with sides and real facing spreads: sided corners in every view, (inside cover | 1), (2 | 3) pairs touching at the gutter, the inside-cover slab; the page number footer identical on every page kind (the lined font); the date stamp descoped from the page, the creation date and time shown in page settings (the stored fields stay, ignored, until the next format bump)
+- Page controls at the rail and the one-page rule: add (lined or zine) and delete pinned under the squares, delete gone from the page settings popover, `canAddPage` applied to the rail, the app bar and the shortcuts
+- The media pool as a photo grid: square thumbnails edge to edge, usage badges, hover delete for unused images, everything else kept
+- Zine pages as blocks composed in place: the rows-of-blocks shape with the converter, hover affordances and block tools, padding the only layout setting left in page settings; backup version 6 and Dexie version 7, which also drop the date stamp fields
+- Open on the last notebook: the app starts where it was left instead of on the shelf; the shelf is reached from the switcher (and on a first run)
+
 ### Later, not now
+- The page's creation date shown below the page as a UI element, outside the page
+- A second cover, an inside cover and a counter cover, on the ground laid by the sided spreads
+- Spread print: a print version of a notebook laid out as spreads (facing pairs, covers and their insides, imposition for folding and binding), so the owner can print and bind a physical copy. Not now, but it is a goal, which is why spreads stay first-class in every page decision
 - Images on text pages with text wrapping around them: superseded by zine pages on 2026-09-17. The float approach stays documented in the decisions log in case it is ever wanted.
 - Cursor alternatives for pages: highlighting the active rule, or only the piece of rule under the next character, instead of a caret. Tried on 2026-09-17, not adopted for now.
 - Custom themes made in settings, user font files stored in the notebook, and notebook templates (theme plus defaults plus page size)
@@ -348,3 +365,6 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - Onboarding, built (2026-09-18): a true first run, when storage holds no notebook, shows a welcome dialog (`src/notebook/WelcomeDialog.tsx`, the settings dialog's look) instead of silently creating "Notebook": the wordmark, three sentences on what typestill is and where the data lives, the notebook's name (default "Notebook") and the eight cover colours, one button "Open the notebook", and "Open a backup…" for someone starting from a backup file. That is the whole onboarding; there is no tour and nothing else to set up. It cannot be dismissed into an empty app: Escape is refused (the dialog's cancel event is prevented), and a close the browser forces anyway (Chrome closes a modal on a second Escape with no click in between) opens the notebook with what the form holds. No flag is stored: the dialog appears exactly when there are no notebooks, so deleting every notebook shows it again, which is fine. The session hook returns a small `FirstRun` object (create or restore) in that state instead of a session, and `createNotebook` takes an optional cover.
 - Zip backup, built (2026-09-18): "Download backup" is one action that picks the shape: a `.typestill.zip` when the notebook has images (notebook.json plus `files/<id>.<ext>`, images stored without recompression, the JSON deflated), else the `.typestill.json` document as before; "Open backup…" and the welcome dialog accept both. The zip carries the same envelope and format version as the JSON, so there is one parser and one set of converters. Notebook settings show what the notebook takes in this browser (its JSON plus the decoded images) and offer "Remove N unused images…", which asks first and prunes the files no page and not the canvas uses; the figures come from the session's state and the canvas as it was when the dialog opened. fflate does the zipping.
 - Shelf, built (2026-09-18): the app starts on the shelf, as the spec says, rather than inside the last notebook; the welcome dialog still opens the first notebook directly. The shelf shows every notebook as its cover (the swatch at 150px, the name, the subtitle, the page count and when it was last opened), most recently opened first. Notebooks are created ("New notebook", a browser prompt for the name, the cover colour fewest notebooks wear), renamed and deleted (a confirm naming the page count) only here, from a menu on each card; the switcher inside a notebook lost its "New notebook…" entry and gained "Shelf…". The wordmark in the app bar goes back to the shelf, saving everything pending first. "Open a backup…" sits on the shelf too. Deleting the last notebook lands on the welcome dialog.
+- Feedback round (2026-09-18), Phase 4 in section 6. Date stamp: descoped from the page; the user writes a date or not; the creation date and time are metadata in page settings; the `showDate` fields are ignored until the zine block change bumps the formats, when they are removed, so there is one migration rather than two. Sides: page 1 is a right-hand page (recto), so spreads are (inside cover | 1), (2 | 3) and so on; the side is derived from position, never stored; sided corners are screen and thumbnail chrome, exports stay rectangular; an empty side of a spread shows a flat slab in the cover colour. Page controls: adding and deleting pages live under the rail's squares; the popover loses its delete row so the action has one home. One-page rule: no new page while the open page is empty, one predicate for every entry point. Pool: a photo-library grid with usage badges and hover delete for unused images. Zine pages: composed in place from blocks; at most one media block, one text beside it, one text below; two blocks in a row split the width equally; padding defaults to zero and is the only layout setting left in page settings; the stored shape is rows of blocks, more general than what the app allows, so the limits can be relaxed later without a format change. The page number footer is the lined font on every page kind.
+- Workflow (2026-09-18): larger chunks, one pull request per Phase 4 item, squash-merged, so the repository's history stays quiet. Behaviour and layout are being touched now; branding and visual refinement remain a later pass.
+- Open on the last notebook (2026-09-18): reverses the Phase 3 choice of starting on the shelf. The app opens on the notebook that was open last; the shelf is a destination. Spread print is recorded as a later goal and the spread as a product principle.
