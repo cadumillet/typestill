@@ -280,7 +280,7 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 ### Phase 3: get it out
 - Full-text search
 - PDF export (all pages) (done)
-- PNG export (current page, canvas)
+- PNG export (current page, canvas) (done)
 - Zip backup with images as files; storage size shown in notebook settings; prune unreferenced images
 - Delete page with confirm
 - Keyboard shortcuts for page navigation
@@ -341,3 +341,4 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - Notebook cover, built (2026-09-18): the palette is eight classic notebook colours (black, red, orange, olive, green, blue, purple, brown), all dark enough for white lettering; a new notebook is black. The emoji field keeps one grapheme; without one, the swatch shows the name's initial. The subtitle appears under the name in the switcher list. Renaming stays out of the settings dialog, since the shelf owns naming. Backup format and IndexedDB schema are at version 3; older data gets the default cover.
 - Dark (2026-09-18): a built-in Dark page theme, implemented right after the first themes, paired with an app appearance setting for the chrome and the canvas. Appearance is not part of a theme; themes stay page-only.
 - PDF export, built (2026-09-18): "Export PDF" in the notebook menu renders every page off screen at zoom 1 in preview mode (no rules, margin or divider; the date stamp and page number stay, dark themes keep their paper) through the thumbnail renderer at 2x, about 192 dpi, and places each PNG on a pdf-lib page of the paper's physical size. Pages are mounted one at a time in a hidden host with the fonts primed and measured first, so baselines match the screen. The file is named after the notebook and the day. Fonts are rasterised, not embedded, so the PDF has no live text; search-friendly PDFs are not planned.
+- PNG export, built (2026-09-18): "Export page as PNG" renders the open page the way the PDF does, one page at 2x of the paper's size at 96 dpi (1119×1587 for A5 portrait), in preview mode. "Export canvas as PNG" uses Excalidraw's `exportToBlob` over the live elements by content bounds at 2x with 24px of padding, on white and without the grid, whatever the app appearance; the drawing comes from the mounted editor's latest change, else the snapshot kept while the panel is closed, else the saved canvas. An empty canvas refuses with a message.

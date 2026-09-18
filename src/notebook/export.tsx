@@ -1,9 +1,11 @@
-// Exports: PDF of every page. Pages are rendered
+// Exports: PDF of every page, PNG of one page, PNG of the canvas. Pages are rendered
 // off screen at zoom 1 in preview mode (no rules, margin or divider; the date stamp and
 // page number stay) through the same renderer as thumbnails, at 2x, so they wrap exactly
 // as on screen; the PDF places each image on a page of the paper's physical size.
 
-import type { BinaryFileData } from "@excalidraw/excalidraw/types";
+import { exportToBlob } from "@excalidraw/excalidraw";
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import type { BinaryFileData, BinaryFiles } from "@excalidraw/excalidraw/types";
 import { PDFDocument } from "pdf-lib";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
@@ -118,4 +120,39 @@ export async function exportPdf(pages: readonly Page[], source: ExportSource): P
     },
   );
   return new Blob([new Uint8Array(await doc.save())], { type: "application/pdf" });
+}
+
+/** One page as a PNG at 2x the paper's size at 96 dpi. */
+export async function exportPagePng(
+  pages: readonly Page[],
+  index: number,
+  source: ExportSource,
+): Promise<Blob> {
+  let out: Blob | null = null;
+  await renderPages(pages, [index], source, async (blob) => {
+    out = blob;
+  });
+  if (!out) throw new Error("The page did not render");
+  return out;
+}
+
+/** The canvas as a PNG by content bounds, on white, without the grid. */
+export async function exportCanvasPng(
+  elements: readonly ExcalidrawElement[],
+  files: BinaryFiles,
+): Promise<Blob> {
+  const live = elements.filter((element) => !element.isDeleted);
+  if (live.length === 0) throw new Error("The canvas is empty");
+  return exportToBlob({
+    elements: live,
+    files,
+    mimeType: "image/png",
+    exportPadding: 24,
+    appState: { exportBackground: true, viewBackgroundColor: "#ffffff", exportWithDarkMode: false },
+    getDimensions: (width: number, height: number) => ({
+      width: width * 2,
+      height: height * 2,
+      scale: 2,
+    }),
+  });
 }
