@@ -17,6 +17,7 @@ import { Menu } from "./shell/Menu";
 import { Panel } from "./shell/Panel";
 import { SplitView } from "./shell/SplitView";
 import { FileInUseError } from "./store/notebooks";
+import { getTheme } from "./theme/themes";
 import {
   ChevronLeft,
   ChevronRight,
@@ -83,6 +84,7 @@ export function App() {
   }
 
   const { notebook, pages, index, page } = session;
+  const theme = getTheme(notebook.themeId);
   const geometry = pageGeometry(notebook.pageSize, notebook.orientation);
   const fit = desk
     ? fitPage(geometry, {
@@ -269,6 +271,7 @@ export function App() {
                   key={page.id}
                   size={notebook.pageSize}
                   orientation={notebook.orientation}
+                  theme={theme}
                   zoom={fit.zoom}
                   zine={page.zine}
                   files={session.files}
@@ -285,6 +288,7 @@ export function App() {
                   key={page.id}
                   size={notebook.pageSize}
                   orientation={notebook.orientation}
+                  theme={theme}
                   zoom={fit.zoom}
                   margin={page.margin}
                   columns={page.columns}

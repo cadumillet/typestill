@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { PAGE_SIZES_MM, type Orientation, type PageSize } from "../page/paper";
 import type { Notebook } from "../store/model";
+import { THEMES } from "../theme/themes";
 import { COVER_COLORS, coverFromFields } from "./cover";
 import { CoverSwatch } from "./CoverSwatch";
 import "./settings.css";
 
-export type NotebookSettings = Pick<Notebook, "cover" | "pageSize" | "orientation">;
+export type NotebookSettings = Pick<Notebook, "cover" | "themeId" | "pageSize" | "orientation">;
 
 export interface SettingsDialogProps {
   open: boolean;
@@ -17,9 +18,10 @@ export interface SettingsDialogProps {
 const PAGE_SIZES = Object.keys(PAGE_SIZES_MM) as PageSize[];
 const ORIENTATIONS: Orientation[] = ["portrait", "landscape"];
 
-/** Notebook settings: the cover, and the page size and orientation that apply to every page. */
+/** Notebook settings: the cover, the theme, and the page size and orientation of every page. */
 export function SettingsDialog({ open, notebook, onSave, onClose }: SettingsDialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  const [themeId, setThemeId] = useState(notebook.themeId);
   const [pageSize, setPageSize] = useState(notebook.pageSize);
   const [orientation, setOrientation] = useState(notebook.orientation);
   const [color, setColor] = useState(notebook.cover.color);
@@ -32,6 +34,7 @@ export function SettingsDialog({ open, notebook, onSave, onClose }: SettingsDial
     const dialog = ref.current;
     if (!dialog) return;
     if (open && !dialog.open) {
+      setThemeId(notebook.themeId);
       setPageSize(notebook.pageSize);
       setOrientation(notebook.orientation);
       setColor(notebook.cover.color);
@@ -41,11 +44,11 @@ export function SettingsDialog({ open, notebook, onSave, onClose }: SettingsDial
     } else if (!open && dialog.open) {
       dialog.close();
     }
-  }, [open, notebook.pageSize, notebook.orientation, notebook.cover]);
+  }, [open, notebook.themeId, notebook.pageSize, notebook.orientation, notebook.cover]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    void onSave({ cover, pageSize, orientation });
+    void onSave({ cover, themeId, pageSize, orientation });
     onClose();
   };
 
@@ -102,6 +105,16 @@ export function SettingsDialog({ open, notebook, onSave, onClose }: SettingsDial
         <fieldset className="settings__group">
           <legend>Pages</legend>
           <label className="settings__field">
+            <span>Theme</span>
+            <select value={themeId} onChange={(event) => setThemeId(event.target.value)}>
+              {THEMES.map((theme) => (
+                <option key={theme.id} value={theme.id}>
+                  {theme.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="settings__field">
             <span>Page size</span>
             <select
               value={pageSize}
@@ -128,8 +141,8 @@ export function SettingsDialog({ open, notebook, onSave, onClose }: SettingsDial
             </select>
           </label>
           <p className="settings__note">
-            Applies to every page. Text keeps its place on the lines; on a smaller page, text past
-            the last line stays saved but out of view.
+            Apply to every page. Text keeps its lines; on a smaller page or a theme with a wider
+            font, text past the last line stays saved but out of view.
           </p>
         </fieldset>
         <div className="settings__actions">

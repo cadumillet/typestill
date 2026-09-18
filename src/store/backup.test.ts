@@ -33,6 +33,7 @@ const doc: NotebookDocument = {
   lastOpenedAt: 20,
   lastPageId: "p1",
   cover: { color: "#2f5b9e", emoji: "🧭", subtitle: "Field notes, spring" },
+  themeId: "plain",
   pageSize: "A5",
   orientation: "portrait",
   defaults: { showDate: true, showPageNumber: true, margin: 20, divider: null },
@@ -212,6 +213,7 @@ describe("backup", () => {
     delete raw.notebook.defaults.margin;
     delete raw.notebook.pages[0].margin;
     delete raw.notebook.cover;
+    delete raw.notebook.themeId;
     const parsed = parseBackup(JSON.stringify(raw));
     expect(parsed.lastOpenedAt).toBe(10);
     expect(parsed.lastPageId).toBeNull();
@@ -219,6 +221,10 @@ describe("backup", () => {
     expect(parsed.defaults.margin).toBe(20);
     expect(parsed.pages[0].margin).toBe(20);
     expect(parsed.cover).toEqual(DEFAULT_COVER);
+    expect(parsed.themeId).toBe("ruled");
+    const bad = JSON.parse(serializeBackup(doc));
+    bad.notebook.themeId = "";
+    expect(() => parseBackup(JSON.stringify(bad))).toThrow(/theme/);
   });
 
   it("rejects a malformed cover", () => {

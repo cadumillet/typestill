@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable, type Table } from "dexie";
 import { DEFAULT_COVER } from "../notebook/cover";
 import { columnFromText } from "../page/document";
+import { DEFAULT_THEME_ID } from "../theme/themes";
 import type { Canvas, Notebook, NotebookFile, Page } from "./model";
 
 export class TypestillDb extends Dexie {
@@ -52,6 +53,17 @@ export class TypestillDb extends Dexie {
           .toCollection()
           .modify((page: { kind?: unknown }) => {
             page.kind ??= "lined";
+          }),
+      );
+    // Version 5: notebooks reference a theme. Existing ones keep today's look, Ruled.
+    this.version(5)
+      .stores(stores)
+      .upgrade((tx) =>
+        tx
+          .table("notebooks")
+          .toCollection()
+          .modify((notebook: { themeId?: unknown }) => {
+            notebook.themeId ??= DEFAULT_THEME_ID;
           }),
       );
   }

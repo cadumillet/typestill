@@ -1,11 +1,8 @@
+/* Chrome colours. The pages take theirs from the notebook's theme (--page-*). */
 :root {
   --desk: #ffffff;
   --ink: #26241f;
   --muted: #7d786d;
-  --paper: #ffffff;
-  --rule: #c7d3e3;
-  --margin: #f0b4b4;
-  --divider: #dedede;
 }
 
 html,

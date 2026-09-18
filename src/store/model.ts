@@ -41,6 +41,8 @@ export interface Notebook {
   lastPageId: string | null;
   /** How the notebook looks when closed: the swatch in the bar and the shelf card. */
   cover: Cover;
+  /** The look of the pages: a built-in theme's id (src/theme/themes.ts). */
+  themeId: string;
   pageSize: PageSize;
   orientation: Orientation;
   defaults: NotebookDefaults;

@@ -36,7 +36,7 @@ export interface Zine {
   textRows: number;
 }
 
-/** Zine defaults. They become theme fields when themes land. */
+/** Zine defaults of the built-in themes, and the fallback when no theme is at hand. */
 export const DEFAULT_ZINE_PADDING_MM = 8;
 export const DEFAULT_ZINE_TEXT_ROWS = 4;
 export const MAX_ZINE_PADDING_MM = 20;
@@ -77,14 +77,19 @@ export function defaultCell(zine: Zine): number | null {
   return empty < 0 ? null : empty;
 }
 
-export function emptyZine(): Zine {
+export function emptyZine(
+  defaults: { defaultPaddingMm: number; defaultTextRows: number } = {
+    defaultPaddingMm: DEFAULT_ZINE_PADDING_MM,
+    defaultTextRows: DEFAULT_ZINE_TEXT_ROWS,
+  },
+): Zine {
   return {
-    padding: DEFAULT_ZINE_PADDING_MM,
+    padding: defaults.defaultPaddingMm,
     media: { layout: "single", images: [null] },
     textBelow: null,
     textBeside: null,
     textSide: "right",
-    textRows: DEFAULT_ZINE_TEXT_ROWS,
+    textRows: defaults.defaultTextRows,
   };
 }
 
@@ -136,12 +141,13 @@ export function zineGeometry(
   page: { width: number; height: number },
   zine: Zine,
   pitch = RULE_PITCH_MM,
+  inset = TEXT_INSET_MM,
 ): ZineGeometry {
   const p = zine.padding;
   const gap = p;
   const inner: Box = { left: p, top: p, width: page.width - 2 * p, height: page.height - 2 * p };
   // Text sits a little inside its block; twice that when the page bleeds, to clear the edge.
-  const textInset = p > 0 ? TEXT_INSET_MM : 2 * TEXT_INSET_MM;
+  const textInset = p > 0 ? inset : 2 * inset;
 
   let mediaLeft = inner.left;
   let mediaWidth = inner.width;

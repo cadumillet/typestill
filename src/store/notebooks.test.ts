@@ -51,6 +51,7 @@ describe("notebooks", () => {
     expect(notebook.pageSize).toBe("A5");
     expect(notebook.orientation).toBe("portrait");
     expect(notebook.cover).toEqual(DEFAULT_COVER);
+    expect(notebook.themeId).toBe("ruled");
     expect(firstPage.notebookId).toBe(notebook.id);
     expect(firstPage.kind).toBe("lined");
     expect(firstPage.columns).toEqual([columnFromText("")]);
@@ -93,6 +94,32 @@ describe("notebooks", () => {
     const stored = await db.notebooks.get(notebook.id);
     expect(stored?.pageSize).toBe("A4");
     expect(stored?.orientation).toBe("landscape");
+  });
+
+  it("references a theme and can change it", async () => {
+    const { notebook } = await createNotebook(db, { name: "A", themeId: "plain" });
+    expect(notebook.themeId).toBe("plain");
+    await updateNotebookSettings(db, notebook.id, { themeId: "ruled" });
+    expect((await db.notebooks.get(notebook.id))?.themeId).toBe("ruled");
+  });
+
+  it("gives notebooks from version 4 of the database the Ruled theme", async () => {
+    const name = `test-${crypto.randomUUID()}`;
+    const old = new Dexie(name);
+    old.version(4).stores({
+      notebooks: "id, lastOpenedAt",
+      pages: "id, notebookId, [notebookId+createdAt]",
+      canvases: "notebookId",
+      files: "[notebookId+id], notebookId",
+    });
+    await old.table("notebooks").add({ id: "nb", name: "Old", createdAt: 1, lastOpenedAt: 1 });
+    old.close();
+    const upgraded = new TypestillDb(name);
+    try {
+      expect((await upgraded.notebooks.get("nb"))?.themeId).toBe("ruled");
+    } finally {
+      await upgraded.delete();
+    }
   });
 
   it("creates with a cover and updates it", async () => {
