@@ -11,6 +11,7 @@ import { Shelf } from "./notebook/Shelf";
 import { WelcomeDialog } from "./notebook/WelcomeDialog";
 import { useNotebookSession } from "./notebook/useNotebookSession";
 import { isBlankDocument } from "./page/document";
+import { ADD_PAGE_HINT, canAddPage } from "./notebook/pageRules";
 import { TextPage } from "./page/TextPage";
 import { ZinePage } from "./page/ZinePage";
 import { defaultDivider, fitPage, mmToCssPx, pageGeometry, pageMm } from "./page/paper";
@@ -235,6 +236,8 @@ export function App() {
     page.kind === "zine"
       ? !page.zine || isZineEmpty(page.zine)
       : page.columns.every((column) => isBlankDocument(column.doc));
+  /** The one-page rule: no new page while the open page is empty. */
+  const canAdd = canAddPage(page);
 
   // Settings that would drop images or text ask first; nothing is untied silently.
   const changeZine = (patch: Partial<Zine>) => {
@@ -421,6 +424,8 @@ export function App() {
               <Menu
                 label="New page"
                 shortcut={shortcutLabel("newLinedPage")}
+                off={!canAdd}
+                offReason={ADD_PAGE_HINT}
                 items={[
                   { label: "Lined page", onSelect: () => void session.newPage("lined") },
                   { label: "Zine page", onSelect: () => void session.newPage("zine") },
@@ -457,7 +462,6 @@ export function App() {
                 twoColumns={page.divider !== null}
                 onTwoColumnsChange={setTwoColumns}
                 onZineChange={changeZine}
-                onDeletePage={() => void deletePage()}
               />
               <Menu
                 label="Notebook"
@@ -545,6 +549,10 @@ export function App() {
               filterTagId={filterTagId}
               onFilterChange={setFilterTagId}
               thumbnails={session.thumbnails}
+              canAdd={canAdd}
+              addShortcut={shortcutLabel("newLinedPage")}
+              onAdd={(kind) => void session.newPage(kind)}
+              onDelete={() => void deletePage()}
             />
             <main className={`desk${spread ? " is-spread" : ""}`} ref={attachDesk}>
               {fit &&

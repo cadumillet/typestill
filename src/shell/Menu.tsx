@@ -15,16 +15,23 @@ export interface MenuProps {
   /** Keyboard shortcut shown after the label in the trigger's tooltip. */
   shortcut?: string;
   items: MenuItem[];
+  /** Which edge of the trigger the list aligns to. */
+  align?: "left" | "right";
+  /** Off: the trigger looks disabled and does not open; `offReason` joins the tooltip. */
+  off?: boolean;
+  offReason?: string;
 }
 
 /** An icon button that opens a small list of actions below it. */
-export function Menu({ children, label, shortcut, items }: MenuProps) {
+export function Menu({ children, label, shortcut, items, align, off, offReason }: MenuProps) {
   return (
     <Popover
+      align={align}
       trigger={({ open, toggle, controls }) => (
         <IconButton
-          label={label}
-          shortcut={shortcut}
+          label={off && offReason ? `${label} (${offReason})` : label}
+          shortcut={off ? undefined : shortcut}
+          off={off}
           onClick={toggle}
           aria-haspopup="menu"
           aria-expanded={open}
