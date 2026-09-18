@@ -2,28 +2,19 @@ import { IconButton } from "../shell/IconButton";
 import { Popover } from "../shell/Popover";
 import { Sliders } from "../shell/icons";
 import { OPACITIES, type DrawingAids, type Opacity } from "../page/drawingMode";
-import type { DrawingLayer } from "../store/model";
 import "./drawingtools.css";
 
 export interface DrawingToolsProps {
-  /** The viewing aids: the opacity of the text and of the rules while drawing. */
+  /** The dimming controls: how much of the text and of the rules shows while drawing. */
   aids: DrawingAids;
   onAidsChange: (patch: Partial<DrawingAids>) => void;
-  /** Where the open page's drawing paints in writing mode. */
-  layer: DrawingLayer;
-  onLayerChange: (layer: DrawingLayer) => void;
 }
 
 const OPACITY_LABELS: Record<Opacity, string> = {
   full: "Full",
-  dimmed: "Dimmed",
+  dimmed: "Dim",
   hidden: "Hidden",
 };
-
-const LAYERS: { value: DrawingLayer; label: string }[] = [
-  { value: "over", label: "Over the text" },
-  { value: "under", label: "Under the text" },
-];
 
 function Segments<T extends string>({
   label,
@@ -57,11 +48,11 @@ function Segments<T extends string>({
 }
 
 /**
- * The tools that sit with drawing mode, in a popover from the page bar: the text and
- * rules opacities (per browser, never stored with the page or applied to exports) and
- * the page's drawing layer, over or under the text in writing mode.
+ * The tools that sit with drawing mode, in a popover from the page bar: the "Text" and
+ * "Rules" dimming controls, each full, dim or hidden, ways of seeing while drawing that
+ * are per browser, never stored with the page or applied to exports.
  */
-export function DrawingTools({ aids, onAidsChange, layer, onLayerChange }: DrawingToolsProps) {
+export function DrawingTools({ aids, onAidsChange }: DrawingToolsProps) {
   const opacities = OPACITIES.map((value) => ({ value, label: OPACITY_LABELS[value] }));
   return (
     <Popover
@@ -89,7 +80,6 @@ export function DrawingTools({ aids, onAidsChange, layer, onLayerChange }: Drawi
           options={opacities}
           onChange={(rules) => onAidsChange({ rules })}
         />
-        <Segments label="Drawing" value={layer} options={LAYERS} onChange={onLayerChange} />
       </div>
     </Popover>
   );

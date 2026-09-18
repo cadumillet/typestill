@@ -6,7 +6,6 @@ import { columnFromText, type Column as ColumnValue } from "./document";
 import { useBaseline } from "../theme/baseline";
 import type { Theme } from "../theme/theme";
 import { isDarkTheme } from "../theme/themes";
-import type { DrawingLayer } from "../store/model";
 import { DrawingStill } from "./DrawingStill";
 import { drawingModeStyle, type DrawingAids } from "./drawingMode";
 import { FormatBar } from "./FormatBar";
@@ -43,9 +42,8 @@ export interface TextPageProps {
   readOnly?: boolean;
   /** The page's side, which rounds its outer corners; none for a rectangular render. */
   side?: PageSide;
-  /** The page's drawing, shown as a still over or under the text; empty for none. */
+  /** The page's drawing, shown as a still over the text; empty for none. */
   drawing?: readonly ExcalidrawElement[];
-  drawingLayer?: DrawingLayer;
   /** The notebook's files, for the images the drawing uses. */
   files?: BinaryFiles;
   /**
@@ -81,7 +79,6 @@ export function TextPage({
   readOnly = false,
   side,
   drawing = NO_ELEMENTS,
-  drawingLayer = "over",
   files = NO_FILES,
   drawingMode = null,
   onChange,
@@ -174,7 +171,6 @@ export function TextPage({
           files={files}
           size={size}
           orientation={orientation}
-          layer={drawingLayer}
           inverted={isDarkTheme(theme)}
           width={px(mm.width)}
           height={px(mm.height)}

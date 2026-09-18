@@ -41,7 +41,6 @@ function pageElement(page: Page, source: ExportSource, theme: Theme) {
     preview: true,
     readOnly: true,
     drawing: page.drawing,
-    drawingLayer: page.drawingLayer,
   };
   return page.kind === "zine" && page.zine ? (
     <ZinePage {...common} zine={page.zine} files={source.files} />

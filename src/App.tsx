@@ -129,12 +129,11 @@ export function App() {
           columnsKey(current.columns),
           JSON.stringify(current.zine ?? null),
           elementsKey(current.drawing),
-          current.drawingLayer,
           loaded.notebook.themeId,
           loaded.notebook.pageSize,
           loaded.notebook.orientation,
           current.divider,
-          current.margin,
+          loaded.notebook.defaults.margin,
         ].join("|")
       : "",
     Boolean(loaded) && !preview && !drawingMode,
@@ -533,7 +532,6 @@ export function App() {
                       // of the spread shows its still as ever.
                       const drawingProps = {
                         drawing: shownPage.drawing,
-                        drawingLayer: shownPage.drawingLayer,
                         drawingMode: drawingMode && isOpen ? aids : null,
                       };
                       return (
@@ -602,14 +600,7 @@ export function App() {
                     drawing={drawingMode}
                     drawingShortcut={shortcutLabel("drawingMode")}
                     onToggleDrawing={() => setDrawingMode(!drawingMode)}
-                    drawingTools={
-                      <DrawingTools
-                        aids={aids}
-                        onAidsChange={setAids}
-                        layer={page.drawingLayer}
-                        onLayerChange={session.setDrawingLayer}
-                      />
-                    }
+                    drawingTools={<DrawingTools aids={aids} onAidsChange={setAids} />}
                     poolOpen={page.kind === "zine" ? panelOpen : null}
                     onTogglePool={() => setPoolPageId(panelOpen ? null : page.id)}
                   />

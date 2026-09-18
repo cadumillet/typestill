@@ -16,7 +16,6 @@ import {
   type Canvas,
   type CanvasView,
   type Column,
-  type DrawingLayer,
   type Notebook,
   type Page,
   type PageKind,
@@ -141,8 +140,6 @@ export interface NotebookSession {
    * keyed by element versions; files new image elements use join the notebook's.
    */
   setDrawing: (pageId: string, content: DrawingContent, loadId: number) => void;
-  /** Where the open page's drawing paints in writing mode. */
-  setDrawingLayer: (layer: DrawingLayer) => void;
   /** Canvas callbacks carry the loadId of the editor that sent them; stale editors are ignored (dormant, section 8). */
   onCanvasChange: (content: CanvasContent, loadId: number) => void;
   onCanvasViewChange: (view: CanvasView, loadId: number) => void;
@@ -838,26 +835,6 @@ export function useNotebookSession(
     [db],
   );
 
-  const setDrawingLayer = useCallback(
-    (drawingLayer: DrawingLayer) => {
-      if (!state) return;
-      const page = state.pages[state.index];
-      if (page.drawingLayer === drawingLayer) return;
-      updatePage(db, page.id, { drawingLayer }).catch(report);
-      setState((current) =>
-        current
-          ? {
-              ...current,
-              pages: current.pages.map((p, i) =>
-                i === current.index ? { ...p, drawingLayer } : p,
-              ),
-            }
-          : current,
-      );
-    },
-    [db, state],
-  );
-
   // An editor from a previous load can still fire (for instance on a resize) while it is
   // being replaced; its content must never reach the current notebook.
   const onCanvasChange = useCallback((content: CanvasContent, loadId: number) => {
@@ -1091,7 +1068,6 @@ export function useNotebookSession(
     setPageMargin,
     saveThumbnail,
     setDrawing,
-    setDrawingLayer,
     onCanvasChange,
     onCanvasViewChange,
     onGridChange,

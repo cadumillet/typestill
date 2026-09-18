@@ -14,7 +14,6 @@ import { Column } from "./Column";
 import type { Column as ColumnValue } from "./document";
 import type { Theme } from "../theme/theme";
 import { isDarkTheme } from "../theme/themes";
-import type { DrawingLayer } from "../store/model";
 import { DrawingStill } from "./DrawingStill";
 import { drawingModeStyle, type DrawingAids } from "./drawingMode";
 import { FormatBar } from "./FormatBar";
@@ -68,9 +67,8 @@ export interface ZinePageProps {
   readOnly?: boolean;
   /** The page's side, which rounds its outer corners; none for a rectangular render. */
   side?: PageSide;
-  /** The page's drawing, shown as a still over or under the blocks; empty for none. */
+  /** The page's drawing, shown as a still over the blocks; empty for none. */
   drawing?: readonly ExcalidrawElement[];
-  drawingLayer?: DrawingLayer;
   /** Drawing mode, with its viewing aids: the page is locked and shows no still. */
   drawingMode?: DrawingAids | null;
   onChange?: (zine: Zine) => void;
@@ -116,7 +114,6 @@ export function ZinePage({
   readOnly = false,
   side,
   drawing = NO_ELEMENTS,
-  drawingLayer = "over",
   drawingMode = null,
   onChange,
   onAddImages,
@@ -284,7 +281,6 @@ export function ZinePage({
           files={files}
           size={size}
           orientation={orientation}
-          layer={drawingLayer}
           inverted={isDarkTheme(theme)}
           width={px(mm.width)}
           height={px(mm.height)}
