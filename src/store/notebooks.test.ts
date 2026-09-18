@@ -7,15 +7,16 @@ import { element, fileData, imageElement } from "./fixtures";
 import { emptyZine, type Zine } from "../page/zine";
 import {
   FileInUseError,
+  LastSectionError,
   NotebookExistsError,
   addFile,
-  addTag,
+  addSection,
   createNotebook,
   deleteFile,
   createPage,
   deleteNotebook,
   deletePage,
-  deleteTag,
+  deleteSection,
   exportNotebook,
   getCanvas,
   importNotebook,
@@ -24,6 +25,7 @@ import {
   loadNotebookFiles,
   loadThumbnails,
   isPageEmpty,
+  moveSection,
   neighbourIndex,
   pruneFiles,
   saveCanvasContent,
@@ -35,10 +37,11 @@ import {
   setLastPage,
   setPageDivider,
   setPageKind,
+  setSectionLastPage,
   touchNotebook,
   updateNotebookSettings,
   updatePage,
-  updateTag,
+  updateSection,
   usedFileIds,
 } from "./notebooks";
 
@@ -53,13 +56,21 @@ afterEach(async () => {
 });
 
 describe("notebooks", () => {
-  it("creates a notebook with one empty page and an empty canvas", async () => {
-    const { notebook, firstPage } = await createNotebook(db, { name: "Field notes" });
+  it("creates a notebook with one section, one empty page in it and an empty canvas", async () => {
+    const { notebook, firstPage } = await createNotebook(db, {
+      name: "Field notes",
+      cover: { color: "#2f5b9e" },
+    });
     expect(notebook.pageSize).toBe("A5");
     expect(notebook.orientation).toBe("portrait");
-    expect(notebook.cover).toEqual(DEFAULT_COVER);
+    expect(notebook.cover).toEqual({ ...DEFAULT_COVER, color: "#2f5b9e" });
     expect(notebook.themeId).toBe("ruled");
+    expect(notebook.sections).toHaveLength(1);
+    const [notes] = notebook.sections;
+    expect(notes).toEqual({ id: notes.id, name: "Notes", color: "#2f5b9e", lastPageId: null });
+    expect((await db.notebooks.get(notebook.id))?.sections).toEqual([notes]);
     expect(firstPage.notebookId).toBe(notebook.id);
+    expect(firstPage.sectionId).toBe(notes.id);
     expect(firstPage.kind).toBe("lined");
     expect(firstPage.columns).toEqual([columnFromText("")]);
     expect(firstPage.divider).toBeNull();
@@ -184,6 +195,25 @@ describe("pages", () => {
     }
   });
 
+  it("adds pages to the first section unless one is given, and refuses an unknown one", async () => {
+    const { notebook, firstPage } = await createNotebook(db, { name: "A" });
+    const notes = notebook.sections[0];
+    const other = await addSection(db, notebook.id, { name: "Quotes", color: "#2f5b9e" });
+    expect((await createPage(db, notebook.id)).sectionId).toBe(notes.id);
+    const quoted = await createPage(db, notebook.id, { sectionId: other.id, kind: "zine" });
+    expect(quoted.sectionId).toBe(other.id);
+    expect(quoted.kind).toBe("zine");
+    await expect(createPage(db, notebook.id, { sectionId: "missing" })).rejects.toThrow(
+      /Section missing not found/,
+    );
+    expect((await listPages(db, notebook.id)).map((p) => p.sectionId)).toEqual([
+      notes.id,
+      notes.id,
+      other.id,
+    ]);
+    expect((await db.pages.get(firstPage.id))?.sectionId).toBe(notes.id);
+  });
+
   it("inherits the divider from the defaults unless one is given", async () => {
     const { notebook } = await createNotebook(db, { name: "A", defaults: { divider: 70 } });
     const a = await createPage(db, notebook.id);
@@ -234,12 +264,38 @@ describe("pages", () => {
     expect((await listPages(db, notebook.id)).map((p) => p.id)).toEqual([second.id]);
   });
 
-  it("replaces the only page with a fresh lined page from the defaults", async () => {
+  it("picks the neighbour in notebook order, and a section forgets a deleted page", async () => {
+    const { notebook, firstPage } = await createNotebook(db, { name: "A" });
+    const quotes = await addSection(db, notebook.id, { name: "Quotes", color: "#2f5b9e" });
+    // Creation order: first, quoted, second; notebook order: first, second, quoted.
+    const quoted = await createPage(db, notebook.id, { sectionId: quotes.id });
+    const second = await createPage(db, notebook.id);
+    await setSectionLastPage(db, notebook.id, quotes.id, quoted.id);
+    await setSectionLastPage(db, notebook.id, notebook.sections[0].id, second.id);
+    expect((await deletePage(db, quoted.id)).id).toBe(second.id);
+    expect((await db.notebooks.get(notebook.id))?.sections.map((s) => s.lastPageId)).toEqual([
+      second.id,
+      null,
+    ]);
+    // The first page of a later section has the last page of the previous one before it.
+    const again = await createPage(db, notebook.id, { sectionId: quotes.id });
+    expect((await deletePage(db, again.id)).id).toBe(second.id);
+    expect((await deletePage(db, second.id)).id).toBe(firstPage.id);
+    expect((await db.notebooks.get(notebook.id))?.sections.map((s) => s.lastPageId)).toEqual([
+      null,
+      null,
+    ]);
+  });
+
+  it("replaces the only page with a fresh lined page from the defaults, in its section", async () => {
     const { notebook, firstPage } = await createNotebook(db, {
       name: "A",
       defaults: { divider: 70 },
     });
+    const quotes = await addSection(db, notebook.id, { name: "Quotes", color: "#2f5b9e" });
+    await updatePage(db, firstPage.id, { sectionId: quotes.id });
     const zine = await setPageKind(db, firstPage.id, "zine");
+    expect(zine.sectionId).toBe(quotes.id);
     await savePageZine(db, zine.id, {
       ...emptyZine(),
       rows: [{ blocks: [{ kind: "image", image: { fileId: "f1", fit: "cover" } }] }],
@@ -248,6 +304,7 @@ describe("pages", () => {
     await updatePage(db, zine.id, { showPageNumber: false, margin: 30 });
     const fresh = await deletePage(db, zine.id);
     expect(fresh.id).not.toBe(zine.id);
+    expect(fresh.sectionId).toBe(quotes.id);
     expect(fresh.kind).toBe("lined");
     expect(fresh.divider).toBe(70);
     expect(fresh.columns).toEqual([columnFromText(""), columnFromText("")]);
@@ -415,13 +472,13 @@ describe("pages", () => {
       files: "[notebookId+id], notebookId",
       thumbnails: "pageId, notebookId",
     });
+    await old.table("notebooks").add({ id: "nb", lastOpenedAt: 1, cover: DEFAULT_COVER, tags: [] });
     const before = [
       {
         id: "p1",
         notebookId: "nb",
         createdAt: 1,
         kind: "lined",
-        tagId: "t1",
         showPageNumber: false,
         margin: 25,
         columns: [columnFromText("a"), columnFromText("b")],
@@ -433,7 +490,6 @@ describe("pages", () => {
         notebookId: "nb",
         createdAt: 2,
         kind: "zine",
-        tagId: null,
         showPageNumber: true,
         margin: 20,
         columns: [],
@@ -446,8 +502,54 @@ describe("pages", () => {
     old.close();
     const upgraded = new TypestillDb(name);
     try {
+      const notes = (await upgraded.notebooks.get("nb"))!.sections[0];
       const pages = await listPages(upgraded, "nb");
-      expect(pages).toEqual(before.map((page) => ({ ...page, drawing: [], drawingLayer: "over" })));
+      expect(pages).toEqual(
+        before.map((page) => ({ ...page, sectionId: notes.id, drawing: [], drawingLayer: "over" })),
+      );
+    } finally {
+      await upgraded.delete();
+    }
+  });
+
+  it("turns tags from version 9 of the database into sections", async () => {
+    const name = `test-${crypto.randomUUID()}`;
+    const old = new Dexie(name);
+    old.version(9).stores({
+      notebooks: "id, lastOpenedAt",
+      pages: "id, notebookId, [notebookId+createdAt]",
+      canvases: "notebookId",
+      files: "[notebookId+id], notebookId",
+      thumbnails: "pageId, notebookId",
+    });
+    await old.table("notebooks").add({
+      id: "nb",
+      lastOpenedAt: 1,
+      cover: { color: "#2e7d4f", emoji: null, subtitle: null },
+      tags: [
+        { id: "t1", name: "Ideas", color: "#b8342c" },
+        { id: "t2", name: "Quotes", color: "#2f5b9e" },
+      ],
+    });
+    await old.table("pages").bulkAdd([
+      { id: "p1", notebookId: "nb", createdAt: 1, tagId: null },
+      { id: "p2", notebookId: "nb", createdAt: 2, tagId: "t2" },
+      { id: "p3", notebookId: "nb", createdAt: 3, tagId: "gone" },
+      { id: "p4", notebookId: "nb", createdAt: 4, tagId: "t1" },
+    ]);
+    old.close();
+    const upgraded = new TypestillDb(name);
+    try {
+      const notebook = (await upgraded.notebooks.get("nb"))!;
+      expect("tags" in notebook).toBe(false);
+      const [notes, ideas, quotes] = notebook.sections;
+      expect(notebook.sections).toHaveLength(3);
+      expect(notes).toEqual({ id: notes.id, name: "Notes", color: "#2e7d4f", lastPageId: null });
+      expect(ideas).toEqual({ id: "t1", name: "Ideas", color: "#b8342c", lastPageId: null });
+      expect(quotes).toEqual({ id: "t2", name: "Quotes", color: "#2f5b9e", lastPageId: null });
+      const pages = await listPages(upgraded, "nb");
+      expect(pages.map((page) => page.sectionId)).toEqual([notes.id, "t2", notes.id, "t1"]);
+      expect(pages.some((page) => "tagId" in page)).toBe(false);
     } finally {
       await upgraded.delete();
     }
@@ -498,26 +600,72 @@ describe("thumbnails", () => {
   });
 });
 
-describe("tags", () => {
-  it("adds, updates and deletes tags, untagging pages on delete", async () => {
-    const { notebook, firstPage } = await createNotebook(db, { name: "A" });
-    const tag = await addTag(db, notebook.id, { name: " Ideas ", color: "#b8342c" });
-    expect(tag.name).toBe("Ideas");
-    const other = await addTag(db, notebook.id, { name: "Quotes", color: "#2f5b9e" });
-    expect((await db.notebooks.get(notebook.id))?.tags).toEqual([tag, other]);
-    await updateTag(db, notebook.id, tag.id, { name: "Plans", color: "#2e7d4f" });
-    expect((await db.notebooks.get(notebook.id))?.tags[0]).toEqual({
-      id: tag.id,
+describe("sections", () => {
+  const sectionsOf = async (notebookId: string) => (await db.notebooks.get(notebookId))!.sections;
+
+  it("adds sections at the end and updates them", async () => {
+    const { notebook } = await createNotebook(db, { name: "A" });
+    const [notes] = notebook.sections;
+    const ideas = await addSection(db, notebook.id, { name: " Ideas ", color: "#b8342c" });
+    expect(ideas).toEqual({ id: ideas.id, name: "Ideas", color: "#b8342c", lastPageId: null });
+    const quotes = await addSection(db, notebook.id, { name: "Quotes", color: "#2f5b9e" });
+    expect(await sectionsOf(notebook.id)).toEqual([notes, ideas, quotes]);
+    await updateSection(db, notebook.id, ideas.id, { name: "Plans", color: "#2e7d4f" });
+    expect((await sectionsOf(notebook.id))[1]).toEqual({
+      id: ideas.id,
       name: "Plans",
       color: "#2e7d4f",
+      lastPageId: null,
     });
-    const second = await createPage(db, notebook.id);
-    await updatePage(db, firstPage.id, { tagId: tag.id });
-    await updatePage(db, second.id, { tagId: other.id });
-    expect(await deleteTag(db, notebook.id, tag.id)).toBe(1);
-    expect((await db.notebooks.get(notebook.id))?.tags).toEqual([other]);
-    expect((await db.pages.get(firstPage.id))?.tagId).toBeNull();
-    expect((await db.pages.get(second.id))?.tagId).toBe(other.id);
+  });
+
+  it("moves a section by one place, staying put at the ends", async () => {
+    const { notebook } = await createNotebook(db, { name: "A" });
+    const [notes] = notebook.sections;
+    const ideas = await addSection(db, notebook.id, { name: "Ideas", color: "#b8342c" });
+    const quotes = await addSection(db, notebook.id, { name: "Quotes", color: "#2f5b9e" });
+    const order = async () => (await sectionsOf(notebook.id)).map((s) => s.id);
+    await moveSection(db, notebook.id, quotes.id, -1);
+    expect(await order()).toEqual([notes.id, quotes.id, ideas.id]);
+    await moveSection(db, notebook.id, notes.id, 1);
+    expect(await order()).toEqual([quotes.id, notes.id, ideas.id]);
+    await moveSection(db, notebook.id, quotes.id, -1);
+    expect(await order()).toEqual([quotes.id, notes.id, ideas.id]);
+    await moveSection(db, notebook.id, ideas.id, 1);
+    expect(await order()).toEqual([quotes.id, notes.id, ideas.id]);
+    await moveSection(db, notebook.id, "missing", 1);
+    expect(await order()).toEqual([quotes.id, notes.id, ideas.id]);
+  });
+
+  it("deletes a section, moving its pages to the one before it, or after it for the first", async () => {
+    const { notebook, firstPage } = await createNotebook(db, { name: "A" });
+    const [notes] = notebook.sections;
+    const ideas = await addSection(db, notebook.id, { name: "Ideas", color: "#b8342c" });
+    const quotes = await addSection(db, notebook.id, { name: "Quotes", color: "#2f5b9e" });
+    const a = await createPage(db, notebook.id, { sectionId: quotes.id });
+    const b = await createPage(db, notebook.id, { sectionId: quotes.id });
+    expect(await deleteSection(db, notebook.id, quotes.id)).toEqual({ movedTo: ideas, count: 2 });
+    expect(await sectionsOf(notebook.id)).toEqual([notes, ideas]);
+    expect((await db.pages.get(a.id))?.sectionId).toBe(ideas.id);
+    expect((await db.pages.get(b.id))?.sectionId).toBe(ideas.id);
+    expect(await deleteSection(db, notebook.id, notes.id)).toEqual({ movedTo: ideas, count: 1 });
+    expect(await sectionsOf(notebook.id)).toEqual([ideas]);
+    expect((await db.pages.get(firstPage.id))?.sectionId).toBe(ideas.id);
+    await expect(deleteSection(db, notebook.id, ideas.id)).rejects.toThrow(LastSectionError);
+    await expect(deleteSection(db, notebook.id, "missing")).rejects.toThrow(/not found/);
+    expect(await sectionsOf(notebook.id)).toEqual([ideas]);
+    expect(await db.pages.count()).toBe(3);
+  });
+
+  it("remembers where each section was left", async () => {
+    const { notebook, firstPage } = await createNotebook(db, { name: "A" });
+    const [notes] = notebook.sections;
+    const ideas = await addSection(db, notebook.id, { name: "Ideas", color: "#b8342c" });
+    await setSectionLastPage(db, notebook.id, notes.id, firstPage.id);
+    expect((await sectionsOf(notebook.id)).map((s) => s.lastPageId)).toEqual([firstPage.id, null]);
+    await setSectionLastPage(db, notebook.id, notes.id, null);
+    await setSectionLastPage(db, notebook.id, ideas.id, firstPage.id);
+    expect((await sectionsOf(notebook.id)).map((s) => s.lastPageId)).toEqual([null, firstPage.id]);
   });
 });
 

@@ -11,7 +11,7 @@ const lined = (id: string, ...texts: string[]): Page => ({
   notebookId: "nb",
   createdAt: 1,
   kind: "lined",
-  tagId: null,
+  sectionId: "s1",
   showPageNumber: true,
   margin: 20,
   columns: texts.map(columnFromText),

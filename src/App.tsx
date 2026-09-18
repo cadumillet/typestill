@@ -26,11 +26,11 @@ import {
   type DrawingAids,
 } from "./page/drawingMode";
 import { PAGE_BORDER_PX } from "./page/pageLook";
-import { pageSide, spreadOf } from "./page/sides";
+import { pageSide, sideAt, sideIndexOfPage, sideSequence, spreadOf, type Side } from "./page/sides";
 import { isZineEmpty } from "./page/zine";
 import { exportFileName, exportPagePng, exportPdf } from "./notebook/export";
 import { downloadBlob } from "./notebook/files";
-import { nextTagColor } from "./notebook/tags";
+import { nextSectionColor } from "./notebook/sections";
 import { fileUsage, isUsed } from "./notebook/pool";
 import { notebookSize } from "./store/zip";
 import { usePageThumbnail } from "./notebook/usePageThumbnail";
@@ -89,8 +89,6 @@ export function App() {
   const fileInput = useRef<HTMLInputElement>(null);
   /** The zine cell chosen by clicking it, where a paste or a click in the pool lands. */
   const [chosenCell, setChosenCell] = useState<{ pageId: string; cell: number } | null>(null);
-  /** The rail's tag filter; null shows every page. */
-  const [filterTagId, setFilterTagId] = useState<string | null>(null);
 
   const handleWidth = useCallback((width: number) => {
     setPanelWidth(width);
@@ -207,13 +205,16 @@ export function App() {
   const geometry = pageGeometry(notebook.pageSize, notebook.orientation);
   /** The side panel exists for the media pool on zine pages only, and never while drawing. */
   const panelOpen = page.kind === "zine" && poolPageId === page.id && !drawingMode;
-  // With the panel closed the desk shows the spread the open page belongs to: a left-hand
-  // and a right-hand page touching at the gutter, like a notebook lying open. Page 1 is a
-  // right-hand page, so the first spread is (inside cover | 1); an empty side, the inside
-  // of a cover, is a slab in the cover colour.
+  // The notebook's sides (src/page/sides.ts): with the panel closed the desk shows the
+  // spread the open page belongs to, a left-hand and a right-hand side touching at the
+  // gutter, like a notebook lying open. The other side may be a page, a section's
+  // divider leaf, a blank back or the inside of a cover, the last three drawn as slabs.
+  const sides = sideSequence(notebook.sections, pages);
+  const sideIndex = sideIndexOfPage(sides, index);
   const spread = !panelOpen;
-  const pair = spreadOf(index, pages.length);
-  const slots: (number | null)[] = spread ? [pair.left, pair.right] : [index];
+  const slots: Side[] = spread ? spreadOf(sides, sideIndex) : [{ kind: "page", index }];
+  /** Which half of the sheet the open page is: 0 on the left, 1 on the right. */
+  const openSlot = spread && sideAt(sideIndex) === "right" ? 1 : 0;
   // The page bar sits under the page, so the page is fitted above its height.
   const fit = desk
     ? fitPage(spread ? { width: geometry.width * 2, height: geometry.height } : geometry, {
@@ -241,10 +242,7 @@ export function App() {
   const pageBox: PageBox | null =
     desk && fit
       ? {
-          x:
-            (desk.width - fit.width) / 2 +
-            slots.indexOf(index) * geometry.width * fit.zoom +
-            PAGE_BORDER_PX,
+          x: (desk.width - fit.width) / 2 + openSlot * geometry.width * fit.zoom + PAGE_BORDER_PX,
           y: pageTop + PAGE_BORDER_PX,
           width: geometry.width * fit.zoom - 2 * PAGE_BORDER_PX,
           height: fit.height - 2 * PAGE_BORDER_PX,
@@ -261,7 +259,7 @@ export function App() {
     if (!desk || !fit) return;
     const slot = Math.floor((point.x - (desk.width - fit.width) / 2) / (geometry.width * fit.zoom));
     const other = slots[slot];
-    if (other !== undefined && other !== null && other !== index) session.goTo(other);
+    if (other?.kind === "page" && other.index !== index) session.goTo(other.index);
   };
 
   const openBackup = async (file: File | undefined) => {
@@ -321,20 +319,31 @@ export function App() {
     await session.deletePage();
   };
 
-  const newTag = async () => {
-    const name = window.prompt("Name for the new tag", "Tag")?.trim();
+  /** "New section…" from page settings: names a section and moves the page there. */
+  const newSection = async () => {
+    const name = window.prompt("Name for the new section", "Section")?.trim();
     if (!name) return;
-    const tag = await session.addTag({ name, color: nextTagColor(notebook.tags) });
-    session.setPageTag(tag.id);
+    const section = await session.addSection({
+      name,
+      color: nextSectionColor(notebook.sections),
+    });
+    session.setPageSection(section.id);
   };
 
-  const removeTag = async (tagId: string) => {
-    const tag = notebook.tags.find((t) => t.id === tagId);
-    const count = pages.filter((p) => p.tagId === tagId).length;
+  // Deleting a section moves its pages to the section before it (after it, for the
+  // first); the confirm names the count and where they go. The last section stays.
+  const removeSection = async (sectionId: string) => {
+    const at = notebook.sections.findIndex((s) => s.id === sectionId);
+    const section = notebook.sections[at];
+    if (!section || notebook.sections.length === 1) return;
+    const target = notebook.sections[at === 0 ? 1 : at - 1];
+    const count = pages.filter((p) => p.sectionId === sectionId).length;
     const pagesNote =
-      count === 0 ? "" : ` ${count === 1 ? "One page loses" : `${count} pages lose`} the tag.`;
-    if (!window.confirm(`Delete the tag "${tag?.name ?? ""}"?${pagesNote}`)) return;
-    await session.deleteTag(tagId);
+      count === 0
+        ? " It has no pages."
+        : ` ${count === 1 ? "Its page moves" : `Its ${count} pages move`} to "${target.name}".`;
+    if (!window.confirm(`Delete the section "${section.name}"?${pagesNote}`)) return;
+    await session.deleteSection(sectionId);
   };
 
   // Exports run on the pages as saved; failures are reported plainly.
@@ -452,9 +461,10 @@ export function App() {
             onClose={() => setSettingsOpen(false)}
             storage={storage}
             onPruneImages={() => void pruneImages()}
-            onAddTag={(input) => void session.addTag(input)}
-            onUpdateTag={(tagId, patch) => void session.updateTag(tagId, patch)}
-            onDeleteTag={(tagId) => void removeTag(tagId)}
+            onAddSection={(input) => void session.addSection(input)}
+            onUpdateSection={(sectionId, patch) => void session.updateSection(sectionId, patch)}
+            onMoveSection={(sectionId, direction) => void session.moveSection(sectionId, direction)}
+            onDeleteSection={(sectionId) => void removeSection(sectionId)}
           />
           <div className="workspace">
             <PageRail
@@ -462,34 +472,45 @@ export function App() {
               index={index}
               onSelect={session.goTo}
               offsetTop={pageTop}
-              tags={notebook.tags}
-              filterTagId={filterTagId}
-              onFilterChange={setFilterTagId}
+              sections={notebook.sections}
+              sides={sides}
+              onOpenSection={(sectionId) => void session.openSection(sectionId)}
               thumbnails={session.thumbnails}
             />
             <main className="desk" ref={attachDesk}>
               {fit && (
                 <div className="desk__sheet" style={{ width: fit.width }}>
                   <div className={`desk__spread${spread ? " is-spread" : ""}`}>
-                    {slots.map((i, slot) => {
-                      if (i === null) {
+                    {slots.map((shown, slot) => {
+                      if (shown.kind !== "page") {
                         const side = slot === 0 ? "left" : "right";
+                        const blank = shown.kind === "blank";
                         return (
                           <div
                             key={`slab-${side}`}
-                            className={`desk__slab desk__slab--${side}`}
+                            className={`desk__slab desk__slab--${side}${blank && theme.page.border ? " desk__slab--blank" : ""}`}
                             style={
                               {
                                 width: geometry.width * fit.zoom,
                                 height: fit.height,
-                                background: notebook.cover.color,
+                                background:
+                                  shown.kind === "cover"
+                                    ? notebook.cover.color
+                                    : blank
+                                      ? theme.colours.paper
+                                      : shown.section.color,
                                 "--page-corner": `${cornerPx}px`,
                               } as CSSProperties
                             }
                             aria-hidden
-                          />
+                          >
+                            {shown.kind === "divider" && shown.face === "front" && (
+                              <span className="desk__slab__name">{shown.section.name}</span>
+                            )}
+                          </div>
                         );
                       }
+                      const i = shown.index;
                       const shownPage = pages[i];
                       const isOpen = i === index;
                       // The open page is locked and dimmed in drawing mode; the other page
@@ -517,7 +538,7 @@ export function App() {
                               preview={preview}
                               readOnly={!isOpen}
                               number={shownPage.showPageNumber ? i + 1 : null}
-                              side={pageSide(i)}
+                              side={pageSide(sides, i)}
                               {...drawingProps}
                               onChange={session.setZine}
                               onAddImages={(cell, files) => void addImages(cell, files)}
@@ -537,7 +558,7 @@ export function App() {
                               preview={preview}
                               readOnly={!isOpen}
                               number={shownPage.showPageNumber ? i + 1 : null}
-                              side={pageSide(i)}
+                              side={pageSide(sides, i)}
                               files={session.files}
                               {...drawingProps}
                               onChange={session.setColumns}
@@ -580,9 +601,9 @@ export function App() {
                       canChangeKind={pageIsEmpty}
                       showKind={features.zinePages}
                       onKindChange={(kind) => void session.setKind(kind)}
-                      tags={notebook.tags}
-                      onTagChange={session.setPageTag}
-                      onNewTag={() => void newTag()}
+                      sections={notebook.sections}
+                      onSectionChange={session.setPageSection}
+                      onNewSection={() => void newSection()}
                       onMarksChange={session.setPageMarks}
                       onMarginChange={(margin) => void session.setPageMargin(margin)}
                       twoColumns={page.divider !== null}

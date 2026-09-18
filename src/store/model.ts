@@ -1,6 +1,7 @@
-// Stored shapes. Mirrors the data model in PLAN.md: notebook metadata, pages (each with
-// its own drawing), one canvas per notebook, and the image files the pages and the
-// canvas reference. They are separate records so autosave writes only what changed.
+// Stored shapes. Mirrors the data model in PLAN.md: notebook metadata with its sections,
+// pages (each in a section, with its own drawing), one canvas per notebook, and the image
+// files the pages and the canvas reference. They are separate records so autosave writes
+// only what changed.
 
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData } from "@excalidraw/excalidraw/types";
@@ -16,10 +17,14 @@ export type { Zine } from "../page/zine";
 /** Lined pages hold writing; zine pages hold images. */
 export type PageKind = "lined" | "zine";
 
-export interface Tag {
+/** A division of the notebook, as a tabbed divider makes one. Every page is in one. */
+export interface Section {
   id: string;
   name: string;
+  /** From the cover palette. */
   color: string;
+  /** Where the section was left: its tab returns there. Null until it is visited. */
+  lastPageId: string | null;
 }
 
 export interface NotebookDefaults {
@@ -45,7 +50,8 @@ export interface Notebook {
   pageSize: PageSize;
   orientation: Orientation;
   defaults: NotebookDefaults;
-  tags: Tag[];
+  /** In order; at least one. */
+  sections: Section[];
 }
 
 /** Where a page's drawing paints in writing mode: over the text, or under it. */
@@ -62,10 +68,11 @@ export interface CanvasView {
 export interface Page {
   id: string;
   notebookId: string;
-  /** Also the page order. Strictly increasing within a notebook. */
+  /** The order within the section. Strictly increasing within a notebook. */
   createdAt: number;
   kind: PageKind;
-  tagId: string | null;
+  /** Every page is in a section; pages order by section order, then createdAt. */
+  sectionId: string;
   showPageNumber: boolean;
   /** Margin line offset in mm from the left edge. */
   margin: number;

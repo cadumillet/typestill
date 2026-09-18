@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { columnFromText } from "../page/document";
-import { fileData } from "./fixtures";
+import { fileData, section } from "./fixtures";
 import type { NotebookDocument } from "./model";
 import {
   bytesOfDataUrl,
@@ -26,14 +26,14 @@ const doc: NotebookDocument = {
   pageSize: "A5",
   orientation: "portrait",
   defaults: { showPageNumber: true, margin: 20, divider: null },
-  tags: [],
+  sections: [section("s1")],
   pages: [
     {
       id: "p1",
       notebookId: "nb1",
       createdAt: 10,
       kind: "lined",
-      tagId: null,
+      sectionId: "s1",
       showPageNumber: true,
       margin: 20,
       columns: [columnFromText("hello")],

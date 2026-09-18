@@ -224,11 +224,34 @@ button[aria-pressed="true"] {
   opacity: 0.85;
 }
 
-/* The inside of a cover: an empty side of a spread, page-sized, in the cover colour, with
-   nothing on it and nothing to click. It rounds its outer corners like a page. */
+/* A side of a spread that is not a page: the inside of a cover (a slab in the cover
+   colour), a section's divider leaf (a slab in the section's colour, its name on the
+   front) or the blank back of a section's last leaf (empty paper). Page-sized, nothing to
+   click; the outer corners round like a page's. */
 .desk__slab {
   flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
   pointer-events: none;
+  user-select: none;
+}
+
+.desk__slab--blank {
+  border: 1px solid #e6e4de;
+}
+
+/* The section's name on the front of its divider, in white like the cover's lettering. */
+.desk__slab__name {
+  max-width: 80%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .desk__slab--left {

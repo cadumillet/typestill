@@ -132,26 +132,26 @@ button.primary {
   margin-top: 0;
 }
 
-.settings__tags {
+.settings__sections {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.settings__tag {
+.settings__section {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
 }
 
-.settings__tag input {
+.settings__section input {
   flex: 1;
   min-width: 0;
   width: 0;
 }
 
-.settings__tag .settings__swatches {
+.settings__section .settings__swatches {
   margin-bottom: 0;
   gap: 3px;
 }
@@ -162,19 +162,32 @@ button.primary {
   border-width: 1.5px;
 }
 
-.settings__tag-delete {
+/* Move up, move down and delete: quiet buttons; delete turns red on hover. */
+.settings__section-move,
+.settings__section-delete {
   padding: 2px 6px;
   font-size: 11px;
   border-color: transparent;
   color: var(--muted);
 }
 
-.settings__tag-delete:hover {
+.settings__section-move:disabled,
+.settings__section-delete:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.settings__section-move:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+.settings__section-delete:hover:not(:disabled) {
   color: var(--danger);
   background: var(--danger-soft);
 }
 
-.settings__add-tag {
+.settings__add-section {
   margin-top: 4px;
   font-size: 12px;
 }

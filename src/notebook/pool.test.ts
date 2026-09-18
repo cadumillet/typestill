@@ -9,7 +9,7 @@ const page = (id: string, images: (string | null)[] = [], drawn: string[] = []):
   notebookId: "nb",
   createdAt: 1,
   kind: images.length > 0 ? "zine" : "lined",
-  tagId: null,
+  sectionId: "s1",
   showPageNumber: true,
   margin: 20,
   columns: [],

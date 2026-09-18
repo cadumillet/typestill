@@ -10,7 +10,7 @@ const lined = (text: string): Page => ({
   notebookId: "n1",
   createdAt: 1,
   kind: "lined",
-  tagId: null,
+  sectionId: "s1",
   showPageNumber: true,
   margin: 20,
   columns: [columnFromText(text)],

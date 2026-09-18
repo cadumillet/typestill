@@ -1,68 +1,66 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
-import { IconButton } from "../shell/IconButton";
-import { Popover } from "../shell/Popover";
-import { Filter } from "../shell/icons";
-import { pageSide } from "../page/sides";
-import type { Page, Tag } from "../store/model";
-import { passesFilter, tagOf } from "./tags";
+import { pageSide, type Side } from "../page/sides";
+import type { Page, Section } from "../store/model";
+import { sectionRuns } from "./sections";
 import "./pagerail.css";
 
 export interface PageRailProps {
-  pages: Page[];
+  /** The notebook's sections, in order: one column each. */
+  sections: readonly Section[];
+  /** The pages in notebook order (section order, then creation order). */
+  pages: readonly Page[];
   /** Index of the page shown. */
   index: number;
+  /** The notebook's sides, for rounding a thumbnail's outer corners. */
+  sides: readonly Side[];
   onSelect: (index: number) => void;
+  /** A section's tab was clicked: open the section where it was left. */
+  onOpenSection: (sectionId: string) => void;
   /** Distance from the top of the rail to the first square, so it aligns with the page. */
   offsetTop?: number;
-  /** The notebook's tags: they colour the squares and are the filter's choices. */
-  tags: readonly Tag[];
-  /** Only pages with this tag are shown; null shows every page. */
-  filterTagId: string | null;
-  onFilterChange: (tagId: string | null) => void;
   /** Rendered previews by page id, shown beside the hovered square when there is one. */
   thumbnails: Record<string, string>;
 }
 
 interface Hover {
-  index: number;
-  /** Centre of the hovered square, in px from the top of the rail. */
+  label: string;
+  /** The hovered page, when the hover is a square rather than a tab. */
+  pageIndex: number | null;
+  /** Centre of the hovered square or tab, in px from the top of the rail. */
   top: number;
 }
 
-/** Room the filter button needs above the first square. */
-const FILTER_HEIGHT = 40;
+/** The tab's height plus the gap under it, which the squares sit below. */
+const TAB_SPACE = 14;
 /** Rough heights of the hover box, with and without a thumbnail, for keeping it in view. */
 const HOVER_HEIGHT = 230;
 const LABEL_HEIGHT = 26;
 /** The thumbnail's outer corners, rounded like the page's; the inner edge stays square. */
 const THUMBNAIL_CORNER = "4px";
 
-/** Closes the popover the way Menu does: through the outside pointerdown it listens for. */
-const closePopovers = () => document.dispatchEvent(new PointerEvent("pointerdown"));
-
 /**
- * The left rail: one small square per page in notebook order, coloured by the page's
- * tag, the open page highlighted. Filtering by tag only hides squares; page order and
- * numbering stay the same. Hovering a square shows its label and, once one has been
- * rendered, a thumbnail of the page; both float outside the scrolling list so they are
- * never clipped. The rail holds nothing else: the page controls are in the page bar.
+ * The left rail: one column per section, side by side in section order, each a tab in
+ * the section's colour (its name on hover) over a stack of small squares, one per page
+ * of the section in order, in the section's colour, the open page's ringed. Hovering a
+ * square shows its label ("Page 7 · Work") and, once one has been rendered, a thumbnail
+ * of the page; both float outside the scrolling lists so they are never clipped. A tab
+ * opens the section where it was left. The rail holds nothing else: the page controls
+ * are in the page bar.
  */
 export function PageRail({
+  sections,
   pages,
   index,
+  sides,
   onSelect,
+  onOpenSection,
   offsetTop = 0,
-  tags,
-  filterTagId,
-  onFilterChange,
   thumbnails,
 }: PageRailProps) {
   const rail = useRef<HTMLElement>(null);
   const current = useRef<HTMLButtonElement>(null);
   const [hover, setHover] = useState<Hover | null>(null);
-  // A filter whose tag was deleted shows nothing; treat it as no filter.
-  const filter = tags.some((tag) => tag.id === filterTagId) ? filterTagId : null;
-  const filterTag = tags.find((tag) => tag.id === filter);
+  const runs = sectionRuns(sections, pages);
 
   // A page opened from elsewhere (the bar, a new page) may sit past the rail's edge.
   useEffect(() => {
@@ -71,116 +69,80 @@ export function PageRail({
 
   // The hover box is centred on the square, but kept inside the rail's height so a
   // thumbnail near the top or bottom is not cut off.
-  const onEnter = (event: PointerEvent<HTMLButtonElement>, i: number) => {
+  const onEnter = (
+    event: PointerEvent<HTMLButtonElement>,
+    label: string,
+    pageIndex: number | null,
+  ) => {
     if (!rail.current) return;
-    const square = event.currentTarget.getBoundingClientRect();
+    const target = event.currentTarget.getBoundingClientRect();
     const box = rail.current.getBoundingClientRect();
-    const half = (thumbnails[pages[i].id] ? HOVER_HEIGHT : LABEL_HEIGHT) / 2;
-    const centre = square.top - box.top + square.height / 2;
+    const thumbnail = pageIndex !== null && thumbnails[pages[pageIndex].id];
+    const half = (thumbnail ? HOVER_HEIGHT : LABEL_HEIGHT) / 2;
+    const centre = target.top - box.top + target.height / 2;
     setHover({
-      index: i,
+      label,
+      pageIndex,
       top: Math.min(Math.max(centre, half), Math.max(half, box.height - half)),
     });
   };
 
+  const hoveredPage = hover && hover.pageIndex !== null ? pages[hover.pageIndex] : null;
+
   return (
-    <nav className="page-rail" aria-label="Page rail" ref={rail}>
-      {tags.length > 0 && (
-        <div className="page-rail__filter">
-          <Popover
-            align="left"
-            trigger={({ open, toggle, controls }) => (
-              <IconButton
-                label={filterTag ? `Filtered: ${filterTag.name}` : "Filter by tag"}
-                pressed={filter !== null}
-                onClick={toggle}
-                aria-haspopup="menu"
-                aria-expanded={open}
-                aria-controls={controls}
-                className="page-rail__filter-button"
-                style={filterTag ? { color: filterTag.color } : undefined}
-              >
-                <Filter />
-              </IconButton>
-            )}
-          >
-            <ul className="menu__list" role="menu" aria-label="Filter by tag">
-              <li role="none">
-                <button
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={filter === null}
-                  className="menu__item page-rail__filter-item"
-                  onClick={() => {
-                    closePopovers();
-                    onFilterChange(null);
-                  }}
-                >
-                  <span className="page-rail__dot page-rail__dot--none" />
-                  All pages
-                </button>
-              </li>
-              {tags.map((tag) => (
-                <li key={tag.id} role="none">
+    <nav
+      className="page-rail"
+      aria-label="Page rail"
+      ref={rail}
+      onPointerLeave={() => setHover(null)}
+    >
+      {runs.map(({ section, start, pages: own }) => (
+        <div
+          key={section.id}
+          className="page-rail__column"
+          style={{ paddingTop: Math.max(0, offsetTop - TAB_SPACE) }}
+        >
+          <button
+            type="button"
+            className="page-rail__tab"
+            style={{ background: section.color }}
+            aria-label={`Section ${section.name}`}
+            onPointerEnter={(event) => onEnter(event, section.name, null)}
+            onClick={() => onOpenSection(section.id)}
+          />
+          <ol className="page-rail__list" onScroll={() => setHover(null)}>
+            {own.map((page, offset) => {
+              const i = start + offset;
+              return (
+                <li key={page.id}>
                   <button
+                    ref={i === index ? current : undefined}
                     type="button"
-                    role="menuitemradio"
-                    aria-checked={filter === tag.id}
-                    className="menu__item page-rail__filter-item"
-                    onClick={() => {
-                      closePopovers();
-                      onFilterChange(tag.id);
-                    }}
-                  >
-                    <span className="page-rail__dot" style={{ background: tag.color }} />
-                    {tag.name}
-                  </button>
+                    className="page-rail__square"
+                    style={{ background: section.color }}
+                    aria-label={`Page ${i + 1}, ${section.name}`}
+                    aria-current={i === index ? "page" : undefined}
+                    onPointerEnter={(event) => onEnter(event, `Page ${i + 1} · ${section.name}`, i)}
+                    onClick={() => onSelect(i)}
+                  />
                 </li>
-              ))}
-            </ul>
-          </Popover>
+              );
+            })}
+          </ol>
         </div>
-      )}
-      <ol
-        className="page-rail__list"
-        style={{ paddingTop: tags.length > 0 ? Math.max(offsetTop, FILTER_HEIGHT) : offsetTop }}
-        onPointerLeave={() => setHover(null)}
-        onScroll={() => setHover(null)}
-      >
-        {pages.map((page, i) => {
-          if (!passesFilter(page, filter)) return null;
-          const tag = tagOf(page, tags);
-          return (
-            <li key={page.id}>
-              <button
-                ref={i === index ? current : undefined}
-                type="button"
-                className={`page-rail__square${tag ? " has-tag" : ""}`}
-                style={tag ? { background: tag.color } : undefined}
-                aria-label={tag ? `Page ${i + 1}, ${tag.name}` : `Page ${i + 1}`}
-                aria-current={i === index ? "page" : undefined}
-                onPointerEnter={(event) => onEnter(event, i)}
-                onClick={() => onSelect(i)}
-              />
-            </li>
-          );
-        })}
-      </ol>
+      ))}
       {hover && (
         <div className="page-rail__hover" style={{ top: hover.top }} aria-hidden>
-          <div className="page-rail__label">
-            Page {hover.index + 1}
-            {tagOf(pages[hover.index], tags) && ` · ${tagOf(pages[hover.index], tags)?.name}`}
-          </div>
-          {thumbnails[pages[hover.index].id] && (
+          <div className="page-rail__label">{hover.label}</div>
+          {hoveredPage && thumbnails[hoveredPage.id] && (
             <img
               className="page-rail__thumbnail"
-              src={thumbnails[pages[hover.index].id]}
+              src={thumbnails[hoveredPage.id]}
               alt=""
               draggable={false}
               style={{
                 borderRadius:
-                  pageSide(hover.index) === "right"
+                  pageSide(sides, hover.pageIndex!) === "right"
                     ? `0 ${THUMBNAIL_CORNER} ${THUMBNAIL_CORNER} 0`
                     : `${THUMBNAIL_CORNER} 0 0 ${THUMBNAIL_CORNER}`,
               }}

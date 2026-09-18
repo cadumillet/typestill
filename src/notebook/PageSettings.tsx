@@ -3,8 +3,8 @@ import { Popover } from "../shell/Popover";
 import { PageSettings as PageIcon } from "../shell/icons";
 import { MAX_MARGIN_MM, MIN_MARGIN_MM } from "../page/paper";
 import { MAX_ZINE_PADDING_MM } from "../page/zine";
-import type { Page, PageKind, Tag } from "../store/model";
-import { NEW_TAG_VALUE } from "./tags";
+import type { Page, PageKind, Section } from "../store/model";
+import { NEW_SECTION_VALUE } from "./sections";
 import "./pagesettings.css";
 
 export interface PageSettingsProps {
@@ -16,11 +16,11 @@ export interface PageSettingsProps {
   /** Whether the Kind row is shown at all: no while zine pages are behind their flag. */
   showKind: boolean;
   onKindChange: (kind: PageKind) => void;
-  /** The notebook's tags; a page carries one or none. */
-  tags: readonly Tag[];
-  onTagChange: (tagId: string | null) => void;
-  /** "New tag…" was picked: the caller asks for a name and assigns the new tag. */
-  onNewTag: () => void;
+  /** The notebook's sections; the page is in one of them. */
+  sections: readonly Section[];
+  onSectionChange: (sectionId: string) => void;
+  /** "New section…" was picked: the caller asks for a name and moves the page there. */
+  onNewSection: () => void;
   /** The page number toggle. */
   onMarksChange: (patch: Partial<Pick<Page, "showPageNumber">>) => void;
   /** Lined pages: the margin line offset in mm. */
@@ -55,9 +55,9 @@ export function PageSettings({
   canChangeKind,
   showKind,
   onKindChange,
-  tags,
-  onTagChange,
-  onNewTag,
+  sections,
+  onSectionChange,
+  onNewSection,
   onMarksChange,
   onMarginChange,
   twoColumns,
@@ -86,22 +86,21 @@ export function PageSettings({
           <div>Created {formatCreated(page.createdAt)}</div>
         </div>
         <label className="page-settings__row page-settings__row--field">
-          <span>Tag</span>
+          <span>Section</span>
           <select
-            value={page.tagId ?? ""}
+            value={page.sectionId}
             onChange={(event) => {
               const value = event.target.value;
-              if (value === NEW_TAG_VALUE) onNewTag();
-              else onTagChange(value === "" ? null : value);
+              if (value === NEW_SECTION_VALUE) onNewSection();
+              else onSectionChange(value);
             }}
           >
-            <option value="">No tag</option>
-            {tags.map((tag) => (
-              <option key={tag.id} value={tag.id}>
-                {tag.name}
+            {sections.map((section) => (
+              <option key={section.id} value={section.id}>
+                {section.name}
               </option>
             ))}
-            <option value={NEW_TAG_VALUE}>New tag…</option>
+            <option value={NEW_SECTION_VALUE}>New section…</option>
           </select>
         </label>
         {showKind && (

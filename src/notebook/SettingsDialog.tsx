@@ -7,13 +7,13 @@ import {
   type Orientation,
   type PageSize,
 } from "../page/paper";
-import type { Notebook, Tag } from "../store/model";
+import type { Notebook, Section } from "../store/model";
 import { APPEARANCES, resolveAppearance, type Appearance } from "../shell/appearance";
 import { THEMES, getTheme, isDarkTheme } from "../theme/themes";
 import { formatBytes } from "../store/zip";
 import { COVER_COLORS, coverFromFields } from "./cover";
 import { CoverSwatch } from "./CoverSwatch";
-import { TAG_COLORS, nextTagColor } from "./tags";
+import { SECTION_COLORS, nextSectionColor } from "./sections";
 import "./settings.css";
 
 export type NotebookSettings = Pick<
@@ -32,10 +32,13 @@ export interface SettingsDialogProps {
   storage: { total: number; images: number; imageCount: number; unusedCount: number };
   /** Removes the unused images at once (after a confirm the caller owns). */
   onPruneImages: () => void;
-  /** Tag edits apply at once, not on Save. */
-  onAddTag: (input: { name: string; color: string }) => void;
-  onUpdateTag: (tagId: string, patch: Partial<Pick<Tag, "name" | "color">>) => void;
-  onDeleteTag: (tagId: string) => void;
+  /** Section edits apply at once, not on Save. */
+  onAddSection: (input: { name: string; color: string }) => void;
+  onUpdateSection: (sectionId: string, patch: Partial<Pick<Section, "name" | "color">>) => void;
+  /** Swaps the section with its neighbour above (-1) or below (1). */
+  onMoveSection: (sectionId: string, direction: -1 | 1) => void;
+  /** Deletes a section, moving its pages to a neighbour: the caller asks first. */
+  onDeleteSection: (sectionId: string) => void;
 }
 
 const APPEARANCE_LABELS: Record<Appearance, string> = {
@@ -56,9 +59,10 @@ export function SettingsDialog({
   onClose,
   storage,
   onPruneImages,
-  onAddTag,
-  onUpdateTag,
-  onDeleteTag,
+  onAddSection,
+  onUpdateSection,
+  onMoveSection,
+  onDeleteSection,
 }: SettingsDialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const [themeId, setThemeId] = useState(notebook.themeId);
@@ -264,40 +268,59 @@ export function SettingsDialog({
           </p>
         </fieldset>
         <fieldset className="settings__group">
-          <legend>Tags</legend>
-          {notebook.tags.length === 0 && (
-            <p className="settings__note settings__note--first">
-              No tags yet. A page can carry one tag; its colour marks the page in the rail.
-            </p>
-          )}
-          <ul className="settings__tags">
-            {notebook.tags.map((tag) => (
-              <li key={tag.id} className="settings__tag">
+          <legend>Sections</legend>
+          <ul className="settings__sections">
+            {notebook.sections.map((section, i) => (
+              <li key={section.id} className="settings__section">
                 <input
                   type="text"
-                  value={tag.name}
-                  aria-label="Tag name"
-                  onChange={(event) => onUpdateTag(tag.id, { name: event.target.value })}
+                  value={section.name}
+                  aria-label="Section name"
+                  onChange={(event) => onUpdateSection(section.id, { name: event.target.value })}
                 />
-                <span className="settings__swatches" role="radiogroup" aria-label="Tag colour">
-                  {TAG_COLORS.map((choice) => (
+                <span className="settings__swatches" role="radiogroup" aria-label="Section colour">
+                  {SECTION_COLORS.map((choice) => (
                     <button
                       key={choice.value}
                       type="button"
                       role="radio"
-                      aria-checked={choice.value === tag.color}
+                      aria-checked={choice.value === section.color}
                       aria-label={choice.name}
                       className="settings__swatch settings__swatch--small"
                       style={{ background: choice.value }}
-                      onClick={() => onUpdateTag(tag.id, { color: choice.value })}
+                      onClick={() => onUpdateSection(section.id, { color: choice.value })}
                     />
                   ))}
                 </span>
                 <button
                   type="button"
-                  className="settings__tag-delete"
-                  aria-label={`Delete tag ${tag.name}`}
-                  onClick={() => onDeleteTag(tag.id)}
+                  className="settings__section-move"
+                  aria-label={`Move ${section.name} up`}
+                  disabled={i === 0}
+                  onClick={() => onMoveSection(section.id, -1)}
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  className="settings__section-move"
+                  aria-label={`Move ${section.name} down`}
+                  disabled={i === notebook.sections.length - 1}
+                  onClick={() => onMoveSection(section.id, 1)}
+                >
+                  ↓
+                </button>
+                <button
+                  type="button"
+                  className="settings__section-delete"
+                  aria-label={`Delete section ${section.name}`}
+                  disabled={notebook.sections.length === 1}
+                  title={
+                    notebook.sections.length === 1
+                      ? "The last section cannot be deleted"
+                      : "Its pages move to the section next to it"
+                  }
+                  onClick={() => onDeleteSection(section.id)}
                 >
                   Delete
                 </button>
@@ -306,11 +329,17 @@ export function SettingsDialog({
           </ul>
           <button
             type="button"
-            className="settings__add-tag"
-            onClick={() => onAddTag({ name: "New tag", color: nextTagColor(notebook.tags) })}
+            className="settings__add-section"
+            onClick={() =>
+              onAddSection({ name: "New section", color: nextSectionColor(notebook.sections) })
+            }
           >
-            Add tag
+            Add section
           </button>
+          <p className="settings__note">
+            The notebook's divisions, in order. Every page is in one; the order sets the page order
+            and the numbering.
+          </p>
         </fieldset>
         <fieldset className="settings__group">
           <legend>Storage</legend>

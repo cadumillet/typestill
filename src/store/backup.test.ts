@@ -8,7 +8,7 @@ import {
   parseBackup,
   serializeBackup,
 } from "./backup";
-import { element, fileData, imageElement } from "./fixtures";
+import { element, fileData, imageElement, section } from "./fixtures";
 import type { NotebookDocument } from "./model";
 
 const formatted: EditorDocument = {
@@ -38,14 +38,14 @@ const doc: NotebookDocument = {
   pageSize: "A5",
   orientation: "portrait",
   defaults: { showPageNumber: true, margin: 20, divider: null },
-  tags: [],
+  sections: [section("s1", { lastPageId: "p1" }), section("s2", { color: "#b8342c" })],
   pages: [
     {
       id: "p1",
       notebookId: "nb1",
       createdAt: 10,
       kind: "lined",
-      tagId: null,
+      sectionId: "s1",
       showPageNumber: true,
       margin: 20,
       columns: [{ text: "hello \nworld!", doc: formatted }, columnFromText("world")],
@@ -59,7 +59,7 @@ const doc: NotebookDocument = {
       notebookId: "nb1",
       createdAt: 11,
       kind: "zine",
-      tagId: null,
+      sectionId: "s2",
       showPageNumber: true,
       margin: 20,
       columns: [],
@@ -103,24 +103,107 @@ function withoutDrawings<T extends { notebook: { pages: Record<string, unknown>[
   return raw;
 }
 
+/**
+ * The document as a file from before version 9 holds it: tags in place of sections, and
+ * each page carrying the tag `tagOf` gives it (none by default).
+ */
+function withTags<
+  T extends { notebook: Record<string, unknown> & { pages: Record<string, unknown>[] } },
+>(
+  raw: T,
+  tags: { id: string; name: string; color: string }[] = [],
+  tagOf: (page: Record<string, unknown>) => string | null = () => null,
+): T {
+  delete raw.notebook.sections;
+  raw.notebook.tags = tags;
+  for (const page of raw.notebook.pages) {
+    delete page.sectionId;
+    page.tagId = tagOf(page);
+  }
+  return raw;
+}
+
 /** The document as it parses from a file without drawings. */
 const undrawn: NotebookDocument = {
   ...doc,
   pages: doc.pages.map((page) => ({ ...page, drawing: [], drawingLayer: "over" })),
 };
 
+/**
+ * What a document parses to from a file without tags: one section, Notes, in the cover's
+ * colour, with every page in it. The section's id is fresh, so it is read from `parsed`.
+ */
+function inNotes(expected: NotebookDocument, parsed: NotebookDocument): NotebookDocument {
+  const notes = parsed.sections[0];
+  return {
+    ...expected,
+    sections: [{ id: notes.id, name: "Notes", color: expected.cover.color, lastPageId: null }],
+    pages: expected.pages.map((page) => ({ ...page, sectionId: notes.id })),
+  };
+}
+
 describe("backup", () => {
-  it("round-trips through JSON at version 8, drawings included", () => {
-    expect(BACKUP_VERSION).toBe(8);
+  it("round-trips through JSON at version 9, sections and drawings included", () => {
+    expect(BACKUP_VERSION).toBe(9);
     const text = serializeBackup(doc);
     expect(JSON.parse(text).version).toBe(BACKUP_VERSION);
     expect(parseBackup(text)).toEqual(doc);
   });
 
+  it("reads version 8 files, turning tags into sections with the untagged pages in Notes", () => {
+    const tags = [
+      { id: "t1", name: "Ideas", color: "#b8342c" },
+      { id: "t2", name: "Quotes", color: "#6a4c9c" },
+    ];
+    const raw = withTags(JSON.parse(serializeBackup(doc)), tags, (page) =>
+      page.id === "p2" ? "t2" : null,
+    );
+    raw.version = 8;
+    raw.notebook.pages.push({ ...raw.notebook.pages[0], id: "p3", createdAt: 12, tagId: "gone" });
+    // The oldest files have no tag field at all.
+    delete raw.notebook.pages[0].tagId;
+    const parsed = parseBackup(JSON.stringify(raw));
+    const [notes, ideas, quotes] = parsed.sections;
+    expect(parsed.sections).toHaveLength(3);
+    expect(notes).toEqual({ id: notes.id, name: "Notes", color: "#2f5b9e", lastPageId: null });
+    expect(ideas).toEqual({ id: "t1", name: "Ideas", color: "#b8342c", lastPageId: null });
+    expect(quotes).toEqual({ id: "t2", name: "Quotes", color: "#6a4c9c", lastPageId: null });
+    expect(parsed.pages.map((page) => page.sectionId)).toEqual([notes.id, "t2", notes.id]);
+    expect("tags" in parsed).toBe(false);
+    expect(parsed.pages.some((page) => "tagId" in page)).toBe(false);
+
+    const badTag = withTags(JSON.parse(serializeBackup(doc)), [], () => 3 as never);
+    badTag.version = 8;
+    expect(() => parseBackup(JSON.stringify(badTag))).toThrow(/invalid tag/);
+    const badTags = withTags(JSON.parse(serializeBackup(doc)), [{ id: "t1" } as never]);
+    badTags.version = 8;
+    expect(() => parseBackup(JSON.stringify(badTags))).toThrow(/Invalid tags/);
+  });
+
+  it("checks the sections of version 9 files and forgets a page a section no longer has", () => {
+    for (const sections of [undefined, [], [{ id: "s1", name: "A", color: "#111" }]]) {
+      const bad = JSON.parse(serializeBackup(doc));
+      bad.notebook.sections = sections;
+      expect(() => parseBackup(JSON.stringify(bad))).toThrow(/Invalid sections/);
+    }
+    const unknown = JSON.parse(serializeBackup(doc));
+    unknown.notebook.pages[1].sectionId = "s9";
+    expect(() => parseBackup(JSON.stringify(unknown))).toThrow(/invalid section/);
+    const missing = JSON.parse(serializeBackup(doc));
+    delete missing.notebook.pages[1].sectionId;
+    expect(() => parseBackup(JSON.stringify(missing))).toThrow(/invalid section/);
+
+    const left = JSON.parse(serializeBackup(doc));
+    left.notebook.sections[1].lastPageId = "gone";
+    const parsed = parseBackup(JSON.stringify(left));
+    expect(parsed.sections.map((section) => section.lastPageId)).toEqual(["p1", null]);
+  });
+
   it("reads version 7 files, giving pages an empty drawing over the text", () => {
-    const raw = withoutDrawings(JSON.parse(serializeBackup(doc)));
+    const raw = withTags(withoutDrawings(JSON.parse(serializeBackup(doc))));
     raw.version = 7;
-    expect(parseBackup(JSON.stringify(raw))).toEqual(undrawn);
+    const parsed = parseBackup(JSON.stringify(raw));
+    expect(parsed).toEqual(inNotes(undrawn, parsed));
   });
 
   it("checks the drawing fields of version 8 files", () => {
@@ -138,7 +221,7 @@ describe("backup", () => {
   });
 
   it("reads version 1, turning each line break into a paragraph boundary", () => {
-    const raw = JSON.parse(serializeBackup(doc));
+    const raw = withTags(JSON.parse(serializeBackup(doc)));
     raw.version = 1;
     raw.notebook.pages.pop();
     raw.notebook.pages[0].columns = ["one\ntwo\n\nfour", ""];
@@ -195,7 +278,7 @@ describe("backup", () => {
   });
 
   it("reads pages without a kind as lined, and checks zine pages", () => {
-    const raw = JSON.parse(serializeBackup(doc));
+    const raw = withTags(JSON.parse(serializeBackup(doc)));
     raw.version = 3;
     raw.notebook.pages.pop();
     delete raw.notebook.pages[0].kind;
@@ -225,7 +308,7 @@ describe("backup", () => {
   });
 
   it("converts version 5 zine pages to rows of blocks and drops the date stamp fields", () => {
-    const raw = JSON.parse(serializeBackup(doc));
+    const raw = withTags(JSON.parse(serializeBackup(doc)));
     raw.version = 5;
     raw.notebook.defaults.showDate = true;
     raw.notebook.pages[0].showDate = false;
@@ -247,15 +330,16 @@ describe("backup", () => {
       ],
     });
     // A version-5 zine page must have the old shape; the new one is refused there.
-    const mixed = JSON.parse(serializeBackup(doc));
+    const mixed = withTags(JSON.parse(serializeBackup(doc)));
     mixed.version = 5;
     expect(() => parseBackup(JSON.stringify(mixed))).toThrow(/zine/);
   });
 
   it("reads version 6 files as they are, and refuses an unknown highlight tint", () => {
-    const raw = withoutDrawings(JSON.parse(serializeBackup(doc)));
+    const raw = withTags(withoutDrawings(JSON.parse(serializeBackup(doc))));
     raw.version = 6;
-    expect(parseBackup(JSON.stringify(raw))).toEqual(undrawn);
+    const parsed = parseBackup(JSON.stringify(raw));
+    expect(parsed).toEqual(inNotes(undrawn, parsed));
 
     const tinted = JSON.parse(serializeBackup(doc));
     tinted.notebook.pages[0].columns[0].doc.content[0].content[3].marks[0].attrs.tint = "orange";
@@ -296,7 +380,7 @@ describe("backup", () => {
   });
 
   it("fills lastOpenedAt, the grid flag, margins and the cover when missing", () => {
-    const raw = JSON.parse(serializeBackup(doc));
+    const raw = withTags(JSON.parse(serializeBackup(doc)));
     raw.version = 2;
     raw.notebook.pages.pop();
     delete raw.notebook.lastOpenedAt;
@@ -313,6 +397,8 @@ describe("backup", () => {
     expect(parsed.defaults.margin).toBe(20);
     expect(parsed.pages[0].margin).toBe(20);
     expect(parsed.cover).toEqual(DEFAULT_COVER);
+    // Notes takes the colour of the cover as filled in.
+    expect(parsed.sections[0].color).toBe(DEFAULT_COVER.color);
     expect(parsed.themeId).toBe("ruled");
     const bad = JSON.parse(serializeBackup(doc));
     bad.notebook.themeId = "";

@@ -1,9 +1,10 @@
 import Dexie, { type EntityTable, type Table } from "dexie";
-import { DEFAULT_COVER } from "../notebook/cover";
+import { DEFAULT_COVER, type Cover } from "../notebook/cover";
+import { sectionsFromTags, type LegacyTag } from "../notebook/sections";
 import { columnFromText } from "../page/document";
 import { convertLegacyZine, isLegacyZine } from "../page/zineLegacy";
 import { DEFAULT_THEME_ID } from "../theme/themes";
-import type { Canvas, Notebook, NotebookFile, Page, Thumbnail } from "./model";
+import type { Canvas, Notebook, NotebookFile, Page, Section, Thumbnail } from "./model";
 
 export class TypestillDb extends Dexie {
   notebooks!: EntityTable<Notebook, "id">;
@@ -104,6 +105,38 @@ export class TypestillDb extends Dexie {
             page.drawingLayer ??= "over";
           }),
       );
+    // Version 10: tags become sections (backup version 9). Each notebook's untagged pages
+    // go into a first section, Notes, in the cover's colour, then one section per tag
+    // keeps the tag's id, name and colour; a page carries its section's id in place of
+    // its tag's. A page whose notebook is gone has no sections to join and is left alone.
+    this.version(10)
+      .stores({ ...stores, thumbnails: "pageId, notebookId" })
+      .upgrade(async (tx) => {
+        const sectionIdOf = new Map<string, (page: { tagId?: string | null }) => string>();
+        await tx
+          .table("notebooks")
+          .toCollection()
+          .modify(
+            (notebook: { id: string; cover?: Cover; tags?: LegacyTag[]; sections?: Section[] }) => {
+              const converted = sectionsFromTags({
+                cover: notebook.cover ?? DEFAULT_COVER,
+                tags: notebook.tags ?? [],
+              });
+              notebook.sections = converted.sections;
+              delete notebook.tags;
+              sectionIdOf.set(notebook.id, converted.sectionIdOf);
+            },
+          );
+        await tx
+          .table("pages")
+          .toCollection()
+          .modify((page: { notebookId: string; tagId?: string | null; sectionId?: string }) => {
+            const convert = sectionIdOf.get(page.notebookId);
+            if (!convert) return;
+            page.sectionId = convert(page);
+            delete page.tagId;
+          });
+      });
   }
 }
 

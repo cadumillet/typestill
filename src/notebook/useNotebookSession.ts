@@ -20,17 +20,17 @@ import {
   type Notebook,
   type Page,
   type PageKind,
-  type Tag,
+  type Section,
 } from "../store/model";
 import {
   addFile,
-  addTag as addTagRecord,
+  addSection as addSectionRecord,
   createNotebook as createNotebookRecord,
   createPage,
   deleteFile,
   deleteNotebook as deleteNotebookRecord,
   deletePage as deletePageRecord,
-  deleteTag as deleteTagRecord,
+  deleteSection as deleteSectionRecord,
   exportNotebook,
   getCanvas,
   getNotebook,
@@ -39,6 +39,7 @@ import {
   listPages,
   loadNotebookFiles,
   loadThumbnails,
+  moveSection as moveSectionRecord,
   pruneFiles,
   renameNotebook as renameNotebookRecord,
   saveCanvasContent,
@@ -50,12 +51,14 @@ import {
   setLastPage,
   setPageDivider,
   setPageKind,
+  setSectionLastPage,
   touchNotebook,
   updateNotebookSettings,
   updatePage,
-  updateTag as updateTagRecord,
+  updateSection as updateSectionRecord,
   type NotebookSummary,
 } from "../store/notebooks";
+import { pagesInOrder, sectionOf } from "./sections";
 import type { Cover } from "./cover";
 import { downloadBlob, downloadText } from "./files";
 import { importImage } from "./images";
@@ -64,6 +67,7 @@ export interface NotebookSession {
   notebook: Notebook;
   /** Every notebook in storage, most recently opened first. Refreshed when one is opened. */
   notebooks: NotebookSummary[];
+  /** The pages in notebook order: section order, then creation order. Everything walks this. */
   pages: Page[];
   index: number;
   page: Page;
@@ -104,12 +108,26 @@ export interface NotebookSession {
   placeFile: (cell: number, fileId: string) => void;
   /** Removes an image from the notebook. Throws FileInUseError while a page or the canvas uses it. */
   deleteImage: (fileId: string) => Promise<void>;
-  /** Tags are defined on the notebook; a page carries one or none. */
-  addTag: (input: { name: string; color: string }) => Promise<Tag>;
-  updateTag: (tagId: string, patch: Partial<Pick<Tag, "name" | "color">>) => Promise<void>;
-  /** Removes the tag and untags its pages. */
-  deleteTag: (tagId: string) => Promise<void>;
-  setPageTag: (tagId: string | null) => void;
+  /** Sections are the notebook's divisions, in order; every page is in one. */
+  addSection: (input: { name: string; color: string }) => Promise<Section>;
+  updateSection: (
+    sectionId: string,
+    patch: Partial<Pick<Section, "name" | "color">>,
+  ) => Promise<void>;
+  /** Swaps the section with its neighbour above (-1) or below (1); the pages reorder with it. */
+  moveSection: (sectionId: string, direction: -1 | 1) => Promise<void>;
+  /**
+   * Removes the section, moving its pages to the section before it (after it, for the
+   * first). The caller asks first. Refuses the last section.
+   */
+  deleteSection: (sectionId: string) => Promise<void>;
+  /** Moves the open page to a section, where it takes its place by creation date. */
+  setPageSection: (sectionId: string) => void;
+  /**
+   * Opens a section where it was left (its remembered page, else its last page); an
+   * empty section gets its first page, under the one-page rule, else nothing happens.
+   */
+  openSection: (sectionId: string) => Promise<void>;
   /** The open page's date stamp and page number toggles. */
   setPageMarks: (patch: Partial<Pick<Page, "showPageNumber">>) => void;
   /** Moves the open page's margin line; the divider is re-snapped if the margin pushes on it. */
@@ -297,7 +315,7 @@ export function useNotebookSession(
   /** Opens a notebook: loads it, points the savers at it, and shows its remembered page. */
   const load = useCallback(
     async (notebookId: string) => {
-      const [notebook, pages, canvas, files, thumbnails] = await Promise.all([
+      const [notebook, stored, canvas, files, thumbnails] = await Promise.all([
         getNotebook(db, notebookId),
         listPages(db, notebookId),
         getCanvas(db, notebookId),
@@ -307,6 +325,7 @@ export function useNotebookSession(
       if (!notebook) throw new Error(`Notebook ${notebookId} not found`);
       await touchNotebook(db, notebookId);
       const notebooks = await listNotebooks(db);
+      const pages = pagesInOrder(notebook.sections, stored);
       const remembered = pages.findIndex((page) => page.id === notebook.lastPageId);
       const index = remembered >= 0 ? remembered : pages.length - 1;
       canvasSaver.current = createAutosave<CanvasContent>({
@@ -374,6 +393,45 @@ export function useNotebookSession(
     };
   }, [flushAll]);
 
+  /** Puts the open page's section and the notebook in step with the page being opened. */
+  const rememberOpen = useCallback(
+    (current: Loaded): Loaded => {
+      const page = current.pages[current.index];
+      setLastPage(db, current.notebook.id, page.id).catch(report);
+      setSectionLastPage(db, current.notebook.id, page.sectionId, page.id).catch(report);
+      return {
+        ...current,
+        notebook: {
+          ...current.notebook,
+          sections: current.notebook.sections.map((section) =>
+            section.id === page.sectionId ? { ...section, lastPageId: page.id } : section,
+          ),
+        },
+      };
+    },
+    [db],
+  );
+
+  /** Opens a page just added (or moved) into its place in notebook order. */
+  const openAdded = useCallback(
+    (current: Loaded, page: Page, sections = current.notebook.sections): Loaded => {
+      const others = current.pages
+        .map((p, i) => (i === current.index ? { ...p, canvasView: latestView.current } : p))
+        .filter((p) => p.id !== page.id);
+      const pages = pagesInOrder(sections, [...others, page]);
+      const index = pages.findIndex((p) => p.id === page.id);
+      attachPage(page);
+      return rememberOpen({
+        ...current,
+        notebook: { ...current.notebook, sections },
+        pages,
+        index,
+        restoreView: page.canvasView,
+      });
+    },
+    [attachPage, rememberOpen],
+  );
+
   const goTo = useCallback(
     (index: number) => {
       setState((current) => {
@@ -384,33 +442,26 @@ export function useNotebookSession(
           i === current.index ? { ...page, canvasView: latestView.current } : page,
         );
         attachPage(pages[index]);
-        setLastPage(db, current.notebook.id, pages[index].id).catch(report);
-        return { ...current, pages, index, restoreView: pages[index].canvasView };
+        return rememberOpen({ ...current, pages, index, restoreView: pages[index].canvasView });
       });
     },
-    [db, attachPage],
+    [rememberOpen, attachPage],
   );
 
   // Refused while the open page is empty (the one-page rule), whichever control asked.
+  // The new page goes into the open page's section, after its last page.
   const newPage = useCallback(
     async (kind: PageKind = "lined") => {
       if (!state || !canAddPage(state.pages[state.index])) return;
+      const open = state.pages[state.index];
       const page = await createPage(db, state.notebook.id, {
         kind,
-        divider: state.pages[state.index].divider,
+        divider: open.divider,
+        sectionId: open.sectionId,
       });
-      setState((current) => {
-        if (!current) return current;
-        const pages = current.pages.map((p, i) =>
-          i === current.index ? { ...p, canvasView: latestView.current } : p,
-        );
-        pages.push(page);
-        attachPage(page);
-        setLastPage(db, current.notebook.id, page.id).catch(report);
-        return { ...current, pages, index: pages.length - 1, restoreView: null };
-      });
+      setState((current) => (current ? openAdded(current, page) : current));
     },
-    [db, state, attachPage],
+    [db, state, openAdded],
   );
 
   const deletePage = useCallback(async () => {
@@ -435,9 +486,19 @@ export function useNotebookSession(
       }
       const next = pages[index];
       attachPage(next);
-      return { ...current, pages, index, restoreView: next.canvasView };
+      // The store cleared a section's remembered page when it was the deleted one.
+      const sections = current.notebook.sections.map((section) =>
+        section.lastPageId === page.id ? { ...section, lastPageId: null } : section,
+      );
+      return rememberOpen({
+        ...current,
+        notebook: { ...current.notebook, sections },
+        pages,
+        index,
+        restoreView: next.canvasView,
+      });
     });
-  }, [db, state, attachPage]);
+  }, [db, state, attachPage, rememberOpen]);
 
   const setColumns = useCallback((columns: Column[]) => {
     pageSaver.current?.onChange(columns);
@@ -563,32 +624,38 @@ export function useNotebookSession(
     [db, state],
   );
 
-  const addTag = useCallback(
+  const addSection = useCallback(
     async (input: { name: string; color: string }) => {
       if (!state) throw new Error("No notebook open");
-      const tag = await addTagRecord(db, state.notebook.id, input);
-      setState((current) =>
-        current
-          ? { ...current, notebook: { ...current.notebook, tags: [...current.notebook.tags, tag] } }
-          : current,
-      );
-      return tag;
-    },
-    [db, state],
-  );
-
-  const updateTag = useCallback(
-    async (tagId: string, patch: Partial<Pick<Tag, "name" | "color">>) => {
-      if (!state) return;
-      await updateTagRecord(db, state.notebook.id, tagId, patch);
+      const section = await addSectionRecord(db, state.notebook.id, input);
       setState((current) =>
         current
           ? {
               ...current,
               notebook: {
                 ...current.notebook,
-                tags: current.notebook.tags.map((tag) =>
-                  tag.id === tagId ? { ...tag, ...patch } : tag,
+                sections: [...current.notebook.sections, section],
+              },
+            }
+          : current,
+      );
+      return section;
+    },
+    [db, state],
+  );
+
+  const updateSection = useCallback(
+    async (sectionId: string, patch: Partial<Pick<Section, "name" | "color">>) => {
+      if (!state) return;
+      await updateSectionRecord(db, state.notebook.id, sectionId, patch);
+      setState((current) =>
+        current
+          ? {
+              ...current,
+              notebook: {
+                ...current.notebook,
+                sections: current.notebook.sections.map((section) =>
+                  section.id === sectionId ? { ...section, ...patch } : section,
                 ),
               },
             }
@@ -598,43 +665,80 @@ export function useNotebookSession(
     [db, state],
   );
 
-  const deleteTag = useCallback(
-    async (tagId: string) => {
+  // The pages follow the sections' order, so the open page keeps its identity and
+  // takes a new index.
+  const moveSection = useCallback(
+    async (sectionId: string, direction: -1 | 1) => {
       if (!state) return;
-      await deleteTagRecord(db, state.notebook.id, tagId);
-      setState((current) =>
-        current
-          ? {
-              ...current,
-              notebook: {
-                ...current.notebook,
-                tags: current.notebook.tags.filter((tag) => tag.id !== tagId),
-              },
-              pages: current.pages.map((page) =>
-                page.tagId === tagId ? { ...page, tagId: null } : page,
-              ),
-            }
-          : current,
-      );
+      await moveSectionRecord(db, state.notebook.id, sectionId, direction);
+      setState((current) => {
+        if (!current) return current;
+        const sections = [...current.notebook.sections];
+        const at = sections.findIndex((section) => section.id === sectionId);
+        const to = at + direction;
+        if (at < 0 || to < 0 || to >= sections.length) return current;
+        [sections[at], sections[to]] = [sections[to], sections[at]];
+        const pages = pagesInOrder(sections, current.pages);
+        const index = pages.findIndex((page) => page.id === current.pages[current.index].id);
+        return { ...current, notebook: { ...current.notebook, sections }, pages, index };
+      });
     },
     [db, state],
   );
 
-  const setPageTag = useCallback(
-    (tagId: string | null) => {
+  const deleteSection = useCallback(
+    async (sectionId: string) => {
       if (!state) return;
-      const page = state.pages[state.index];
-      updatePage(db, page.id, { tagId }).catch(report);
-      setState((current) =>
-        current
-          ? {
-              ...current,
-              pages: current.pages.map((p, i) => (i === current.index ? { ...p, tagId } : p)),
-            }
-          : current,
-      );
+      const { movedTo } = await deleteSectionRecord(db, state.notebook.id, sectionId);
+      setState((current) => {
+        if (!current) return current;
+        const sections = current.notebook.sections.filter((section) => section.id !== sectionId);
+        const moved = current.pages.map((page) =>
+          page.sectionId === sectionId ? { ...page, sectionId: movedTo.id } : page,
+        );
+        const pages = pagesInOrder(sections, moved);
+        const index = pages.findIndex((page) => page.id === current.pages[current.index].id);
+        return { ...current, notebook: { ...current.notebook, sections }, pages, index };
+      });
     },
     [db, state],
+  );
+
+  const setPageSection = useCallback(
+    (sectionId: string) => {
+      if (!state) return;
+      const page = state.pages[state.index];
+      if (page.sectionId === sectionId || !sectionOf({ sectionId }, state.notebook.sections)) {
+        return;
+      }
+      updatePage(db, page.id, { sectionId }).catch(report);
+      setState((current) =>
+        current ? openAdded(current, { ...current.pages[current.index], sectionId }) : current,
+      );
+    },
+    [db, state, openAdded],
+  );
+
+  const openSection = useCallback(
+    async (sectionId: string) => {
+      if (!state) return;
+      const section = sectionOf({ sectionId }, state.notebook.sections);
+      if (!section) return;
+      const own = state.pages.filter((page) => page.sectionId === sectionId);
+      const target =
+        own.find((page) => page.id === section.lastPageId) ?? own[own.length - 1] ?? null;
+      if (target) {
+        goTo(state.pages.findIndex((page) => page.id === target.id));
+        return;
+      }
+      if (!canAddPage(state.pages[state.index])) return;
+      const page = await createPage(db, state.notebook.id, {
+        divider: state.pages[state.index].divider,
+        sectionId,
+      });
+      setState((current) => (current ? openAdded(current, page) : current));
+    },
+    [db, state, goTo, openAdded],
   );
 
   const setPageMarks = useCallback(
@@ -949,10 +1053,12 @@ export function useNotebookSession(
     addImages,
     placeFile,
     deleteImage,
-    addTag,
-    updateTag,
-    deleteTag,
-    setPageTag,
+    addSection,
+    updateSection,
+    moveSection,
+    deleteSection,
+    setPageSection,
+    openSection,
     setPageMarks,
     setPageMargin,
     saveThumbnail,

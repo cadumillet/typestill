@@ -4,25 +4,29 @@
 // 3 (notebook cover) adds the cover; 4 (zine pages) adds the page kind and the zine
 // block; 5 (themes) adds the notebook's theme id; 6 (zine blocks) stores zine pages as
 // rows of blocks and drops the date stamp fields; 7 (highlight) lets documents carry the
-// highlight mark; 8 (drawing on the page) adds each page's drawing and its layer. Older
-// files are still read: version 1 columns are converted, each line break becoming a
-// paragraph boundary, a missing cover is the default one, a page without a kind is
-// lined, a missing theme is Ruled, a zine page of the old shape is converted losslessly
-// (see zineLegacy.ts), and a page without a drawing gets an empty one, over the text.
+// highlight mark; 8 (drawing on the page) adds each page's drawing and its layer; 9
+// (sections) replaces the notebook's tags with sections and a page's tag with its
+// section. Older files are still read: version 1 columns are converted, each line break
+// becoming a paragraph boundary, a missing cover is the default one, a page without a
+// kind is lined, a missing theme is Ruled, a zine page of the old shape is converted
+// losslessly (see zineLegacy.ts), a page without a drawing gets an empty one, over the
+// text, and tags become sections (see sectionsFromTags in sections.ts), the untagged
+// pages in a first section named Notes.
 
 import { DEFAULT_COVER, isCover } from "../notebook/cover";
+import { sectionsFromTags, type LegacyTag } from "../notebook/sections";
 import { columnFromText, isColumn } from "../page/document";
 import { DEFAULT_MARGIN_MM, PAGE_SIZES_MM } from "../page/paper";
 import { isZine, type Zine } from "../page/zine";
 import { convertLegacyZine, isLegacyZine } from "../page/zineLegacy";
 import { DEFAULT_THEME_ID } from "../theme/themes";
-import type { Column, NotebookDocument, Page } from "./model";
+import type { Column, NotebookDocument, Page, Section } from "./model";
 
 export const BACKUP_FORMAT = "typestill-notebook";
-// Version 8 added the page drawings (Phase 8): pages carry `drawing` and `drawingLayer`,
-// which older files lack and the parser fills in.
-export const BACKUP_VERSION = 8;
-const READABLE_VERSIONS = new Set([1, 2, 3, 4, 5, 6, 7, 8]);
+// Version 9 turned tags into sections (Phase 7): the notebook carries `sections` and
+// each page a `sectionId`; older files' tags are converted on read.
+export const BACKUP_VERSION = 9;
+const READABLE_VERSIONS = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
 export interface BackupFile {
   format: typeof BACKUP_FORMAT;
@@ -60,6 +64,23 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const isNumberOrNull = (value: unknown): value is number | null =>
   value === null || typeof value === "number";
+
+const isStringOrNull = (value: unknown): value is string | null =>
+  value === null || typeof value === "string";
+
+const isLegacyTag = (value: unknown): value is LegacyTag =>
+  isRecord(value) &&
+  typeof value.id === "string" &&
+  typeof value.name === "string" &&
+  typeof value.color === "string";
+
+const isSection = (value: unknown): value is Section =>
+  isRecord(value) &&
+  typeof value.id === "string" &&
+  value.id.length > 0 &&
+  typeof value.name === "string" &&
+  typeof value.color === "string" &&
+  isStringOrNull(value.lastPageId);
 
 function expect(condition: boolean, message: string): asserts condition {
   if (!condition) throw new BackupError(message);
@@ -99,13 +120,36 @@ export function parseBackup(text: string): NotebookDocument {
     "Invalid theme",
   );
   expect(isRecord(nb.defaults) && isNumberOrNull(nb.defaults.divider), "Invalid defaults");
-  expect(Array.isArray(nb.tags), "Invalid tags");
+  const cover = isCover(nb.cover) ? nb.cover : { ...DEFAULT_COVER };
+  // Files from before version 9 hold tags, which become sections; later ones hold the
+  // sections themselves, at least one, and every page names one of them.
+  let sections: Section[];
+  let sectionIdOf: (page: { tagId?: string | null; sectionId?: string }) => string;
+  if (version < 9) {
+    expect(Array.isArray(nb.tags) && nb.tags.every(isLegacyTag), "Invalid tags");
+    ({ sections, sectionIdOf } = sectionsFromTags({ cover, tags: nb.tags }));
+  } else {
+    expect(
+      Array.isArray(nb.sections) && nb.sections.length >= 1 && nb.sections.every(isSection),
+      "Invalid sections",
+    );
+    sections = nb.sections;
+    sectionIdOf = (page) => page.sectionId as string;
+  }
+  const sectionIds = new Set(sections.map((section) => section.id));
   expect(isRecord(nb.files), "Invalid files");
   expect(Array.isArray(nb.pages), "Invalid pages");
   for (const page of nb.pages) {
     expect(isRecord(page), "Invalid page");
     expect(typeof page.id === "string" && page.id.length > 0, "Page has no id");
     expect(typeof page.createdAt === "number", "Page has no createdAt");
+    // Before version 9 a page carried a tag or none; the oldest files have no field at all.
+    expect(
+      version < 9
+        ? page.tagId === undefined || isStringOrNull(page.tagId)
+        : typeof page.sectionId === "string" && sectionIds.has(page.sectionId),
+      version < 9 ? "Page has an invalid tag" : "Page has an invalid section",
+    );
     expect(
       page.kind === undefined || page.kind === "lined" || page.kind === "zine",
       "Page has an invalid kind",
@@ -148,27 +192,38 @@ export function parseBackup(text: string): NotebookDocument {
   const canvas = nb.canvas;
   expect(isRecord(canvas) && Array.isArray(canvas.elements), "Invalid canvas");
   const defaults = nb.defaults as Record<string, unknown>;
-  const doc = nb as unknown as NotebookDocument;
+  // The tags of versions before 9 are dropped: the sections stand in for them.
+  const doc = { ...nb } as unknown as NotebookDocument & { tags?: unknown };
+  delete doc.tags;
   // The date stamp fields of versions 2 to 5 are dropped: the page has no date stamp.
   const restDefaults = { ...doc.defaults } as NotebookDocument["defaults"] & { showDate?: unknown };
   delete restDefaults.showDate;
+  // A section left at a page the file no longer holds is unvisited, so the file stays usable.
+  const pageIds = new Set(doc.pages.map((page) => page.id));
   return {
     ...doc,
     lastOpenedAt: typeof nb.lastOpenedAt === "number" ? nb.lastOpenedAt : nb.createdAt,
     lastPageId: typeof nb.lastPageId === "string" ? nb.lastPageId : null,
-    cover: isCover(nb.cover) ? nb.cover : { ...DEFAULT_COVER },
+    cover,
     themeId: typeof nb.themeId === "string" ? nb.themeId : DEFAULT_THEME_ID,
     defaults: {
       ...restDefaults,
       showPageNumber: defaults.showPageNumber !== false,
       margin: typeof defaults.margin === "number" ? defaults.margin : DEFAULT_MARGIN_MM,
     },
+    sections: sections.map((section) =>
+      section.lastPageId !== null && !pageIds.has(section.lastPageId)
+        ? { ...section, lastPageId: null }
+        : section,
+    ),
     pages: doc.pages.map((raw) => {
-      const page = { ...raw } as Page & { showDate?: unknown };
+      const page = { ...raw } as Page & { showDate?: unknown; tagId?: unknown };
       delete page.showDate;
+      delete page.tagId;
       const converted: Page = {
         ...page,
         kind: page.kind ?? "lined",
+        sectionId: sectionIdOf(raw as { tagId?: string | null; sectionId?: string }),
         showPageNumber: page.showPageNumber !== false,
         margin: typeof page.margin === "number" ? page.margin : DEFAULT_MARGIN_MM,
         columns: (page.columns as (string | Column)[]).map((column) =>

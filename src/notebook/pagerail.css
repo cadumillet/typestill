@@ -1,11 +1,40 @@
-/* The left rail: a vertical stack of GitHub-contribution-style squares, one per page. */
+/* The left rail: one column per section, each a tab over a vertical stack of
+   GitHub-contribution-style squares, one per page of the section. */
 
 .page-rail {
   position: relative;
   flex: none;
   display: flex;
-  flex-direction: column;
   min-height: 0;
+  padding: 0 4px 0 12px;
+}
+
+.page-rail__column {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 0;
+  width: 16px;
+}
+
+/* The section's tab: a short bar in the section's colour, rounded at the top like a
+   divider's tab, with the section's name on hover. */
+.page-rail__tab {
+  flex: none;
+  display: block;
+  width: 12px;
+  height: 8px;
+  margin-bottom: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px 3px 1px 1px;
+  cursor: pointer;
+  transition: filter 120ms;
+}
+
+.page-rail__tab:hover {
+  filter: brightness(1.15);
 }
 
 .page-rail__list {
@@ -16,7 +45,7 @@
   flex-direction: column;
   gap: 4px;
   margin: 0;
-  padding: 0 8px 12px 16px;
+  padding: 0 0 12px;
   list-style: none;
   overflow-y: auto;
   scroll-padding: 24px 0;
@@ -34,70 +63,28 @@
   padding: 0;
   border: 0;
   border-radius: 3px;
-  background: var(--rail);
   cursor: pointer;
-  transition: background 120ms;
+  transition: filter 120ms;
 }
 
 .page-rail__square:hover {
-  background: var(--rail-hover);
+  filter: brightness(1.15);
 }
 
+/* The open page's square keeps its section's colour and gets a ring. */
 .page-rail__square[aria-current="page"] {
-  background: var(--ink);
-}
-
-/* A tagged square keeps its colour; the open one gets a ring instead. */
-.page-rail__square.has-tag[aria-current="page"] {
   box-shadow:
     0 0 0 2px var(--desk),
     0 0 0 3.5px var(--ink);
 }
 
-.page-rail__square.has-tag:hover {
-  filter: brightness(1.15);
-}
-
-/* The tag filter, above the squares. Absolute so the squares stay aligned with the page. */
-.page-rail__filter {
-  position: absolute;
-  top: 4px;
-  left: 9px;
-  z-index: 3;
-}
-
-.page-rail__filter-button {
-  width: 26px;
-  height: 26px;
-}
-
-.page-rail__filter-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.page-rail__filter-item[aria-checked="true"] {
-  font-weight: 600;
-}
-
-.page-rail__dot {
-  flex: none;
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-}
-
-.page-rail__dot--none {
-  background: var(--rail);
-}
-
-.page-rail__square:focus-visible {
+.page-rail__square:focus-visible,
+.page-rail__tab:focus-visible {
   outline: 2px solid var(--accent-line);
   outline-offset: 1px;
 }
 
-/* Hover label and thumbnail beside the square. The label is styled like the app bar tooltips. */
+/* Hover label and thumbnail beside the rail. The label is styled like the app bar tooltips. */
 .page-rail__hover {
   position: absolute;
   left: calc(100% - 2px);
