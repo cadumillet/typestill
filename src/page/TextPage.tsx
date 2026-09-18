@@ -1,7 +1,6 @@
 import { useCallback, useRef, useState, type CSSProperties } from "react";
-import { Column, type ColumnHandle, type ColumnSelection } from "./Column";
+import { Column } from "./Column";
 import { columnFromText, type Column as ColumnValue } from "./document";
-import type { FormatState } from "./editor/commands";
 import { FormatBar } from "./FormatBar";
 import {
   RULE_PITCH_MM,
@@ -15,6 +14,7 @@ import {
   type Orientation,
   type PageSize,
 } from "./paper";
+import { useFormatBar } from "./useFormatBar";
 import "./textpage.css";
 
 export interface TextPageProps {
@@ -35,13 +35,6 @@ export interface TextPageProps {
 }
 
 const EMPTY_COLUMN = columnFromText("");
-
-/** The selection the format bar is shown for, in page coordinates. */
-interface BarSelection {
-  column: number;
-  anchor: { top: number; bottom: number; left: number; right: number };
-  format: FormatState;
-}
 
 /**
  * A lined text page. Each column is an editor in Excalifont whose line height is the
@@ -65,9 +58,8 @@ export function TextPage({
   const pitch = px(RULE_PITCH_MM);
   const ruleTop = px(RULE_TOP_MM);
   const page = useRef<HTMLDivElement>(null);
-  const editors = useRef<(ColumnHandle | null)[]>([]);
+  const bar = useFormatBar(page);
   const [fullColumns, setFullColumns] = useState<boolean[]>([]);
-  const [selection, setSelection] = useState<BarSelection | null>(null);
 
   const setColumnFull = useCallback((index: number, full: boolean) => {
     setFullColumns((current) => {
@@ -75,25 +67,6 @@ export function TextPage({
       const next = [...current];
       next[index] = full;
       return next;
-    });
-  }, []);
-
-  // The bar is placed in page coordinates. A column clearing its selection must not
-  // hide the bar another column owns.
-  const setColumnSelection = useCallback((index: number, at: ColumnSelection | null) => {
-    const box = page.current?.getBoundingClientRect();
-    setSelection((current) => {
-      if (!at || !box) return current?.column === index ? null : current;
-      return {
-        column: index,
-        anchor: {
-          top: at.top - box.top,
-          bottom: at.bottom - box.top,
-          left: at.left - box.left,
-          right: at.right - box.left,
-        },
-        format: at.format,
-      };
     });
   }, []);
 
@@ -118,9 +91,7 @@ export function TextPage({
       {boxes.map((box, index) => (
         <Column
           key={index}
-          ref={(handle) => {
-            editors.current[index] = handle;
-          }}
+          ref={bar.bindEditor(index)}
           value={columns[index] ?? EMPTY_COLUMN}
           readOnly={locked}
           lines={lines}
@@ -137,7 +108,7 @@ export function TextPage({
             onChange?.(next);
           }}
           onFull={(full) => setColumnFull(index, full)}
-          onSelection={(at) => setColumnSelection(index, at)}
+          onSelection={(at) => bar.setColumnSelection(index, at)}
         />
       ))}
       {!locked &&
@@ -153,12 +124,12 @@ export function TextPage({
               </div>
             ),
         )}
-      {!locked && selection && (
+      {!locked && bar.selection && (
         <FormatBar
-          anchor={selection.anchor}
+          anchor={bar.selection.anchor}
           bounds={{ width: px(mm.width), height: px(mm.height) }}
-          format={selection.format}
-          onAction={(action) => editors.current[selection.column]?.format(action)}
+          format={bar.selection.format}
+          onAction={bar.onAction}
         />
       )}
     </div>

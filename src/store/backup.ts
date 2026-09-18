@@ -1,18 +1,20 @@
 // The backup file: one notebook as JSON, images inlined as data URLs.
 //
 // Versions: 1 had plain-string columns; 2 (text formatting) has { text, doc } columns;
-// 3 (notebook cover) adds the cover. Older files are still read: version 1 columns are
-// converted, each line break becoming a paragraph boundary, and a missing cover is the
-// default one.
+// 3 (notebook cover) adds the cover; 4 (zine pages) adds the page kind and the zine
+// block. Older files are still read: version 1 columns are converted, each line break
+// becoming a paragraph boundary, a missing cover is the default one, and a page without
+// a kind is lined.
 
 import { DEFAULT_COVER, isCover } from "../notebook/cover";
 import { columnFromText, isColumn } from "../page/document";
 import { DEFAULT_MARGIN_MM, PAGE_SIZES_MM } from "../page/paper";
+import { isZine } from "../page/zine";
 import type { Column, NotebookDocument } from "./model";
 
 export const BACKUP_FORMAT = "typestill-notebook";
-export const BACKUP_VERSION = 3;
-const READABLE_VERSIONS = new Set([1, 2, 3]);
+export const BACKUP_VERSION = 4;
+const READABLE_VERSIONS = new Set([1, 2, 3, 4]);
 
 export interface BackupFile {
   format: typeof BACKUP_FORMAT;
@@ -93,10 +95,18 @@ export function parseBackup(text: string): NotebookDocument {
     expect(typeof page.id === "string" && page.id.length > 0, "Page has no id");
     expect(typeof page.createdAt === "number", "Page has no createdAt");
     expect(
+      page.kind === undefined || page.kind === "lined" || page.kind === "zine",
+      "Page has an invalid kind",
+    );
+    const zine = page.kind === "zine";
+    expect(!zine || isZine(page.zine), "Page has an invalid zine block");
+    expect(
       Array.isArray(page.columns) &&
-        page.columns.length >= 1 &&
-        page.columns.length <= 2 &&
-        page.columns.every(version === 1 ? (column) => typeof column === "string" : isColumn),
+        (zine
+          ? page.columns.length === 0
+          : page.columns.length >= 1 &&
+            page.columns.length <= 2 &&
+            page.columns.every(version === 1 ? (column) => typeof column === "string" : isColumn)),
       "Page has invalid columns",
     );
     expect(isNumberOrNull(page.divider), "Page has an invalid divider");
@@ -128,6 +138,7 @@ export function parseBackup(text: string): NotebookDocument {
     },
     pages: doc.pages.map((page) => ({
       ...page,
+      kind: page.kind ?? "lined",
       margin: typeof page.margin === "number" ? page.margin : DEFAULT_MARGIN_MM,
       columns: (page.columns as (string | Column)[]).map((column) =>
         typeof column === "string" ? columnFromText(column) : column,
