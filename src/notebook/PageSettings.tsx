@@ -13,6 +13,8 @@ export interface PageSettingsProps {
   count: number;
   /** Whether the page is empty, so its kind can still change. */
   canChangeKind: boolean;
+  /** Whether the Kind row is shown at all: no while zine pages are behind their flag. */
+  showKind: boolean;
   onKindChange: (kind: PageKind) => void;
   /** The notebook's tags; a page carries one or none. */
   tags: readonly Tag[];
@@ -51,6 +53,7 @@ export function PageSettings({
   number,
   count,
   canChangeKind,
+  showKind,
   onKindChange,
   tags,
   onTagChange,
@@ -101,24 +104,26 @@ export function PageSettings({
             <option value={NEW_TAG_VALUE}>New tag…</option>
           </select>
         </label>
-        <div className="page-settings__row page-settings__row--static">
-          <span>Kind</span>
-          <span className="page-settings__segments" role="radiogroup" aria-label="Page kind">
-            {KINDS.map((kind) => (
-              <button
-                key={kind.value}
-                type="button"
-                role="radio"
-                aria-checked={page.kind === kind.value}
-                disabled={!canChangeKind && page.kind !== kind.value}
-                title={canChangeKind ? undefined : "Only an empty page can change kind"}
-                onClick={() => page.kind !== kind.value && onKindChange(kind.value)}
-              >
-                {kind.label}
-              </button>
-            ))}
-          </span>
-        </div>
+        {showKind && (
+          <div className="page-settings__row page-settings__row--static">
+            <span>Kind</span>
+            <span className="page-settings__segments" role="radiogroup" aria-label="Page kind">
+              {KINDS.map((kind) => (
+                <button
+                  key={kind.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={page.kind === kind.value}
+                  disabled={!canChangeKind && page.kind !== kind.value}
+                  title={canChangeKind ? undefined : "Only an empty page can change kind"}
+                  onClick={() => page.kind !== kind.value && onKindChange(kind.value)}
+                >
+                  {kind.label}
+                </button>
+              ))}
+            </span>
+          </div>
+        )}
         <label className="page-settings__row">
           <input
             type="checkbox"

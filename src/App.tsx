@@ -11,6 +11,7 @@ import { SettingsDialog } from "./notebook/SettingsDialog";
 import { Shelf } from "./notebook/Shelf";
 import { WelcomeDialog } from "./notebook/WelcomeDialog";
 import { useNotebookSession } from "./notebook/useNotebookSession";
+import { features } from "./features";
 import { isBlankDocument } from "./page/document";
 import { canAddPage } from "./notebook/pageRules";
 import { TextPage } from "./page/TextPage";
@@ -131,12 +132,15 @@ export function App() {
     loaded ? loaded.saveThumbnail : () => undefined,
   );
 
-  // The shell's shortcuts mirror the app bar: page navigation, new page, the panel.
+  // The shell's shortcuts mirror the app bar: page navigation, new page, the panel. With
+  // zine pages behind their flag the zine chord stays claimed but does nothing.
   useShortcuts({
     previousPage: () => loaded?.goTo(loaded.index - 1),
     nextPage: () => loaded?.goTo(loaded.index + 1),
     newLinedPage: () => void loaded?.newPage("lined"),
-    newZinePage: () => void loaded?.newPage("zine"),
+    newZinePage: () => {
+      if (features.zinePages) void loaded?.newPage("zine");
+    },
     togglePanel: () => setPanelOpen((open) => !open),
   });
 
@@ -555,6 +559,7 @@ export function App() {
                     nextShortcut={shortcutLabel("nextPage")}
                     canAdd={canAdd}
                     addShortcut={shortcutLabel("newLinedPage")}
+                    zinePages={features.zinePages}
                     onAdd={(kind) => void session.newPage(kind)}
                     onDelete={() => void deletePage()}
                   >
@@ -563,6 +568,7 @@ export function App() {
                       number={index + 1}
                       count={pages.length}
                       canChangeKind={pageIsEmpty}
+                      showKind={features.zinePages}
                       onKindChange={(kind) => void session.setKind(kind)}
                       tags={notebook.tags}
                       onTagChange={session.setPageTag}
@@ -614,16 +620,18 @@ export function App() {
               scheme={scheme}
             />
           )}
-          <div className="panel__mode">
-            <IconButton
-              label={panelMode === "pool" ? "Show canvas" : "Show media pool"}
-              onClick={() =>
-                setPeek({ pageId: page.id, mode: panelMode === "pool" ? "canvas" : "pool" })
-              }
-            >
-              {panelMode === "pool" ? <Pencil /> : <Images />}
-            </IconButton>
-          </div>
+          {features.zinePages && (
+            <div className="panel__mode">
+              <IconButton
+                label={panelMode === "pool" ? "Show canvas" : "Show media pool"}
+                onClick={() =>
+                  setPeek({ pageId: page.id, mode: panelMode === "pool" ? "canvas" : "pool" })
+                }
+              >
+                {panelMode === "pool" ? <Pencil /> : <Images />}
+              </IconButton>
+            </div>
+          )}
         </Panel>
       }
     />

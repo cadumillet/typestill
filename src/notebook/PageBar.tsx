@@ -19,6 +19,8 @@ export interface PageBarProps {
   /** Whether a page may be added now (the one-page rule); off otherwise, with a hint. */
   canAdd: boolean;
   addShortcut?: string;
+  /** Whether zine pages can be made: a lined-or-zine menu, else a plain lined-page button. */
+  zinePages: boolean;
   onAdd: (kind: PageKind) => void;
   /** Delete the open page: the caller asks first. */
   onDelete: () => void;
@@ -28,7 +30,8 @@ export interface PageBarProps {
 
 /**
  * The bar under the page or spread, centred on it like a caption: previous, the page
- * counter, next; then new page (lined or zine), page settings and delete page. Its
+ * counter, next; then new page (lined or zine, or lined only while zine pages are behind
+ * their flag), page settings and delete page. Its
  * popovers and tooltips open upwards, over the page, since the bar sits at the bottom
  * of the desk.
  */
@@ -40,6 +43,7 @@ export function PageBar({
   nextShortcut,
   canAdd,
   addShortcut,
+  zinePages,
   onAdd,
   onDelete,
   children,
@@ -66,19 +70,30 @@ export function PageBar({
         <ChevronRight />
       </IconButton>
       <span className="page-bar__gap" />
-      <Menu
-        label="New page"
-        shortcut={addShortcut}
-        align="left"
-        off={!canAdd}
-        offReason={ADD_PAGE_HINT}
-        items={[
-          { label: "Lined page", onSelect: () => onAdd("lined") },
-          { label: "Zine page", onSelect: () => onAdd("zine") },
-        ]}
-      >
-        <NewPage />
-      </Menu>
+      {zinePages ? (
+        <Menu
+          label="New page"
+          shortcut={addShortcut}
+          align="left"
+          off={!canAdd}
+          offReason={ADD_PAGE_HINT}
+          items={[
+            { label: "Lined page", onSelect: () => onAdd("lined") },
+            { label: "Zine page", onSelect: () => onAdd("zine") },
+          ]}
+        >
+          <NewPage />
+        </Menu>
+      ) : (
+        <IconButton
+          label={canAdd ? "New page" : `New page (${ADD_PAGE_HINT})`}
+          shortcut={canAdd ? addShortcut : undefined}
+          off={!canAdd}
+          onClick={() => onAdd("lined")}
+        >
+          <NewPage />
+        </IconButton>
+      )}
       {children}
       <IconButton label="Delete page" onClick={onDelete}>
         <Trash />
