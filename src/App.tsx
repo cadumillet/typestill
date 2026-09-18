@@ -547,7 +547,6 @@ export function App() {
                               files={session.files}
                               preview={preview}
                               readOnly={!isOpen}
-                              number={shownPage.showPageNumber ? i + 1 : null}
                               side={pageSide(sides, i)}
                               {...drawingProps}
                               onChange={session.setZine}
@@ -567,7 +566,6 @@ export function App() {
                               divider={shownPage.divider}
                               preview={preview}
                               readOnly={!isOpen}
-                              number={shownPage.showPageNumber ? i + 1 : null}
                               side={pageSide(sides, i)}
                               files={session.files}
                               {...drawingProps}
@@ -614,7 +612,6 @@ export function App() {
                       sections={notebook.sections}
                       onSectionChange={session.setPageSection}
                       onNewSection={() => void newSection()}
-                      onMarksChange={session.setPageMarks}
                       onMarginChange={(margin) => void session.setPageMargin(margin)}
                       twoColumns={page.divider !== null}
                       onTwoColumnsChange={setTwoColumns}

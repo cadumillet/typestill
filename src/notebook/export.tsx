@@ -1,6 +1,6 @@
 // Exports: PDF of every page, PNG of one page (and, dormant, PNG of the canvas). Pages
 // are rendered off screen at zoom 1 in preview mode (no rules, margin or divider; the
-// page number and the drawing stay; no side, so the paper is rectangular) through the
+// drawing stays; no side, so the paper is rectangular) through the
 // same renderer as thumbnails, at 2x, so they wrap exactly as on screen; the PDF places
 // each image on a page of the paper's physical size.
 
@@ -31,7 +31,7 @@ export interface ExportSource {
   files: Record<string, BinaryFileData>;
 }
 
-function pageElement(page: Page, index: number, source: ExportSource, theme: Theme) {
+function pageElement(page: Page, source: ExportSource, theme: Theme) {
   const { notebook } = source;
   const common = {
     size: notebook.pageSize,
@@ -40,7 +40,6 @@ function pageElement(page: Page, index: number, source: ExportSource, theme: The
     zoom: 1,
     preview: true,
     readOnly: true,
-    number: page.showPageNumber ? index + 1 : null,
     drawing: page.drawing,
     drawingLayer: page.drawingLayer,
   };
@@ -94,7 +93,7 @@ async function renderPages(
   const root = createRoot(host);
   try {
     for (const index of indexes) {
-      flushSync(() => root.render(pageElement(pages[index], index, source, theme)));
+      flushSync(() => root.render(pageElement(pages[index], source, theme)));
       await settle();
       const element = host.querySelector<HTMLElement>(".text-page");
       if (!element) throw new Error("The page did not render");

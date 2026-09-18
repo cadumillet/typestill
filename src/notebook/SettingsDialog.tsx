@@ -69,7 +69,6 @@ export function SettingsDialog({
   const [appearance, setAppearance] = useState(currentAppearance);
   const [pageSize, setPageSize] = useState(notebook.pageSize);
   const [orientation, setOrientation] = useState(notebook.orientation);
-  const [showPageNumber, setShowPageNumber] = useState(notebook.defaults.showPageNumber);
   const [margin, setMargin] = useState(notebook.defaults.margin);
   const [name, setName] = useState(notebook.name);
   const [color, setColor] = useState(notebook.cover.color);
@@ -88,7 +87,6 @@ export function SettingsDialog({
       setAppearance(currentAppearance);
       setPageSize(notebook.pageSize);
       setOrientation(notebook.orientation);
-      setShowPageNumber(notebook.defaults.showPageNumber);
       setMargin(notebook.defaults.margin);
       setName(notebook.name);
       setColor(notebook.cover.color);
@@ -126,7 +124,7 @@ export function SettingsDialog({
         themeId,
         pageSize,
         orientation,
-        defaults: { ...notebook.defaults, showPageNumber, margin: clampMargin(margin) },
+        defaults: { ...notebook.defaults, margin: clampMargin(margin) },
       },
       appearance,
     );
@@ -255,17 +253,7 @@ export function SettingsDialog({
               mm
             </span>
           </label>
-          <label className="settings__check">
-            <input
-              type="checkbox"
-              checked={showPageNumber}
-              onChange={(event) => setShowPageNumber(event.target.checked)}
-            />
-            Page number
-          </label>
-          <p className="settings__note">
-            What a new page starts with; each page has its own toggle in page settings.
-          </p>
+          <p className="settings__note">What a new page starts with.</p>
         </fieldset>
         <fieldset className="settings__group">
           <legend>Sections</legend>

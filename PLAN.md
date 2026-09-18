@@ -344,7 +344,7 @@ The pivot that makes the app simple: the side canvas goes, the page is the canva
 
 ### Phase 9: the owner's look at the MVP branch (specified 2026-09-18)
 Built on the same branch as Phases 7 and 8, before the one pull request is merged. No format changes: fields that leave the UI stay stored and are listed in section 8.
-- The page number leaves the page: `PageMarks` no longer rendered, the per-page toggle and the notebook default gone from the UI, exports without numbers for now; numbering exports is on the Later list
+- The page number leaves the page: `PageMarks` no longer rendered, the per-page toggle and the notebook default gone from the UI, exports without numbers for now; numbering exports is on the Later list (done)
 - The page bar regrouped: previous, the counter, next centred on the page, the counter a button with the section's dot that opens the notebook box on the map; new page and delete page at the left end; the layout toggle (two columns, lined pages) and drawing mode at the right end
 - The notebook box: one dialog (⌥M, the app bar's notebook button, the counter) with the map, the Sections group, the This page group (section with "New section…", layout, kind behind the flag, created) and the notebook groups (name and cover, paper, theme, new-page defaults, appearance, storage), applying changes at once with no Save; it replaces the settings dialog, the page settings popover and the rail; the desk is the page alone; the margin line becomes a notebook setting every page follows
 - Drawing tools trimmed: the over-or-under layer control goes (`drawingLayer` stays stored, always "over"); the dimming controls are named "Text" and "Rules"

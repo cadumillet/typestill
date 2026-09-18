@@ -21,7 +21,7 @@ export interface RenderOptions {
 }
 
 /** Rules a page render needs: the page styles, the fonts, and the colour tokens. */
-const PAGE_RULE = /\.(text-page|zine-|page-marks)|@font-face|:root/;
+const PAGE_RULE = /\.(text-page|zine-)|@font-face|:root/;
 
 /** The CSS rules of the app's stylesheets that concern pages, as text. */
 function collectCss(): string {
@@ -60,10 +60,10 @@ function fontAsDataUrl(url: string): Promise<string> {
   return pending;
 }
 
-/** Font family names a page uses: the page's own, its columns' and its page number's. */
+/** Font family names a page uses: the page's own and its columns'. */
 function fontFamiliesOf(page: HTMLElement): Set<string> {
   const families = new Set<string>();
-  const parts = page.querySelectorAll<HTMLElement>(".text-page__column, .page-marks__number");
+  const parts = page.querySelectorAll<HTMLElement>(".text-page__column");
   for (const element of [page, ...parts]) {
     const first = getComputedStyle(element).fontFamily.split(",")[0];
     families.add(first.trim().replace(/^["']|["']$/g, ""));

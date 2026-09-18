@@ -21,8 +21,6 @@ export interface PageSettingsProps {
   onSectionChange: (sectionId: string) => void;
   /** "New section…" was picked: the caller asks for a name and moves the page there. */
   onNewSection: () => void;
-  /** The page number toggle. */
-  onMarksChange: (patch: Partial<Pick<Page, "showPageNumber">>) => void;
   /** Lined pages: the margin line offset in mm. */
   onMarginChange: (margin: number) => void;
   /** Lined pages. */
@@ -58,7 +56,6 @@ export function PageSettings({
   sections,
   onSectionChange,
   onNewSection,
-  onMarksChange,
   onMarginChange,
   twoColumns,
   onTwoColumnsChange,
@@ -123,14 +120,6 @@ export function PageSettings({
             </span>
           </div>
         )}
-        <label className="page-settings__row">
-          <input
-            type="checkbox"
-            checked={page.showPageNumber}
-            onChange={(event) => onMarksChange({ showPageNumber: event.target.checked })}
-          />
-          Page number
-        </label>
         {page.kind === "lined" && (
           <>
             <label className="page-settings__row page-settings__row--field">

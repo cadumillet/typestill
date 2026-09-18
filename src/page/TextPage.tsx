@@ -10,7 +10,6 @@ import type { DrawingLayer } from "../store/model";
 import { DrawingStill } from "./DrawingStill";
 import { drawingModeStyle, type DrawingAids } from "./drawingMode";
 import { FormatBar } from "./FormatBar";
-import { PageMarks } from "./PageMarks";
 import {
   SCENE_PX_PER_MM,
   columnBoxes,
@@ -42,8 +41,6 @@ export interface TextPageProps {
   /** Preview: no rules, margin or divider, and no editing. */
   preview?: boolean;
   readOnly?: boolean;
-  /** The page number at the bottom centre, when the page shows one. */
-  number?: number | null;
   /** The page's side, which rounds its outer corners; none for a rectangular render. */
   side?: PageSide;
   /** The page's drawing, shown as a still over or under the text; empty for none. */
@@ -82,7 +79,6 @@ export function TextPage({
   divider,
   preview = false,
   readOnly = false,
-  number = null,
   side,
   drawing = NO_ELEMENTS,
   drawingLayer = "over",
@@ -238,7 +234,6 @@ export function TextPage({
               </div>
             ),
         )}
-      <PageMarks number={number} zoom={zoom} />
       {!locked && bar.selection && (
         <FormatBar
           anchor={bar.selection.anchor}

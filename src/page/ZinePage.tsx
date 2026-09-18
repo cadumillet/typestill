@@ -18,7 +18,6 @@ import type { DrawingLayer } from "../store/model";
 import { DrawingStill } from "./DrawingStill";
 import { drawingModeStyle, type DrawingAids } from "./drawingMode";
 import { FormatBar } from "./FormatBar";
-import { PageMarks } from "./PageMarks";
 import { mmToCssPx, pageMm, type Orientation, type PageSize } from "./paper";
 import { pageLookStyle } from "./pageLook";
 import type { PageSide } from "./sides";
@@ -67,8 +66,6 @@ export interface ZinePageProps {
   /** Preview: placeholders hidden, no editing. */
   preview?: boolean;
   readOnly?: boolean;
-  /** The page number at the bottom centre, when the page shows one. */
-  number?: number | null;
   /** The page's side, which rounds its outer corners; none for a rectangular render. */
   side?: PageSide;
   /** The page's drawing, shown as a still over or under the blocks; empty for none. */
@@ -117,7 +114,6 @@ export function ZinePage({
   files,
   preview = false,
   readOnly = false,
-  number = null,
   side,
   drawing = NO_ELEMENTS,
   drawingLayer = "over",
@@ -446,7 +442,6 @@ export function ZinePage({
             onAdd={(kind) => add({ row: options.beside!, side: edge }, kind)}
           />
         ))}
-      <PageMarks number={number} zoom={zoom} />
       {!locked && bar.selection && (
         <FormatBar
           anchor={bar.selection.anchor}
