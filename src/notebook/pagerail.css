@@ -56,6 +56,8 @@
   display: none;
 }
 
+/* A page's square is a light tint of its section's colour (--section, set by the rail)
+   over the desk; the open page's is the colour itself. */
 .page-rail__square {
   display: block;
   width: 12px;
@@ -63,19 +65,17 @@
   padding: 0;
   border: 0;
   border-radius: 3px;
+  background: color-mix(in srgb, var(--section) 35%, var(--desk));
   cursor: pointer;
-  transition: filter 120ms;
+  transition: background 120ms;
 }
 
 .page-rail__square:hover {
-  filter: brightness(1.15);
+  background: color-mix(in srgb, var(--section) 60%, var(--desk));
 }
 
-/* The open page's square keeps its section's colour and gets a ring. */
 .page-rail__square[aria-current="page"] {
-  box-shadow:
-    0 0 0 2px var(--desk),
-    0 0 0 3.5px var(--ink);
+  background: var(--section);
 }
 
 .page-rail__square:focus-visible,

@@ -21,6 +21,8 @@ const press = (code: string, mods: Partial<ShortcutKey> = {}): ShortcutKey => ({
 const alt = (code: string, mods: Partial<ShortcutKey> = {}) =>
   press(code, { altKey: true, ...mods });
 
+const shiftTab = (mods: Partial<ShortcutKey> = {}) => press("Tab", { shiftKey: true, ...mods });
+
 const focus = (patch: Partial<FocusContext> = {}): FocusContext => ({
   inEditor: false,
   inNativeField: false,
@@ -30,24 +32,26 @@ const focus = (patch: Partial<FocusContext> = {}): FocusContext => ({
 });
 
 describe("shortcutFor", () => {
-  it("maps Alt chords to the page and drawing actions", () => {
+  it("maps Alt chords to the page actions and Shift+Tab to drawing mode", () => {
     expect(shortcutFor(alt("ArrowUp"), focus())).toBe("previousPage");
     expect(shortcutFor(alt("ArrowDown"), focus())).toBe("nextPage");
     expect(shortcutFor(alt("KeyN"), focus())).toBe("newLinedPage");
     expect(shortcutFor(alt("KeyN", { shiftKey: true }), focus())).toBe("newZinePage");
-    expect(shortcutFor(alt("KeyD"), focus())).toBe("drawingMode");
+    expect(shortcutFor(shiftTab(), focus())).toBe("drawingMode");
   });
 
   it("matches letters by physical key, since Option changes the character on a Mac", () => {
     expect(shortcutFor(alt("KeyN", { key: "Dead" }), focus())).toBe("newLinedPage");
     expect(shortcutFor(alt("KeyN", { key: "˜", shiftKey: true }), focus())).toBe("newZinePage");
-    expect(shortcutFor(alt("KeyD", { key: "∂" }), focus())).toBe("drawingMode");
+    expect(shortcutFor(alt("KeyN", { key: "Dead" }), focus({ inEditor: true }))).toBe(
+      "newLinedPage",
+    );
   });
 
   it("works with the caret in the page editor and with nothing focused", () => {
     expect(shortcutFor(alt("ArrowDown"), focus({ inEditor: true }))).toBe("nextPage");
     expect(shortcutFor(alt("KeyN"), focus({ inEditor: true }))).toBe("newLinedPage");
-    expect(shortcutFor(alt("KeyD"), focus())).toBe("drawingMode");
+    expect(shortcutFor(shiftTab(), focus({ inEditor: true }))).toBe("drawingMode");
   });
 
   it("stays out of native fields, dialogs and Excalidraw text editing", () => {
@@ -59,7 +63,7 @@ describe("shortcutFor", () => {
     ]) {
       expect(shortcutFor(alt("ArrowDown"), context)).toBeNull();
       expect(shortcutFor(alt("KeyN"), context)).toBeNull();
-      expect(shortcutFor(alt("KeyD"), context)).toBeNull();
+      expect(shortcutFor(shiftTab(), context)).toBeNull();
     }
   });
 
@@ -83,7 +87,9 @@ describe("shortcutFor", () => {
     expect(shortcutFor(alt("ArrowLeft"), focus())).toBeNull();
     expect(shortcutFor(alt("ArrowRight"), focus())).toBeNull();
     expect(shortcutFor(alt("ArrowUp", { shiftKey: true }), focus())).toBeNull();
-    expect(shortcutFor(alt("KeyD", { shiftKey: true }), focus())).toBeNull();
+    expect(shortcutFor(press("Tab"), focus())).toBeNull();
+    expect(shortcutFor(shiftTab({ altKey: true }), focus())).toBeNull();
+    expect(shortcutFor(press("KeyN"), focus())).toBeNull();
     expect(shortcutFor(alt("Backslash"), focus())).toBeNull();
     expect(shortcutFor(alt("KeyP"), focus())).toBeNull();
   });
@@ -105,10 +111,10 @@ describe("shortcut labels", () => {
     expect(shortcutLabel("nextPage", true)).toBe("⌥↓");
     expect(shortcutLabel("newLinedPage", true)).toBe("⌥N");
     expect(shortcutLabel("newZinePage", true)).toBe("⌥⇧N");
-    expect(shortcutLabel("drawingMode", true)).toBe("⌥D");
+    expect(shortcutLabel("drawingMode", true)).toBe("⇧⇥");
     expect(shortcutLabel("previousPage", false)).toBe("Alt+↑");
     expect(shortcutLabel("newZinePage", false)).toBe("Alt+Shift+N");
-    expect(shortcutLabel("drawingMode", false)).toBe("Alt+D");
+    expect(shortcutLabel("drawingMode", false)).toBe("Shift+Tab");
   });
 
   it("labels the format bar's Cmd chords the same way", () => {

@@ -207,8 +207,9 @@ export function App() {
   const panelOpen = page.kind === "zine" && poolPageId === page.id && !drawingMode;
   // The notebook's sides (src/page/sides.ts): with the panel closed the desk shows the
   // spread the open page belongs to, a left-hand and a right-hand side touching at the
-  // gutter, like a notebook lying open. The other side may be a page, a section's
-  // divider leaf, a blank back or the inside of a cover, the last three drawn as slabs.
+  // gutter, like a notebook lying open. The other side may be a page (dimmed until it is
+  // clicked), a section's divider leaf, a blank back or the inside of a cover, the last
+  // three drawn as slabs.
   const sides = sideSequence(notebook.sections, pages);
   const sideIndex = sideIndexOfPage(sides, index);
   const spread = !panelOpen;
@@ -485,20 +486,29 @@ export function App() {
                       if (shown.kind !== "page") {
                         const side = slot === 0 ? "left" : "right";
                         const blank = shown.kind === "blank";
+                        // A divider's front carries the section's colour and name; its
+                        // back and the inside of a cover are plain surfaces.
+                        const plain =
+                          shown.kind === "cover" ||
+                          (shown.kind === "divider" && shown.face === "back");
+                        const kind = plain
+                          ? " desk__slab--plain"
+                          : blank && theme.page.border
+                            ? " desk__slab--blank"
+                            : "";
                         return (
                           <div
                             key={`slab-${side}`}
-                            className={`desk__slab desk__slab--${side}${blank && theme.page.border ? " desk__slab--blank" : ""}`}
+                            className={`desk__slab desk__slab--${side}${kind}`}
                             style={
                               {
                                 width: geometry.width * fit.zoom,
                                 height: fit.height,
-                                background:
-                                  shown.kind === "cover"
-                                    ? notebook.cover.color
-                                    : blank
-                                      ? theme.colours.paper
-                                      : shown.section.color,
+                                background: plain
+                                  ? undefined
+                                  : blank
+                                    ? theme.colours.paper
+                                    : shown.section.color,
                                 "--page-corner": `${cornerPx}px`,
                               } as CSSProperties
                             }

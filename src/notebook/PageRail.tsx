@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { pageSide, type Side } from "../page/sides";
 import type { Page, Section } from "../store/model";
 import { sectionRuns } from "./sections";
@@ -41,7 +41,8 @@ const THUMBNAIL_CORNER = "4px";
 /**
  * The left rail: one column per section, side by side in section order, each a tab in
  * the section's colour (its name on hover) over a stack of small squares, one per page
- * of the section in order, in the section's colour, the open page's ringed. Hovering a
+ * of the section in order, the open page's in the section's colour and the others in a
+ * light tint of it. Hovering a
  * square shows its label ("Page 7 · Work") and, once one has been rendered, a thumbnail
  * of the page; both float outside the scrolling lists so they are never clipped. A tab
  * opens the section where it was left. The rail holds nothing else: the page controls
@@ -119,7 +120,7 @@ export function PageRail({
                     ref={i === index ? current : undefined}
                     type="button"
                     className="page-rail__square"
-                    style={{ background: section.color }}
+                    style={{ "--section": section.color } as CSSProperties}
                     aria-label={`Page ${i + 1}, ${section.name}`}
                     aria-current={i === index ? "page" : undefined}
                     onPointerEnter={(event) => onEnter(event, `Page ${i + 1} · ${section.name}`, i)}
