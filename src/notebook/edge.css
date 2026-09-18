@@ -13,11 +13,11 @@
   width: 16px;
 }
 
-/* A page's slot: its share of the strip's height, with the line at the slot's top drawn
-   by the pseudo-element, right-aligned so the open page's line grows towards the left. */
+/* A page's slot, with the line at the slot's top drawn by the pseudo-element, pinned to
+   the left so the open page's line grows towards the right, towards the page. */
 .edge__page {
   position: absolute;
-  right: 0;
+  left: 0;
   width: 16px;
   padding: 0;
   border: 0;
@@ -29,7 +29,7 @@
   content: "";
   position: absolute;
   top: 0;
-  right: 0;
+  left: 0;
   width: 8px;
   height: var(--edge-line);
   background: color-mix(in srgb, var(--section) 35%, var(--desk));

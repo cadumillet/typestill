@@ -25,8 +25,10 @@ interface Hover {
   top: number;
 }
 
-/** Below this spacing the lines are 1px and pack; above it they are 2px. */
-const PACKED_BELOW_PX = 3;
+/** The pitch between lines: close together from the top, like the pages of a closed book. */
+const PITCH_PX = 4;
+/** Below this pitch the lines are 1px; at it and above they are 2px. */
+const THIN_BELOW_PX = 3;
 /** Rough heights of the hover box, with and without a thumbnail, for keeping it in view. */
 const HOVER_HEIGHT = 230;
 const LABEL_HEIGHT = 26;
@@ -36,10 +38,11 @@ const THUMBNAIL_CORNER = "4px";
 /**
  * The edge, an experiment behind the `edge` flag: the notebook seen from its fore-edge,
  * a strip as tall as the page to its left with one thin line per page in notebook order,
- * top to bottom, evenly spaced over the strip's height. Each line is a tint of its
- * section's colour; the open page's is the full colour and the full width of the strip,
- * the others half as wide. A section change leaves one empty slot, so the sections read
- * as bands. Hovering a line shows "Page 7 · Work" and the page's thumbnail beside the
+ * top to bottom, close together from the top at a fixed pitch (packed tighter only when
+ * the notebook would not fit the strip). Each line is a tint of its section's colour,
+ * pinned to the left; the open page's is the full colour and grows to the strip's full
+ * width, the others half as wide. A section change leaves one empty slot, so the
+ * sections read as bands. Hovering a line shows "Page 7 · Work" and the page's thumbnail beside the
  * strip; clicking opens the page. Nothing else: no tabs, no drag.
  */
 export function Edge({
@@ -56,13 +59,14 @@ export function Edge({
   const [hover, setHover] = useState<Hover | null>(null);
   const colours = new Map(sections.map((section) => [section.id, section.color]));
 
-  // One slot per page plus one per change of section; the slots share the height.
+  // One slot per page plus one per change of section, at the pitch from the top; a
+  // notebook too long for the strip packs its lines tighter so it still fits.
   const slots = pages.reduce(
     (count, page, i) => count + (i > 0 && pages[i - 1].sectionId !== page.sectionId ? 2 : 1),
     0,
   );
-  const spacing = slots > 0 ? height / slots : height;
-  const thickness = spacing < PACKED_BELOW_PX ? 1 : 2;
+  const spacing = slots > 0 ? Math.min(PITCH_PX, height / slots) : PITCH_PX;
+  const thickness = spacing < THIN_BELOW_PX ? 1 : 2;
   /** Which slot each page's line sits in. */
   const slotOf: number[] = [];
   pages.forEach((page, i) => {
