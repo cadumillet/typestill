@@ -1,8 +1,9 @@
 import type { BinaryFileData } from "@excalidraw/excalidraw/types";
 import { useRef, useState, type ClipboardEvent, type DragEvent } from "react";
+import { Cross } from "../shell/icons";
 import type { Page } from "../store/model";
 import { imageFilesOf } from "./images";
-import { POOL_DRAG_TYPE, describeUsage, isUsed, poolEntries } from "./pool";
+import { POOL_DRAG_TYPE, describeUsage, isUsed, poolEntries, usageBadge } from "./pool";
 import "./mediapool.css";
 
 export interface MediaPoolProps {
@@ -14,13 +15,16 @@ export interface MediaPoolProps {
   onAddImages: (files: File[]) => void;
   /** An image clicked while a cell is chosen on the open zine page. */
   onPlace: (fileId: string) => void;
+  /** Delete an unused image: the caller asks first. */
   onDelete: (fileId: string) => void;
 }
 
 /**
- * The notebook's media pool: every image, newest first, with where it is used. Images
- * come in by drop, paste or the file picker; they leave by drag (to a cell or the canvas)
- * or by deletion, which is refused while the image is in use anywhere.
+ * The notebook's media pool, like a phone's photo library: square thumbnails edge to
+ * edge, newest first, each with a badge saying where it is used. Images come in by
+ * drop, paste or the file picker; they leave by drag (to a cell or the canvas) or, when
+ * unused, by the delete control that appears on hover. An image in use anywhere cannot
+ * be deleted.
  */
 export function MediaPool({
   files,
@@ -92,6 +96,8 @@ export function MediaPool({
         <ul className="media-pool__grid">
           {entries.map((entry) => {
             const used = isUsed(entry.usage);
+            const badge = usageBadge(entry.usage);
+            const where = used ? `Used on ${describeUsage(entry.usage)}` : "Not used yet";
             return (
               <li
                 key={entry.id}
@@ -105,25 +111,23 @@ export function MediaPool({
                 <button
                   type="button"
                   className="media-pool__image"
-                  title={canPlace ? "Place in the chosen cell" : "Drag onto a cell or the canvas"}
+                  title={`${where}. ${canPlace ? "Click to place in the chosen cell" : "Drag onto a cell or the canvas"}`}
                   onClick={() => canPlace && onPlace(entry.id)}
                 >
                   <img src={entry.data.dataURL} alt="" draggable={false} />
                 </button>
-                <div className="media-pool__meta">
-                  <span className={`media-pool__usage${used ? "" : " is-unused"}`}>
-                    {describeUsage(entry.usage)}
-                  </span>
+                {badge && <span className="media-pool__badge">{badge}</span>}
+                {!used && (
                   <button
                     type="button"
                     className="media-pool__delete"
-                    disabled={used}
-                    title={used ? "In use; replace it on the page or canvas first" : "Delete"}
+                    aria-label="Delete image"
+                    title="Delete this image from the notebook"
                     onClick={() => onDelete(entry.id)}
                   >
-                    Delete
+                    <Cross />
                   </button>
-                </div>
+                )}
               </li>
             );
           })}

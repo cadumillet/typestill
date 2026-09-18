@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { emptyZine } from "../page/zine";
 import { fileData } from "../store/fixtures";
 import type { Page } from "../store/model";
-import { describeUsage, fileUsage, isUsed, poolEntries } from "./pool";
+import { describeUsage, fileUsage, isUsed, poolEntries, usageBadge } from "./pool";
 
 const page = (id: string, images: (string | null)[] = []): Page => ({
   id,
@@ -49,7 +49,16 @@ describe("media pool", () => {
     const entries = poolEntries(files, [page("a", ["f1"])], ["f3"]);
     expect(entries.map((e) => e.id)).toEqual(["f2", "f3", "f1"]);
     expect(entries.map((e) => isUsed(e.usage))).toEqual([false, true, true]);
-    expect(entries.map((e) => describeUsage(e.usage))).toEqual(["unused", "canvas", "p. 1"]);
-    expect(describeUsage({ pages: [2, 5], canvas: true })).toBe("p. 2, 5 · canvas");
+    expect(entries.map((e) => usageBadge(e.usage))).toEqual([null, "canvas", "p. 1"]);
+  });
+
+  it("badges usage briefly and describes it in words", () => {
+    expect(usageBadge({ pages: [2], canvas: false })).toBe("p. 2");
+    expect(usageBadge({ pages: [2, 5, 9], canvas: false })).toBe("3 pages");
+    expect(usageBadge({ pages: [2, 5], canvas: true })).toBe("2 pages · canvas");
+    expect(usageBadge({ pages: [], canvas: false })).toBeNull();
+    expect(describeUsage({ pages: [2, 5], canvas: true })).toBe("pages 2, 5 and the canvas");
+    expect(describeUsage({ pages: [3], canvas: false })).toBe("page 3");
+    expect(describeUsage({ pages: [], canvas: false })).toBe("unused");
   });
 });
