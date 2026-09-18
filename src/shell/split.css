@@ -41,7 +41,7 @@
 
 .split__handle:hover::after,
 .split.is-dragging .split__handle::after {
-  background: #c9c4e6;
+  background: var(--accent-line);
 }
 
 .split.is-dragging {

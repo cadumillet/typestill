@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { PAGE_SIZES_MM, type Orientation, type PageSize } from "../page/paper";
 import type { Notebook } from "../store/model";
-import { THEMES } from "../theme/themes";
+import { APPEARANCES, resolveAppearance, type Appearance } from "../shell/appearance";
+import { THEMES, getTheme, isDarkTheme } from "../theme/themes";
 import { COVER_COLORS, coverFromFields } from "./cover";
 import { CoverSwatch } from "./CoverSwatch";
 import "./settings.css";
@@ -11,17 +12,32 @@ export type NotebookSettings = Pick<Notebook, "cover" | "themeId" | "pageSize" |
 export interface SettingsDialogProps {
   open: boolean;
   notebook: Notebook;
-  onSave: (settings: NotebookSettings) => void | Promise<void>;
+  /** The app appearance, which is not a notebook setting but is chosen here too. */
+  appearance: Appearance;
+  onSave: (settings: NotebookSettings, appearance: Appearance) => void | Promise<void>;
   onClose: () => void;
 }
+
+const APPEARANCE_LABELS: Record<Appearance, string> = {
+  light: "Light",
+  dark: "Dark",
+  system: "System",
+};
 
 const PAGE_SIZES = Object.keys(PAGE_SIZES_MM) as PageSize[];
 const ORIENTATIONS: Orientation[] = ["portrait", "landscape"];
 
 /** Notebook settings: the cover, the theme, and the page size and orientation of every page. */
-export function SettingsDialog({ open, notebook, onSave, onClose }: SettingsDialogProps) {
+export function SettingsDialog({
+  open,
+  notebook,
+  appearance: currentAppearance,
+  onSave,
+  onClose,
+}: SettingsDialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const [themeId, setThemeId] = useState(notebook.themeId);
+  const [appearance, setAppearance] = useState(currentAppearance);
   const [pageSize, setPageSize] = useState(notebook.pageSize);
   const [orientation, setOrientation] = useState(notebook.orientation);
   const [color, setColor] = useState(notebook.cover.color);
@@ -35,6 +51,7 @@ export function SettingsDialog({ open, notebook, onSave, onClose }: SettingsDial
     if (!dialog) return;
     if (open && !dialog.open) {
       setThemeId(notebook.themeId);
+      setAppearance(currentAppearance);
       setPageSize(notebook.pageSize);
       setOrientation(notebook.orientation);
       setColor(notebook.cover.color);
@@ -44,11 +61,26 @@ export function SettingsDialog({ open, notebook, onSave, onClose }: SettingsDial
     } else if (!open && dialog.open) {
       dialog.close();
     }
-  }, [open, notebook.themeId, notebook.pageSize, notebook.orientation, notebook.cover]);
+  }, [
+    open,
+    currentAppearance,
+    notebook.themeId,
+    notebook.pageSize,
+    notebook.orientation,
+    notebook.cover,
+  ]);
+
+  // Picking a dark theme suggests the dark appearance; the two stay separate settings.
+  const pickTheme = (id: string) => {
+    setThemeId(id);
+    if (isDarkTheme(getTheme(id)) && resolveAppearance(appearance) === "light") {
+      setAppearance("dark");
+    }
+  };
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    void onSave({ cover, themeId, pageSize, orientation });
+    void onSave({ cover, themeId, pageSize, orientation }, appearance);
     onClose();
   };
 
@@ -106,7 +138,7 @@ export function SettingsDialog({ open, notebook, onSave, onClose }: SettingsDial
           <legend>Pages</legend>
           <label className="settings__field">
             <span>Theme</span>
-            <select value={themeId} onChange={(event) => setThemeId(event.target.value)}>
+            <select value={themeId} onChange={(event) => pickTheme(event.target.value)}>
               {THEMES.map((theme) => (
                 <option key={theme.id} value={theme.id}>
                   {theme.name}
@@ -143,6 +175,25 @@ export function SettingsDialog({ open, notebook, onSave, onClose }: SettingsDial
           <p className="settings__note">
             Apply to every page. Text keeps its lines; on a smaller page or a theme with a wider
             font, text past the last line stays saved but out of view.
+          </p>
+        </fieldset>
+        <fieldset className="settings__group">
+          <legend>App</legend>
+          <label className="settings__field">
+            <span>Appearance</span>
+            <select
+              value={appearance}
+              onChange={(event) => setAppearance(event.target.value as Appearance)}
+            >
+              {APPEARANCES.map((value) => (
+                <option key={value} value={value}>
+                  {APPEARANCE_LABELS[value]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="settings__note">
+            The chrome and the canvas, in this browser. Pages follow their theme.
           </p>
         </fieldset>
         <div className="settings__actions">

@@ -31,21 +31,21 @@
   padding: 0;
   border: 0;
   border-radius: 3px;
-  background: #e3e1da;
+  background: var(--rail);
   cursor: pointer;
   transition: background 120ms;
 }
 
 .page-rail__square:hover {
-  background: #c9c5ba;
+  background: var(--rail-hover);
 }
 
 .page-rail__square[aria-current="page"] {
-  background: var(--ink, #26241f);
+  background: var(--ink);
 }
 
 .page-rail__square:focus-visible {
-  outline: 2px solid #b9b3e0;
+  outline: 2px solid var(--accent-line);
   outline-offset: 1px;
 }
 
@@ -57,7 +57,7 @@
   z-index: 20;
   padding: 4px 8px;
   border-radius: 6px;
-  background: #1f1e1b;
+  background: var(--tooltip);
   color: #fff;
   font-size: 12px;
   line-height: 1.3;

@@ -12,6 +12,7 @@ import { ZinePage } from "./page/ZinePage";
 import { defaultDivider, fitPage, pageGeometry, pageMm } from "./page/paper";
 import { imagesForLayout, isZineEmpty, type Zine } from "./page/zine";
 import { useElementSize } from "./page/useElementSize";
+import { useAppearance } from "./shell/appearance";
 import { IconButton } from "./shell/IconButton";
 import { Menu } from "./shell/Menu";
 import { Panel } from "./shell/Panel";
@@ -54,6 +55,7 @@ function storeWidth(width: number): void {
 
 export function App() {
   const session = useNotebookSession();
+  const { appearance, scheme, setAppearance } = useAppearance();
   const [preview, setPreview] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
@@ -255,7 +257,11 @@ export function App() {
           <SettingsDialog
             open={settingsOpen}
             notebook={notebook}
-            onSave={session.updateSettings}
+            appearance={appearance}
+            onSave={(settings, nextAppearance) => {
+              setAppearance(nextAppearance);
+              return session.updateSettings(settings);
+            }}
             onClose={() => setSettingsOpen(false)}
           />
           <div className="workspace">
@@ -328,6 +334,7 @@ export function App() {
               onGridChange={session.onGridChange}
               onUnmount={(content) => setCanvasSnapshot({ loadId: session.loadId, content })}
               resolveFile={(id) => session.files[id]}
+              scheme={scheme}
             />
           )}
           <div className="panel__mode">

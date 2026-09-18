@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_THEME_ID, PLAIN, RULED, THEMES, getTheme } from "./themes";
+import { DARK, DEFAULT_THEME_ID, PLAIN, RULED, THEMES, getTheme, isDarkTheme } from "./themes";
 
 describe("built-in themes", () => {
   it("has Ruled as the default and falls back to it", () => {
@@ -23,5 +23,12 @@ describe("built-in themes", () => {
     expect(PLAIN.lined.rules).toBe("none");
     expect(PLAIN.lined.marginLine).toBe(false);
     expect(PLAIN.lined.pitchMm).toBe(RULED.lined.pitchMm);
+  });
+
+  it("knows which themes have dark paper", () => {
+    expect(isDarkTheme(RULED)).toBe(false);
+    expect(isDarkTheme(PLAIN)).toBe(false);
+    expect(isDarkTheme(DARK)).toBe(true);
+    expect(getTheme("dark")).toBe(DARK);
   });
 });

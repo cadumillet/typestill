@@ -16,5 +16,5 @@
 }
 
 .menu__item:hover {
-  background: #f1efe9;
+  background: var(--hover);
 }

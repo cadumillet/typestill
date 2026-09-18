@@ -1,5 +1,5 @@
 // The built-in themes. Ruled is the notebook's original look; Plain is a monospaced
-// typeface on the same grid with nothing drawn.
+// typeface on the same grid with nothing drawn; Dark is Ruled on dark paper.
 
 import { DEFAULT_MARGIN_MM, RULED_GRID, TEXT_LINE_HEIGHT } from "../page/paper";
 import { DEFAULT_ZINE_PADDING_MM, DEFAULT_ZINE_TEXT_ROWS } from "../page/zine";
@@ -67,7 +67,31 @@ export const PLAIN: Theme = {
   page: { border: true, cornerMm: 3 },
 };
 
-export const THEMES: readonly Theme[] = [RULED, PLAIN];
+/** Dark paper, light ink, dimmed rules and margin line; the same five colour picks. */
+export const DARK: Theme = {
+  id: "dark",
+  name: "Dark",
+  lined: { ...grid, font: EXCALIFONT, rules: "lines", marginLine: true },
+  zine: zineDefaults,
+  colours: {
+    paper: "#1e1d1a",
+    ink: "#e8e5dd",
+    rule: "#383b42",
+    margin: "#5c3a3a",
+    divider: "#3a3936",
+  },
+  page: { border: true, cornerMm: 3 },
+};
+
+export const THEMES: readonly Theme[] = [RULED, PLAIN, DARK];
+
+/** Whether a theme's paper is dark, so the app can suggest the dark appearance. */
+export function isDarkTheme(theme: Theme): boolean {
+  const hex = theme.colours.paper.replace("#", "");
+  if (hex.length !== 6) return false;
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b < 128;
+}
 
 export const DEFAULT_THEME_ID = RULED.id;
 

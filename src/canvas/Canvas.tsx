@@ -41,6 +41,8 @@ export interface CanvasProps {
   onUnmount?: (content: CanvasContent) => void;
   /** Looks up an image of the notebook, for one dragged in from the media pool. */
   resolveFile?: (id: string) => BinaryFileData | undefined;
+  /** Excalidraw's own light or dark theme, following the app appearance. */
+  scheme?: "light" | "dark";
 }
 
 /** Widest an image dropped from the pool comes in, in scene px. */
@@ -91,6 +93,7 @@ export function Canvas({
   onViewChange,
   onUnmount,
   resolveFile,
+  scheme = "light",
 }: CanvasProps) {
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const latest = useRef<CanvasContent>(initial);
@@ -204,7 +207,7 @@ export function Canvas({
       <Excalidraw
         excalidrawAPI={handleApi}
         initialData={initialData}
-        theme="light"
+        theme={scheme}
         name="typestill"
         UIOptions={UI_OPTIONS}
         onChange={handleChange}
