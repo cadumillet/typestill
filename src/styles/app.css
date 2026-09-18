@@ -176,6 +176,16 @@ button[aria-pressed="true"] {
   overflow: hidden;
 }
 
+.desk__page {
+  flex: none;
+  display: flex;
+}
+
+/* In a spread, the page that is not open is dimmed a touch until it is clicked. */
+.desk.is-spread .desk__page:not(.is-open) {
+  opacity: 0.85;
+}
+
 .page-nav {
   display: flex;
   align-items: center;

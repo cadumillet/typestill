@@ -8,11 +8,13 @@ export const THUMBNAIL_WIDTH = 240;
 
 /**
  * Keeps the open page's thumbnail fresh: whenever `key` changes (the page, its content
- * or its look), the page element inside `desk` is rendered after a quiet moment and
- * handed to `save`. Rendering reads the live DOM, so it waits for edits to settle.
+ * or its look), the element of page `pageId` inside `desk` is rendered after a quiet
+ * moment and handed to `save`. Rendering reads the live DOM, so it waits for edits to
+ * settle.
  */
 export function usePageThumbnail(
   desk: RefObject<HTMLElement | null>,
+  pageId: string,
   key: string,
   enabled: boolean,
   save: (dataURL: string) => void,
@@ -27,7 +29,9 @@ export function usePageThumbnail(
     if (!enabled) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      const page = desk.current?.querySelector<HTMLElement>(".text-page");
+      const page = desk.current?.querySelector<HTMLElement>(
+        `[data-page-id="${CSS.escape(pageId)}"] .text-page`,
+      );
       if (!page) return;
       renderPageToPng(page, { width: THUMBNAIL_WIDTH })
         .then((dataURL) => {
@@ -39,5 +43,5 @@ export function usePageThumbnail(
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [desk, key, enabled]);
+  }, [desk, pageId, key, enabled]);
 }
