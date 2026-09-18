@@ -212,6 +212,20 @@ export function App() {
     }
   };
 
+  // Deleting is by page id, so it reaches the real notebook whatever the rail's filter.
+  const deletePage = async () => {
+    const what =
+      page.kind === "zine"
+        ? "Its writing is removed from the notebook; its images stay in the media pool."
+        : "Its writing is removed from the notebook.";
+    const only =
+      pages.length === 1
+        ? " A fresh empty page takes its place, since a notebook keeps at least one page."
+        : "";
+    if (!window.confirm(`Delete page ${index + 1}? ${what}${only}`)) return;
+    await session.deletePage();
+  };
+
   const newTag = async () => {
     const name = window.prompt("Name for the new tag", "Tag")?.trim();
     if (!name) return;
@@ -310,6 +324,7 @@ export function App() {
                 twoColumns={page.divider !== null}
                 onTwoColumnsChange={setTwoColumns}
                 onZineChange={changeZine}
+                onDeletePage={() => void deletePage()}
               />
               <Menu
                 label="Notebook"

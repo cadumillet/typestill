@@ -38,6 +38,8 @@ export interface PageSettingsProps {
    * with the old images array; the caller resizes it and asks before dropping images.
    */
   onZineChange: (patch: Partial<Zine>) => void;
+  /** "Delete page…" was clicked: the caller asks first, then deletes. */
+  onDeletePage: () => void;
 }
 
 const formatDate = (timestamp: number) =>
@@ -74,6 +76,7 @@ export function PageSettings({
   twoColumns,
   onTwoColumnsChange,
   onZineChange,
+  onDeletePage,
 }: PageSettingsProps) {
   const zine = page.zine;
   return (
@@ -270,6 +273,11 @@ export function PageSettings({
             )}
           </>
         )}
+        <div className="page-settings__footer">
+          <button type="button" className="page-settings__delete" onClick={onDeletePage}>
+            Delete page…
+          </button>
+        </div>
       </div>
     </Popover>
   );
