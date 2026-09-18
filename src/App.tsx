@@ -135,10 +135,10 @@ export function App() {
 
   // The shell's shortcuts mirror the app bar: page navigation, new page, the panel.
   useShortcuts({
-    previousPage: () => session?.goTo(session.index - 1),
-    nextPage: () => session?.goTo(session.index + 1),
-    newLinedPage: () => void session?.newPage("lined"),
-    newZinePage: () => void session?.newPage("zine"),
+    previousPage: () => loaded?.goTo(loaded.index - 1),
+    nextPage: () => loaded?.goTo(loaded.index + 1),
+    newLinedPage: () => void loaded?.newPage("lined"),
+    newZinePage: () => void loaded?.newPage("zine"),
     togglePanel: () => setPanelOpen((open) => !open),
   });
 
