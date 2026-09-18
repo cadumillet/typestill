@@ -21,6 +21,7 @@ import {
   type NotebookDocument,
   type Page,
   type PageKind,
+  type Tag,
 } from "./model";
 
 export class NotebookExistsError extends Error {
@@ -172,6 +173,59 @@ export async function updateNotebookSettings(
   patch: Partial<Pick<Notebook, "cover" | "themeId" | "pageSize" | "orientation" | "defaults">>,
 ): Promise<void> {
   await db.notebooks.update(id, patch);
+}
+
+// ---------------------------------------------------------------------------
+// Tags: defined at notebook level, one per page at most.
+
+/** Adds a tag and returns it. */
+export async function addTag(
+  db: TypestillDb,
+  notebookId: string,
+  input: { name: string; color: string },
+): Promise<Tag> {
+  const tag: Tag = { id: newId(), name: input.name.trim(), color: input.color };
+  await db.transaction("rw", db.notebooks, async () => {
+    const notebook = await db.notebooks.get(notebookId);
+    if (!notebook) throw new Error(`Notebook ${notebookId} not found`);
+    await db.notebooks.update(notebookId, { tags: [...notebook.tags, tag] });
+  });
+  return tag;
+}
+
+/** Renames or recolours a tag. */
+export async function updateTag(
+  db: TypestillDb,
+  notebookId: string,
+  tagId: string,
+  patch: Partial<Pick<Tag, "name" | "color">>,
+): Promise<void> {
+  await db.transaction("rw", db.notebooks, async () => {
+    const notebook = await db.notebooks.get(notebookId);
+    if (!notebook) throw new Error(`Notebook ${notebookId} not found`);
+    const tags = notebook.tags.map((tag) => (tag.id === tagId ? { ...tag, ...patch } : tag));
+    await db.notebooks.update(notebookId, { tags });
+  });
+}
+
+/** Removes a tag and untags every page that had it. Returns how many pages that was. */
+export async function deleteTag(
+  db: TypestillDb,
+  notebookId: string,
+  tagId: string,
+): Promise<number> {
+  return db.transaction("rw", [db.notebooks, db.pages], async () => {
+    const notebook = await db.notebooks.get(notebookId);
+    if (!notebook) throw new Error(`Notebook ${notebookId} not found`);
+    await db.notebooks.update(notebookId, {
+      tags: notebook.tags.filter((tag) => tag.id !== tagId),
+    });
+    return db.pages
+      .where("notebookId")
+      .equals(notebookId)
+      .and((page) => page.tagId === tagId)
+      .modify({ tagId: null });
+  });
 }
 
 /** Deletes the notebook with its pages, canvas and files. */

@@ -9,7 +9,8 @@ import {
   type ZineLayout,
   type ZineTextSide,
 } from "../page/zine";
-import type { Page, PageKind } from "../store/model";
+import type { Page, PageKind, Tag } from "../store/model";
+import { NEW_TAG_VALUE } from "./tags";
 import "./pagesettings.css";
 
 export interface PageSettingsProps {
@@ -19,6 +20,11 @@ export interface PageSettingsProps {
   /** Whether the page is empty, so its kind can still change. */
   canChangeKind: boolean;
   onKindChange: (kind: PageKind) => void;
+  /** The notebook's tags; a page carries one or none. */
+  tags: readonly Tag[];
+  onTagChange: (tagId: string | null) => void;
+  /** "New tag…" was picked: the caller asks for a name and assigns the new tag. */
+  onNewTag: () => void;
   /** Lined pages. */
   twoColumns: boolean;
   onTwoColumnsChange: (enabled: boolean) => void;
@@ -55,6 +61,9 @@ export function PageSettings({
   count,
   canChangeKind,
   onKindChange,
+  tags,
+  onTagChange,
+  onNewTag,
   twoColumns,
   onTwoColumnsChange,
   onZineChange,
@@ -80,6 +89,25 @@ export function PageSettings({
           </div>
           <div>{formatDate(page.createdAt)}</div>
         </div>
+        <label className="page-settings__row page-settings__row--field">
+          <span>Tag</span>
+          <select
+            value={page.tagId ?? ""}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (value === NEW_TAG_VALUE) onNewTag();
+              else onTagChange(value === "" ? null : value);
+            }}
+          >
+            <option value="">No tag</option>
+            {tags.map((tag) => (
+              <option key={tag.id} value={tag.id}>
+                {tag.name}
+              </option>
+            ))}
+            <option value={NEW_TAG_VALUE}>New tag…</option>
+          </select>
+        </label>
         <div className="page-settings__row page-settings__row--static">
           <span>Kind</span>
           <span className="page-settings__segments" role="radiogroup" aria-label="Page kind">

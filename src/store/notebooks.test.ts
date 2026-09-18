@@ -9,11 +9,13 @@ import {
   FileInUseError,
   NotebookExistsError,
   addFile,
+  addTag,
   createNotebook,
   deleteFile,
   createPage,
   deleteNotebook,
   deletePage,
+  deleteTag,
   exportNotebook,
   getCanvas,
   importNotebook,
@@ -32,6 +34,7 @@ import {
   touchNotebook,
   updateNotebookSettings,
   updatePage,
+  updateTag,
   usedFileIds,
 } from "./notebooks";
 
@@ -296,6 +299,29 @@ describe("pages", () => {
     } finally {
       await upgraded.delete();
     }
+  });
+});
+
+describe("tags", () => {
+  it("adds, updates and deletes tags, untagging pages on delete", async () => {
+    const { notebook, firstPage } = await createNotebook(db, { name: "A" });
+    const tag = await addTag(db, notebook.id, { name: " Ideas ", color: "#b8342c" });
+    expect(tag.name).toBe("Ideas");
+    const other = await addTag(db, notebook.id, { name: "Quotes", color: "#2f5b9e" });
+    expect((await db.notebooks.get(notebook.id))?.tags).toEqual([tag, other]);
+    await updateTag(db, notebook.id, tag.id, { name: "Plans", color: "#2e7d4f" });
+    expect((await db.notebooks.get(notebook.id))?.tags[0]).toEqual({
+      id: tag.id,
+      name: "Plans",
+      color: "#2e7d4f",
+    });
+    const second = await createPage(db, notebook.id);
+    await updatePage(db, firstPage.id, { tagId: tag.id });
+    await updatePage(db, second.id, { tagId: other.id });
+    expect(await deleteTag(db, notebook.id, tag.id)).toBe(1);
+    expect((await db.notebooks.get(notebook.id))?.tags).toEqual([other]);
+    expect((await db.pages.get(firstPage.id))?.tagId).toBeNull();
+    expect((await db.pages.get(second.id))?.tagId).toBe(other.id);
   });
 });
 
