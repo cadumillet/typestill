@@ -1,7 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { BackupError, backupFileName, parseBackup, serializeBackup } from "./backup";
+import { columnFromText, documentFromText, type EditorDocument } from "../page/document";
+import {
+  BACKUP_VERSION,
+  BackupError,
+  backupFileName,
+  parseBackup,
+  serializeBackup,
+} from "./backup";
 import { fileData } from "./fixtures";
 import type { NotebookDocument } from "./model";
+
+const formatted: EditorDocument = {
+  type: "doc",
+  content: [
+    {
+      type: "paragraph",
+      attrs: { align: "center" },
+      content: [
+        { type: "text", text: "hello ", marks: [{ type: "bold" }] },
+        { type: "hard_break" },
+        { type: "text", text: "world", marks: [{ type: "color", attrs: { color: "#e03131" } }] },
+      ],
+    },
+  ],
+};
 
 const doc: NotebookDocument = {
   id: "nb1",
@@ -22,7 +44,7 @@ const doc: NotebookDocument = {
       showDate: true,
       showPageNumber: true,
       margin: 20,
-      columns: ["hello", "world"],
+      columns: [{ text: "hello \nworld", doc: formatted }, columnFromText("world")],
       divider: 70,
       canvasView: { scrollX: 0, scrollY: 0, zoom: 1 },
     },
@@ -33,7 +55,65 @@ const doc: NotebookDocument = {
 
 describe("backup", () => {
   it("round-trips through JSON", () => {
-    expect(parseBackup(serializeBackup(doc))).toEqual(doc);
+    const text = serializeBackup(doc);
+    expect(JSON.parse(text).version).toBe(BACKUP_VERSION);
+    expect(parseBackup(text)).toEqual(doc);
+  });
+
+  it("reads version 1, turning each line break into a paragraph boundary", () => {
+    const raw = JSON.parse(serializeBackup(doc));
+    raw.version = 1;
+    raw.notebook.pages[0].columns = ["one\ntwo\n\nfour", ""];
+    const parsed = parseBackup(JSON.stringify(raw));
+    expect(parsed.pages[0].columns).toEqual([
+      { text: "one\ntwo\n\nfour", doc: documentFromText("one\ntwo\n\nfour") },
+      columnFromText(""),
+    ]);
+    expect(parsed.pages[0].columns[0].doc.content.map((p) => p.content?.[0].type)).toEqual([
+      "text",
+      "text",
+      undefined,
+      "text",
+    ]);
+  });
+
+  it("rejects version 2 columns that are not documents", () => {
+    for (const columns of [
+      ["plain"],
+      [{ text: "x" }],
+      [{ text: "x", doc: { type: "doc", content: [] } }],
+      [
+        {
+          text: "x",
+          doc: { type: "doc", content: [{ type: "heading", attrs: { align: "left" } }] },
+        },
+      ],
+      [
+        {
+          text: "x",
+          doc: { type: "doc", content: [{ type: "paragraph", attrs: { align: "top" } }] },
+        },
+      ],
+      [
+        {
+          text: "x",
+          doc: {
+            type: "doc",
+            content: [
+              {
+                type: "paragraph",
+                attrs: { align: "left" },
+                content: [{ type: "text", text: "x", marks: [{ type: "link" }] }],
+              },
+            ],
+          },
+        },
+      ],
+    ]) {
+      const raw = JSON.parse(serializeBackup(doc));
+      raw.notebook.pages[0].columns = columns;
+      expect(() => parseBackup(JSON.stringify(raw))).toThrow(/columns/);
+    }
   });
 
   it("names the file after the notebook and the date", () => {
@@ -58,7 +138,11 @@ describe("backup", () => {
     bad.notebook.pageSize = "A3";
     expect(() => parseBackup(JSON.stringify(bad))).toThrow(/page size/);
     const badPage = JSON.parse(serializeBackup(doc));
-    badPage.notebook.pages[0].columns = ["a", "b", "c"];
+    badPage.notebook.pages[0].columns = [
+      columnFromText("a"),
+      columnFromText("b"),
+      columnFromText("c"),
+    ];
     expect(() => parseBackup(JSON.stringify(badPage))).toThrow(/columns/);
     const badCanvas = JSON.parse(serializeBackup(doc));
     badCanvas.notebook.canvas = null;

@@ -1,13 +1,14 @@
 import type { BinaryFileData } from "@excalidraw/excalidraw/types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CanvasContent } from "../canvas/Canvas";
-import { createAutosave, elementsKey, textKey, type Autosave } from "../store/autosave";
+import { createAutosave, columnsKey, elementsKey, type Autosave } from "../store/autosave";
 import { backupFileName, parseBackup, serializeBackup } from "../store/backup";
 import { getDb, type TypestillDb } from "../store/db";
 import {
   columnsForDivider,
   type Canvas,
   type CanvasView,
+  type Column,
   type Notebook,
   type Page,
 } from "../store/model";
@@ -49,7 +50,7 @@ export interface NotebookSession {
   loadId: number;
   goTo: (index: number) => void;
   newPage: () => Promise<void>;
-  setColumns: (columns: string[]) => void;
+  setColumns: (columns: Column[]) => void;
   setDivider: (divider: number | null) => Promise<void>;
   /** Canvas callbacks carry the loadId of the editor that sent them; stale editors are ignored. */
   onCanvasChange: (content: CanvasContent, loadId: number) => void;
@@ -92,7 +93,7 @@ const report = (error: unknown) => console.error("typestill: save failed", error
  */
 export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession | null {
   const [state, setState] = useState<Loaded | null>(null);
-  const pageSaver = useRef<Autosave<string[]> | null>(null);
+  const pageSaver = useRef<Autosave<Column[]> | null>(null);
   const viewSaver = useRef<Autosave<CanvasView> | null>(null);
   const canvasSaver = useRef<Autosave<CanvasContent> | null>(null);
   /** Latest canvas view seen, written onto the page when it is left. */
@@ -110,9 +111,9 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     (page: Page) => {
       void pageSaver.current?.flush();
       void viewSaver.current?.flush();
-      pageSaver.current = createAutosave<string[]>({
+      pageSaver.current = createAutosave<Column[]>({
         save: (columns) => savePageText(db, page.id, columns),
-        key: textKey,
+        key: columnsKey,
         onError: report,
       });
       pageSaver.current.markClean(page.columns);
@@ -240,7 +241,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     });
   }, [db, state, attachPage]);
 
-  const setColumns = useCallback((columns: string[]) => {
+  const setColumns = useCallback((columns: Column[]) => {
     pageSaver.current?.onChange(columns);
     setState((current) => {
       if (!current) return current;

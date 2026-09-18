@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable, type Table } from "dexie";
+import { columnFromText } from "../page/document";
 import type { Canvas, Notebook, NotebookFile, Page } from "./model";
 
 export class TypestillDb extends Dexie {
@@ -9,12 +10,27 @@ export class TypestillDb extends Dexie {
 
   constructor(name = "typestill") {
     super(name);
-    this.version(1).stores({
+    const stores = {
       notebooks: "id, lastOpenedAt",
       pages: "id, notebookId, [notebookId+createdAt]",
       canvases: "notebookId",
       files: "[notebookId+id], notebookId",
-    });
+    };
+    this.version(1).stores(stores);
+    // Version 2: columns went from plain strings to { text, doc }. Each line break of a
+    // plain-text column becomes a paragraph boundary, which is what Enter meant then.
+    this.version(2)
+      .stores(stores)
+      .upgrade((tx) =>
+        tx
+          .table("pages")
+          .toCollection()
+          .modify((page: { columns: unknown[] }) => {
+            page.columns = page.columns.map((column) =>
+              typeof column === "string" ? columnFromText(column) : column,
+            );
+          }),
+      );
   }
 }
 

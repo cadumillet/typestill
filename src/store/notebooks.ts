@@ -10,6 +10,7 @@ import {
   newId,
   referencedFileIds,
   type Canvas,
+  type Column,
   type Notebook,
   type NotebookDefaults,
   type NotebookDocument,
@@ -190,18 +191,18 @@ export async function updatePage(
   await db.pages.update(id, patch);
 }
 
-/** Saves the page's text. One string per column. */
+/** Saves the page's text, one column at a time. */
 export async function savePageText(
   db: TypestillDb,
   id: string,
-  columns: readonly string[],
+  columns: readonly Column[],
 ): Promise<void> {
   await db.pages.update(id, { columns: [...columns] });
 }
 
 /**
  * Moves, adds or removes the divider. Adding one keeps the text in the left column;
- * removing one joins the right column's text after the left column's.
+ * removing one joins the right column's paragraphs after the left column's.
  */
 export async function setPageDivider(
   db: TypestillDb,

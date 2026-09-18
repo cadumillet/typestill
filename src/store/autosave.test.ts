@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createAutosave, elementsKey, textKey } from "./autosave";
+import { columnFromText, type Column } from "../page/document";
+import { createAutosave, columnsKey, elementsKey } from "./autosave";
 import { element } from "./fixtures";
+
+const columns = (...texts: string[]): Column[] => texts.map(columnFromText);
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -17,15 +20,18 @@ describe("keys", () => {
     expect(elementsKey([element("a", { version: 1 }), element("b", { isDeleted: true })])).toBe(a);
   });
 
-  it("textKey distinguishes columns from newlines", () => {
-    expect(textKey(["a", "b"])).not.toBe(textKey(["a\nb"]));
-    expect(textKey(["a", "b"])).toBe(textKey(["a", "b"]));
+  it("columnsKey distinguishes columns from paragraphs and sees formatting", () => {
+    expect(columnsKey(columns("a", "b"))).not.toBe(columnsKey(columns("a\nb")));
+    expect(columnsKey(columns("a", "b"))).toBe(columnsKey(columns("a", "b")));
+    const bold = columnFromText("a");
+    bold.doc.content[0].content![0].marks = [{ type: "bold" }];
+    expect(columnsKey([bold])).not.toBe(columnsKey(columns("a")));
   });
 });
 
 describe("createAutosave", () => {
   const make = (save: (value: string[]) => Promise<void>, delayMs = 100, onError?: () => void) =>
-    createAutosave<string[]>({ save, key: textKey, delayMs, onError });
+    createAutosave<string[]>({ save, key: (value) => JSON.stringify(value), delayMs, onError });
 
   it("coalesces a burst of changes into one save after the delay", async () => {
     const save = vi.fn().mockResolvedValue(undefined);

@@ -79,3 +79,33 @@ export const ChevronDown = () => (
     <path d="M4.5 7l4.5 4.5L13.5 7" />
   </svg>
 );
+
+export const Bold = () => (
+  <svg {...base} strokeWidth={1.75}>
+    <path d="M5.5 3.5h4.25a2.75 2.75 0 0 1 0 5.5H5.5zM5.5 9h5a2.75 2.75 0 0 1 0 5.5h-5z" />
+  </svg>
+);
+
+export const Italic = () => (
+  <svg {...base}>
+    <path d="M7.5 3.5h6M4.5 14.5h6M11 3.5l-4 11" />
+  </svg>
+);
+
+export const AlignLeft = () => (
+  <svg {...base}>
+    <path d="M3 4.5h12M3 9h7M3 13.5h12" />
+  </svg>
+);
+
+export const AlignCenter = () => (
+  <svg {...base}>
+    <path d="M3 4.5h12M5.5 9h7M3 13.5h12" />
+  </svg>
+);
+
+export const AlignRight = () => (
+  <svg {...base}>
+    <path d="M3 4.5h12M8 9h7M3 13.5h12" />
+  </svg>
+);

@@ -2,7 +2,7 @@
 
 A commonplace notebook built on top of Excalidraw. Fixed-size pages, one after the other, in one file. See [PLAN.md](PLAN.md) for the product spec, data model and phases.
 
-Status: Phase 0 spike. One hardcoded A5 portrait page, fit to screen, stripped toolbar, lined paper. No storage yet.
+Status: Phase 1 (lined text pages, one infinite canvas per notebook, IndexedDB storage, backups) is done; Phase 2 is under way, starting with text formatting.
 
 ## Development
 
