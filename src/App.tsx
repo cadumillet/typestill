@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { Canvas, type CanvasContent } from "./canvas/Canvas";
 import { MediaPool } from "./notebook/MediaPool";
 import { PageRail } from "./notebook/PageRail";
@@ -34,6 +35,8 @@ import {
 } from "./shell/icons";
 
 const DESK_PADDING = 24;
+/** Gap between the two pages of a spread, in CSS px. */
+const SPREAD_GAP = 16;
 /** Panel margins plus the width below which Excalidraw falls into its mobile layout. */
 const MIN_PANEL_WIDTH = 730 + 12;
 const MIN_MAIN_WIDTH = 360;
@@ -100,6 +103,7 @@ export function App() {
   const current = session?.page;
   usePageThumbnail(
     deskElement,
+    current?.id ?? "",
     session && current
       ? [
           current.id,
@@ -123,12 +127,22 @@ export function App() {
   const { notebook, pages, index, page } = session;
   const theme = getTheme(notebook.themeId);
   const geometry = pageGeometry(notebook.pageSize, notebook.orientation);
+  // With the panel closed the desk shows a spread: fixed pairs of consecutive pages, the
+  // open page on its side of the pair, like a book lying open.
+  const spread = !panelOpen;
+  const spreadLeft = index - (index % 2);
+  const shown = spread ? [spreadLeft, spreadLeft + 1].filter((i) => i < pages.length) : [index];
   const fit = desk
-    ? fitPage(geometry, {
-        width: desk.width - 2 * DESK_PADDING,
+    ? fitPage(spread ? { width: geometry.width * 2, height: geometry.height } : geometry, {
+        width: desk.width - 2 * DESK_PADDING - (spread ? SPREAD_GAP : 0),
         height: desk.height - 2 * DESK_PADDING,
       })
     : null;
+
+  /** Makes another page of the spread the open one, before the pointer reaches its editor. */
+  const openInSpread = (i: number) => {
+    if (i !== index) flushSync(() => session.goTo(i));
+  };
 
   const openBackup = async (file: File | undefined) => {
     if (!file) return;
@@ -332,39 +346,56 @@ export function App() {
               onFilterChange={setFilterTagId}
               thumbnails={session.thumbnails}
             />
-            <main className="desk" ref={attachDesk}>
-              {fit && page.kind === "zine" && page.zine && (
-                <ZinePage
-                  key={page.id}
-                  size={notebook.pageSize}
-                  orientation={notebook.orientation}
-                  theme={theme}
-                  zoom={fit.zoom}
-                  zine={page.zine}
-                  files={session.files}
-                  preview={preview}
-                  onChange={session.setZine}
-                  onAddImages={(cell, files) => void addImages(cell, files)}
-                  onPlaceFile={session.placeFile}
-                  selectedCell={selectedCell}
-                  onSelectCell={setSelectedCell}
-                />
-              )}
-              {fit && page.kind === "lined" && (
-                <TextPage
-                  key={page.id}
-                  size={notebook.pageSize}
-                  orientation={notebook.orientation}
-                  theme={theme}
-                  zoom={fit.zoom}
-                  margin={page.margin}
-                  columns={page.columns}
-                  divider={page.divider}
-                  preview={preview}
-                  onChange={session.setColumns}
-                  onDividerChange={(offset) => void session.setDivider(offset)}
-                />
-              )}
+            <main
+              className={`desk${spread ? " is-spread" : ""}`}
+              ref={attachDesk}
+              style={spread ? { gap: SPREAD_GAP } : undefined}
+            >
+              {fit &&
+                shown.map((i) => {
+                  const shownPage = pages[i];
+                  const isOpen = i === index;
+                  return (
+                    <div
+                      key={shownPage.id}
+                      className={`desk__page${isOpen ? " is-open" : ""}`}
+                      data-page-id={shownPage.id}
+                      onPointerDownCapture={() => openInSpread(i)}
+                    >
+                      {shownPage.kind === "zine" && shownPage.zine ? (
+                        <ZinePage
+                          size={notebook.pageSize}
+                          orientation={notebook.orientation}
+                          theme={theme}
+                          zoom={fit.zoom}
+                          zine={shownPage.zine}
+                          files={session.files}
+                          preview={preview}
+                          readOnly={!isOpen}
+                          onChange={session.setZine}
+                          onAddImages={(cell, files) => void addImages(cell, files)}
+                          onPlaceFile={session.placeFile}
+                          selectedCell={isOpen ? selectedCell : null}
+                          onSelectCell={setSelectedCell}
+                        />
+                      ) : (
+                        <TextPage
+                          size={notebook.pageSize}
+                          orientation={notebook.orientation}
+                          theme={theme}
+                          zoom={fit.zoom}
+                          margin={shownPage.margin}
+                          columns={shownPage.columns}
+                          divider={shownPage.divider}
+                          preview={preview}
+                          readOnly={!isOpen}
+                          onChange={session.setColumns}
+                          onDividerChange={(offset) => void session.setDivider(offset)}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
             </main>
           </div>
         </>
