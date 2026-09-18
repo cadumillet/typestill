@@ -9,6 +9,7 @@
 // zine page of the old shape is converted losslessly (see zineLegacy.ts).
 
 import { DEFAULT_COVER, isCover } from "../notebook/cover";
+import { isClipping } from "../page/clippings";
 import { columnFromText, isColumn } from "../page/document";
 import { DEFAULT_MARGIN_MM, PAGE_SIZES_MM } from "../page/paper";
 import { isZine, type Zine } from "../page/zine";
@@ -18,9 +19,10 @@ import type { Column, NotebookDocument, Page } from "./model";
 
 export const BACKUP_FORMAT = "typestill-notebook";
 // Version 7 added the highlight mark to the documents: nothing to convert, but an older
-// app would refuse the mark, so the version says so.
-export const BACKUP_VERSION = 7;
-const READABLE_VERSIONS = new Set([1, 2, 3, 4, 5, 6, 7]);
+// app would refuse the mark, so the version says so. Version 8 gave pages clippings;
+// pages from before have none.
+export const BACKUP_VERSION = 8;
+const READABLE_VERSIONS = new Set([1, 2, 3, 4, 5, 6, 7, 8]);
 
 export interface BackupFile {
   format: typeof BACKUP_FORMAT;
@@ -124,6 +126,11 @@ export function parseBackup(text: string): NotebookDocument {
     );
     expect(isNumberOrNull(page.divider), "Page has an invalid divider");
     expect(
+      page.clippings === undefined ||
+        (Array.isArray(page.clippings) && page.clippings.every(isClipping)),
+      "Page has invalid clippings",
+    );
+    expect(
       page.margin === undefined || typeof page.margin === "number",
       "Page has an invalid margin",
     );
@@ -165,6 +172,7 @@ export function parseBackup(text: string): NotebookDocument {
         columns: (page.columns as (string | Column)[]).map((column) =>
           typeof column === "string" ? columnFromText(column) : column,
         ),
+        clippings: page.clippings ?? [],
       };
       if (converted.kind === "zine") {
         const zine = page.zine as unknown;

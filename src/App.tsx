@@ -13,7 +13,8 @@ import { WelcomeDialog } from "./notebook/WelcomeDialog";
 import { useNotebookSession } from "./notebook/useNotebookSession";
 import { isBlankDocument } from "./page/document";
 import { canAddPage } from "./notebook/pageRules";
-import { TextPage } from "./page/TextPage";
+import { TextPage, type ClipSource } from "./page/TextPage";
+import { importImage, importSvg } from "./notebook/images";
 import { ZinePage } from "./page/ZinePage";
 import { defaultDivider, fitPage, mmToCssPx, pageGeometry, pageMm } from "./page/paper";
 import { pageSide, spreadOf } from "./page/sides";
@@ -92,6 +93,8 @@ export function App() {
   const [peek, setPeek] = useState<{ pageId: string; mode: "canvas" | "pool" } | null>(null);
   /** The zine cell chosen by clicking it, where a paste or a click in the pool lands. */
   const [chosenCell, setChosenCell] = useState<{ pageId: string; cell: number } | null>(null);
+  /** Whether the canvas has a selection, for the "Clip to page" control; the ids stay in the canvas. */
+  const [canvasSelected, setCanvasSelected] = useState(false);
   /** The rail's tag filter; null shows every page. */
   const [filterTagId, setFilterTagId] = useState<string | null>(null);
 
@@ -243,6 +246,21 @@ export function App() {
 
   const setPadding = (padding: number) => {
     if (page.zine) session.setZine({ ...page.zine, padding });
+  };
+
+  // A clipping: an SVG from the canvas's selection or the clipboard, or a pasted image,
+  // imported into the notebook's files and placed on the open lined page.
+  const clip = async (source: ClipSource) => {
+    try {
+      const data = "svg" in source ? await importSvg(source.svg) : await importImage(source.file);
+      await session.addClipping(data);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Could not make a clipping.");
+    }
+  };
+  const clipToPage = async () => {
+    const svg = await canvasRef.current?.exportSelection();
+    if (svg) await clip({ svg });
   };
 
   const addImages = async (cell: number | null, files: File[]) => {
@@ -541,6 +559,10 @@ export function App() {
                               side={pageSide(i)}
                               onChange={session.setColumns}
                               onDividerChange={(offset) => void session.setDivider(offset)}
+                              clippings={shownPage.clippings}
+                              files={session.files}
+                              onClippingsChange={session.setClippings}
+                              onClip={(source) => void clip(source)}
                             />
                           )}
                         </div>
@@ -608,6 +630,7 @@ export function App() {
                 session.onCanvasChange(content, session.loadId);
               }}
               onViewChange={(view) => session.onCanvasViewChange(view, session.loadId)}
+              onSelectionChange={setCanvasSelected}
               onGridChange={session.onGridChange}
               onUnmount={(content) => setCanvasSnapshot({ loadId: session.loadId, content })}
               resolveFile={(id) => session.files[id]}
@@ -623,6 +646,11 @@ export function App() {
             >
               {panelMode === "pool" ? <Pencil /> : <Images />}
             </IconButton>
+            {panelMode === "canvas" && page.kind === "lined" && canvasSelected && (
+              <button type="button" className="panel__clip" onClick={() => void clipToPage()}>
+                Clip to page
+              </button>
+            )}
           </div>
         </Panel>
       }

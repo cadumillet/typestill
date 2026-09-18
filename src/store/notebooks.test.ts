@@ -463,6 +463,46 @@ describe("tags", () => {
   });
 });
 
+describe("clippings", () => {
+  it("are saved with the page, count as content and as uses of their files", async () => {
+    const { notebook, firstPage: page } = await createNotebook(db, { name: "A" });
+    expect(page.clippings).toEqual([]);
+    await addFile(db, notebook.id, fileData("f1"));
+    const clippings = [{ id: "c1", fileId: "f1", x: 10, y: 20, width: 40, layer: "over" as const }];
+    await updatePage(db, page.id, { clippings });
+    const stored = (await listPages(db, notebook.id))[0];
+    expect(stored.clippings).toEqual(clippings);
+    expect(isPageEmpty(stored)).toBe(false);
+    expect([...(await usedFileIds(db, notebook.id))]).toEqual(["f1"]);
+    await expect(deleteFile(db, notebook.id, "f1")).rejects.toThrow(FileInUseError);
+    expect(await pruneFiles(db, notebook.id)).toBe(0);
+    await updatePage(db, page.id, { clippings: [] });
+    expect(await pruneFiles(db, notebook.id)).toBe(1);
+  });
+
+  it("are given to pages from version 8 of the database", async () => {
+    const name = `test-${crypto.randomUUID()}`;
+    const old = new Dexie(name);
+    old.version(8).stores({
+      notebooks: "id, lastOpenedAt",
+      pages: "id, notebookId, [notebookId+createdAt]",
+      canvases: "notebookId",
+      files: "[notebookId+id], notebookId",
+      thumbnails: "pageId, notebookId",
+    });
+    await old
+      .table("pages")
+      .add({ id: "p1", notebookId: "nb", createdAt: 1, kind: "lined", columns: [] });
+    old.close();
+    const upgraded = new TypestillDb(name);
+    try {
+      expect((await upgraded.pages.get("p1"))?.clippings).toEqual([]);
+    } finally {
+      await upgraded.delete();
+    }
+  });
+});
+
 describe("files", () => {
   it("stores an image once and counts zine pages and the canvas as uses", async () => {
     const { notebook } = await createNotebook(db, { name: "A" });

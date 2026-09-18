@@ -16,6 +16,7 @@ const lined = (id: string, ...texts: string[]): Page => ({
   margin: 20,
   columns: texts.map(columnFromText),
   divider: texts.length > 1 ? 100 : null,
+  clippings: [],
   canvasView: null,
 });
 

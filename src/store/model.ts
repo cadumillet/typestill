@@ -7,9 +7,11 @@ import type { BinaryFileData } from "@excalidraw/excalidraw/types";
 import type { Cover } from "../notebook/cover";
 import { columnFromDocument, columnFromText, joinDocuments, type Column } from "../page/document";
 import { DEFAULT_MARGIN_MM, type Orientation, type PageSize } from "../page/paper";
+import { clippingFileIds, type Clipping } from "../page/clippings";
 import { zineFileIds, type Zine } from "../page/zine";
 
 export type { Cover } from "../notebook/cover";
+export type { Clipping } from "../page/clippings";
 export type { Column } from "../page/document";
 export type { Zine } from "../page/zine";
 
@@ -72,6 +74,8 @@ export interface Page {
   zine?: Zine;
   /** Divider offset in mm from the left edge, null for one column. */
   divider: number | null;
+  /** Lined pages: free objects over or under the text. Empty on zine pages. */
+  clippings: Clipping[];
   canvasView: CanvasView | null;
 }
 
@@ -148,6 +152,7 @@ export function pageFileIds(pages: readonly Page[]): string[] {
   const ids = new Set<string>();
   for (const page of pages) {
     if (page.zine) for (const id of zineFileIds(page.zine)) ids.add(id);
+    for (const id of clippingFileIds(page.clippings)) ids.add(id);
   }
   return [...ids];
 }

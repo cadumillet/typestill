@@ -17,6 +17,25 @@
   z-index: 5;
 }
 
+/* "Clip to page", beside the mode button while the canvas has a selection. */
+.panel__mode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panel__clip {
+  height: 30px;
+  padding: 0 10px;
+  border-color: var(--line);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+  font-size: 13px;
+}
+
+.panel__clip:hover {
+  background: var(--hover);
+}
+
 .panel__mode .icon-button {
   background: var(--surface);
   border-color: var(--line);

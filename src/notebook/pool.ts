@@ -1,13 +1,15 @@
 // The media pool: every image in the notebook, with where each one is used. A view over
-// the files table with a usage index built from the zine pages' media blocks and the
-// canvas's image elements. An image in use anywhere cannot be deleted.
+// the files table with a usage index built from the zine pages' media blocks, the lined
+// pages' clippings and the canvas's image elements. An image in use anywhere cannot be
+// deleted.
 
 import type { BinaryFileData } from "@excalidraw/excalidraw/types";
+import { clippingFileIds } from "../page/clippings";
 import { zineFileIds } from "../page/zine";
 import type { Page } from "../store/model";
 
 export interface FileUsage {
-  /** Page numbers (1-based) whose media block shows the image. */
+  /** Page numbers (1-based) whose media block or clippings show the image. */
   pages: number[];
   canvas: boolean;
 }
@@ -40,7 +42,11 @@ export function fileUsage(
     return entry;
   };
   pages.forEach((page, index) => {
-    if (page.zine) for (const id of zineFileIds(page.zine)) of(id).pages.push(index + 1);
+    const ids = new Set([
+      ...(page.zine ? zineFileIds(page.zine) : []),
+      ...clippingFileIds(page.clippings),
+    ]);
+    for (const id of ids) of(id).pages.push(index + 1);
   });
   for (const id of canvasFileIds) of(id).canvas = true;
   return usage;

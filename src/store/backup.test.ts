@@ -50,6 +50,7 @@ const doc: NotebookDocument = {
       margin: 20,
       columns: [{ text: "hello \nworld!", doc: formatted }, columnFromText("world")],
       divider: 70,
+      clippings: [{ id: "c1", fileId: "f1", x: 10, y: 20, width: 40, layer: "under" }],
       canvasView: { scrollX: 0, scrollY: 0, zoom: 1 },
     },
     {
@@ -73,6 +74,7 @@ const doc: NotebookDocument = {
         ],
       },
       divider: null,
+      clippings: [],
       canvasView: null,
     },
   ],
@@ -220,6 +222,21 @@ describe("backup", () => {
     const tinted = JSON.parse(serializeBackup(doc));
     tinted.notebook.pages[0].columns[0].doc.content[0].content[3].marks[0].attrs.tint = "orange";
     expect(() => parseBackup(JSON.stringify(tinted))).toThrow(/columns/);
+  });
+
+  it("gives pages from version 7 files no clippings, and checks the ones it reads", () => {
+    const raw = JSON.parse(serializeBackup(doc));
+    raw.version = 7;
+    delete raw.notebook.pages[0].clippings;
+    delete raw.notebook.pages[1].clippings;
+    const parsed = parseBackup(JSON.stringify(raw));
+    expect(parsed.pages.map((page) => page.clippings)).toEqual([[], []]);
+
+    const bad = JSON.parse(serializeBackup(doc));
+    bad.notebook.pages[0].clippings = [
+      { id: "c", fileId: "f", x: 0, y: 0, width: 0, layer: "over" },
+    ];
+    expect(() => parseBackup(JSON.stringify(bad))).toThrow(/clippings/);
   });
 
   it("names the file after the notebook and the date", () => {

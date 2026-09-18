@@ -14,6 +14,7 @@ const page = (id: string, images: (string | null)[] = []): Page => ({
   margin: 20,
   columns: [],
   divider: null,
+  clippings: [],
   canvasView: null,
   ...(images.length > 0
     ? {
@@ -46,6 +47,19 @@ describe("media pool", () => {
     expect(usage.get("f3")).toEqual({ pages: [4], canvas: true });
     expect(usage.get("f4")).toEqual({ pages: [], canvas: true });
     expect(usage.get("f5")).toBeUndefined();
+  });
+
+  it("counts a lined page's clippings as uses, once per page", () => {
+    const clipped: Page = {
+      ...page("p3"),
+      clippings: [
+        { id: "c1", fileId: "f1", x: 0, y: 0, width: 10, layer: "over" },
+        { id: "c2", fileId: "f1", x: 5, y: 5, width: 10, layer: "under" },
+      ],
+    };
+    const usage = fileUsage([page("p1", ["f1"]), clipped], []);
+    expect(usage.get("f1")).toEqual({ pages: [1, 2], canvas: false });
+    expect(usageBadge(usage.get("f1")!)).toBe("2 pages");
   });
 
   it("lists the pool newest first with usage, unused files included", () => {

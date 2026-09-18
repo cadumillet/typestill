@@ -65,6 +65,7 @@ function buildPage(
     margin: notebook.defaults.margin,
     columns: kind === "lined" ? emptyColumns(divider) : [],
     divider: kind === "lined" ? divider : null,
+    clippings: [],
     canvasView: null,
   };
   if (kind === "zine") page.zine = emptyZine(getTheme(notebook.themeId).zine);
@@ -74,7 +75,7 @@ function buildPage(
 /** A page with nothing written or placed on it. Only such a page can change kind. */
 export function isPageEmpty(page: Page): boolean {
   if (page.kind === "zine") return !page.zine || isZineEmpty(page.zine);
-  return page.columns.every((column) => isBlankDocument(column.doc));
+  return page.clippings.length === 0 && page.columns.every((column) => isBlankDocument(column.doc));
 }
 
 function emptyCanvas(notebookId: string): Canvas {
@@ -300,7 +301,7 @@ export async function setPageKind(db: TypestillDb, id: string, kind: PageKind): 
 export async function updatePage(
   db: TypestillDb,
   id: string,
-  patch: Partial<Pick<Page, "tagId" | "showPageNumber" | "margin" | "canvasView">>,
+  patch: Partial<Pick<Page, "tagId" | "showPageNumber" | "margin" | "clippings" | "canvasView">>,
 ): Promise<void> {
   await db.pages.update(id, patch);
 }
@@ -485,7 +486,7 @@ export async function usedFileIds(db: TypestillDb, notebookId: string): Promise<
   return new Set([...pageFileIds(pages), ...referencedFileIds(canvas.elements)]);
 }
 
-/** Removes files neither the zine pages nor the canvas reference. Returns how many. */
+/** Removes files neither the pages (zine images, clippings) nor the canvas reference. Returns how many. */
 export async function pruneFiles(db: TypestillDb, notebookId: string): Promise<number> {
   return db.transaction("rw", [db.pages, db.canvases, db.files], async () => {
     const used = await usedFileIds(db, notebookId);

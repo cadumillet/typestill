@@ -44,7 +44,14 @@ function pageElement(page: Page, index: number, source: ExportSource, theme: The
   return page.kind === "zine" && page.zine ? (
     <ZinePage {...common} zine={page.zine} files={source.files} />
   ) : (
-    <TextPage {...common} margin={page.margin} columns={page.columns} divider={page.divider} />
+    <TextPage
+      {...common}
+      margin={page.margin}
+      columns={page.columns}
+      divider={page.divider}
+      clippings={page.clippings}
+      files={source.files}
+    />
   );
 }
 

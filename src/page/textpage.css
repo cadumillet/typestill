@@ -96,12 +96,17 @@
 }
 
 .text-page__divider-handle:hover + .text-page__divider,
-.text-page.is-dragging-divider .text-page__divider {
+.text-page.is-dragging .text-page__divider {
   background: var(--accent-line);
 }
 
-.text-page.is-dragging-divider {
+/* While the divider or a clipping is dragged. */
+.text-page.is-dragging {
   user-select: none;
+}
+
+.text-page:focus {
+  outline: none;
 }
 
 .text-page.is-preview::before,
@@ -191,6 +196,114 @@
   visibility: hidden;
   pointer-events: none;
   height: auto;
+}
+
+/* Clippings: images in mm, "under" between the rules and the text (before the columns in
+   tree order, at the same layer), "over" above the text. The height follows the image. */
+.text-page__clipping {
+  position: absolute;
+  display: block;
+  height: auto;
+  user-select: none;
+}
+
+.text-page__clipping--under {
+  z-index: 0;
+}
+
+.text-page__clipping--over {
+  z-index: 2;
+}
+
+/* Dark paper: the inversion Excalidraw's dark mode uses, so black ink reads as light. */
+.text-page.is-dark .text-page__clipping {
+  filter: invert(93%) hue-rotate(180deg);
+}
+
+/* The selected clipping's frame, handles and tools: editing chrome, stripped from renders. */
+.text-page__clip-chrome {
+  position: absolute;
+  z-index: 3;
+  box-sizing: border-box;
+  outline: 1.5px solid var(--accent);
+  outline-offset: 1px;
+  cursor: move;
+  touch-action: none;
+}
+
+/* Under the text, the frame is only a mark: the text beneath stays clickable. */
+.text-page__clip-chrome.is-under {
+  pointer-events: none;
+}
+
+.text-page__clip-chrome.is-under .text-page__clip-handle,
+.text-page__clip-chrome.is-under .text-page__clip-tools {
+  pointer-events: auto;
+}
+
+.text-page__clip-handle {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  margin: -5px;
+  border: 1.5px solid var(--accent);
+  border-radius: 2px;
+  background: var(--surface);
+  touch-action: none;
+}
+
+.text-page__clip-handle--nw {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+
+.text-page__clip-handle--ne {
+  top: 0;
+  right: 0;
+  cursor: nesw-resize;
+}
+
+.text-page__clip-handle--sw {
+  bottom: 0;
+  left: 0;
+  cursor: nesw-resize;
+}
+
+.text-page__clip-handle--se {
+  bottom: 0;
+  right: 0;
+  cursor: nwse-resize;
+}
+
+.text-page__clip-tools {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 8px);
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.06),
+    0 8px 24px rgb(0 0 0 / 0.1);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.text-page__clip-tools button {
+  padding: 3px 8px;
+  border-color: transparent;
+  color: var(--ink);
+}
+
+.text-page__clip-tools button:hover {
+  background: var(--hover);
 }
 
 .text-page__full {

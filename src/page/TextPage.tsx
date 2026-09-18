@@ -1,9 +1,21 @@
-import { useCallback, useRef, useState, type CSSProperties, type PointerEvent } from "react";
+import type { BinaryFileData } from "@excalidraw/excalidraw/types";
+import {
+  useCallback,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type CSSProperties,
+  type PointerEvent,
+} from "react";
+import { imageFilesOf, isSvgText } from "../notebook/images";
 import { Column } from "./Column";
+import type { Clipping } from "./clippings";
 import { columnFromText, type Column as ColumnValue } from "./document";
 import { useBaseline } from "../theme/baseline";
 import type { Theme } from "../theme/theme";
+import { isDarkTheme } from "../theme/themes";
 import { FormatBar } from "./FormatBar";
+import { usePageClippings } from "./PageClippings";
 import { PageMarks } from "./PageMarks";
 import {
   SCENE_PX_PER_MM,
@@ -20,6 +32,9 @@ import type { PageSide } from "./sides";
 import { useFormatBar } from "./useFormatBar";
 import "./textpage.css";
 
+/** What a paste can turn into a clipping: an SVG document, or an image file. */
+export type ClipSource = { svg: string } | { file: File };
+
 export interface TextPageProps {
   size: PageSize;
   orientation: Orientation;
@@ -33,6 +48,9 @@ export interface TextPageProps {
   columns: readonly ColumnValue[];
   /** Divider offset in mm from the left edge, null for one column. */
   divider: number | null;
+  /** Free objects over or under the text, with the notebook's files their images are in. */
+  clippings?: readonly Clipping[];
+  files?: Record<string, BinaryFileData>;
   /** Preview: no rules, margin or divider, and no editing. */
   preview?: boolean;
   readOnly?: boolean;
@@ -43,15 +61,22 @@ export interface TextPageProps {
   onChange?: (columns: ColumnValue[]) => void;
   /** The divider was dragged to a new offset (already snapped), in mm. */
   onDividerChange?: (divider: number) => void;
+  /** A clipping was moved, resized, relayered or deleted. */
+  onClippingsChange?: (clippings: Clipping[]) => void;
+  /** An image or an SVG was pasted on the page: the caller makes a clipping of it. */
+  onClip?: (source: ClipSource) => void;
 }
 
 const EMPTY_COLUMN = columnFromText("");
+const NO_CLIPPINGS: readonly Clipping[] = [];
+const NO_FILES: Record<string, BinaryFileData> = {};
 
 /**
  * A lined text page. Each column is an editor in the theme's font whose line height is
  * the rule pitch and whose top is placed so every baseline lands on a rule, using the
  * font's measured baseline. Input that would push text past the last rule is rejected.
- * A selection gets a floating format bar.
+ * A selection gets a floating format bar. Clippings are images positioned in mm, under
+ * the columns or over them, handled by the page itself (see PageClippings.tsx).
  */
 export function TextPage({
   size,
@@ -61,12 +86,16 @@ export function TextPage({
   margin,
   columns,
   divider,
+  clippings = NO_CLIPPINGS,
+  files = NO_FILES,
   preview = false,
   readOnly = false,
   number = null,
   side,
   onChange,
   onDividerChange,
+  onClippingsChange,
+  onClip,
 }: TextPageProps) {
   const mm = pageMm(size, orientation);
   const px = (value: number) => mmToCssPx(value, zoom);
@@ -103,6 +132,27 @@ export function TextPage({
   } as CSSProperties;
 
   const locked = preview || readOnly;
+  const clips = usePageClippings({
+    clippings,
+    files,
+    zoom,
+    page,
+    locked,
+    onChange: onClippingsChange,
+  });
+  // An image or an SVG pasted anywhere on the page becomes a clipping; text stays the
+  // editor's. Handled in the capture phase, before ProseMirror sees the paste.
+  const onPaste = (event: ClipboardEvent<HTMLDivElement>) => {
+    if (locked || !onClip) return;
+    const transfer = event.clipboardData;
+    const [file] = imageFilesOf(transfer);
+    const text = transfer.getData("text/plain");
+    const source: ClipSource | null = file ? { file } : isSvgText(text) ? { svg: text } : null;
+    if (!source) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onClip(source);
+  };
   const shownDivider = dragDivider ?? divider;
   const boxes = columnBoxes(mm.width, margin, shownDivider, lined);
 
@@ -136,6 +186,7 @@ export function TextPage({
     lined.marginLine ? "has-margin-line" : "",
     theme.page.border ? "has-border" : "",
     preview ? "is-preview" : "",
+    isDarkTheme(theme) ? "is-dark" : "",
     side ? `side-${side}` : "",
   ]
     .filter(Boolean)
@@ -143,9 +194,13 @@ export function TextPage({
 
   return (
     <div
-      className={`${className}${dragDivider !== null ? " is-dragging-divider" : ""}`}
+      className={`${className}${dragDivider !== null || clips.dragging ? " is-dragging" : ""}`}
       style={style}
       ref={page}
+      tabIndex={locked ? undefined : -1}
+      onPointerDownCapture={clips.onPointerDownCapture}
+      onKeyDown={clips.onKeyDown}
+      onPasteCapture={onPaste}
     >
       {shownDivider !== null && !locked && (
         <div
@@ -165,6 +220,7 @@ export function TextPage({
       {shownDivider !== null && (
         <div className="text-page__divider" style={{ left: px(shownDivider) }} aria-hidden="true" />
       )}
+      {clips.render("under")}
       {boxes.map((box, index) => (
         <Column
           key={index}
@@ -202,6 +258,8 @@ export function TextPage({
             ),
         )}
       <PageMarks number={number} zoom={zoom} />
+      {clips.render("over")}
+      {clips.chrome}
       {!locked && bar.selection && (
         <FormatBar
           anchor={bar.selection.anchor}

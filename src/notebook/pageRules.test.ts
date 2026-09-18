@@ -15,6 +15,7 @@ const lined = (text: string): Page => ({
   margin: 20,
   columns: [columnFromText(text)],
   divider: null,
+  clippings: [],
   canvasView: null,
 });
 
@@ -26,6 +27,15 @@ describe("canAddPage", () => {
   it("allows once something is written, as the store's own notion of empty has it", () => {
     expect(canAddPage(lined("a note"))).toBe(true);
     expect(canAddPage(lined("\n"))).toBe(true);
+  });
+
+  it("counts a clipping as content", () => {
+    expect(
+      canAddPage({
+        ...lined(""),
+        clippings: [{ id: "c", fileId: "f", x: 0, y: 0, width: 10, layer: "over" }],
+      }),
+    ).toBe(true);
   });
 
   it("refuses while the open zine page has nothing on it", () => {

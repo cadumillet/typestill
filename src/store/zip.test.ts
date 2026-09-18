@@ -38,6 +38,7 @@ const doc: NotebookDocument = {
       margin: 20,
       columns: [columnFromText("hello")],
       divider: null,
+      clippings: [],
       canvasView: null,
     },
   ],

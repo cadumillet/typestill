@@ -2,6 +2,7 @@ import {
   CaptureUpdateAction,
   Excalidraw,
   convertToExcalidrawElements,
+  exportToSvg,
   viewportCoordsToSceneCoords,
 } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement, FileId } from "@excalidraw/excalidraw/element/types";
@@ -21,6 +22,7 @@ import {
   type DragEvent,
   type Ref,
 } from "react";
+import { imageSize } from "../notebook/images";
 import { POOL_DRAG_TYPE } from "../notebook/pool";
 import { GRID_PITCH_MM, SCENE_PX_PER_MM } from "../page/paper";
 import type { CanvasView } from "../store/model";
@@ -39,6 +41,11 @@ export interface CanvasHandle {
    * shown as soon as it arrives.
    */
   scrollTo: (elementId: string) => void;
+  /**
+   * The selected elements (with the text bound to them) as an SVG document with no
+   * background, for a clipping; null while nothing is selected.
+   */
+  exportSelection: () => Promise<string | null>;
 }
 
 export interface CanvasProps {
@@ -56,6 +63,8 @@ export interface CanvasProps {
   onChange?: (content: CanvasContent) => void;
   onGridChange?: (gridEnabled: boolean) => void;
   onViewChange?: (view: CanvasView) => void;
+  /** Whether any element is selected; called only when that changes. */
+  onSelectionChange?: (selected: boolean) => void;
   /** Called with the latest drawing when the editor goes away, e.g. when its pane collapses. */
   onUnmount?: (content: CanvasContent) => void;
   /** Looks up an image of the notebook, for one dragged in from the media pool. */
@@ -66,16 +75,6 @@ export interface CanvasProps {
 
 /** Widest an image dropped from the pool comes in, in scene px. */
 const DROPPED_IMAGE_MAX = 400;
-
-/** An image's pixel size, read by decoding its data URL. */
-function imageSize(dataURL: string): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
-    image.onerror = () => reject(new Error("Could not decode the image"));
-    image.src = dataURL;
-  });
-}
 
 /** Excalidraw's grid cell in scene px. Grid mode snaps to it. */
 const GRID_SIZE = GRID_PITCH_MM * SCENE_PX_PER_MM;
@@ -120,6 +119,7 @@ export function Canvas({
   onChange,
   onGridChange,
   onViewChange,
+  onSelectionChange,
   onUnmount,
   resolveFile,
   scheme = "light",
@@ -127,6 +127,8 @@ export function Canvas({
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const latest = useRef<CanvasContent>(initial);
   const gridRef = useRef(initialGridEnabled);
+  /** The ids selected as of the last change; a ref, since every stroke reports. */
+  const selectedIds = useRef<readonly string[]>([]);
   /** An element asked for before the editor had it. */
   const pendingScroll = useRef<string | null>(null);
   const unmountRef = useRef(onUnmount);
@@ -191,6 +193,33 @@ export function Canvas({
         pendingScroll.current = elementId;
         if (apiRef.current) showPending(apiRef.current);
       },
+      async exportSelection() {
+        const api = apiRef.current;
+        if (!api || selectedIds.current.length === 0) return null;
+        const ids = new Set(selectedIds.current);
+        const scene = api.getSceneElements();
+        // A container's label is a separate text element, selected with its container.
+        for (const element of scene) {
+          if (ids.has(element.id)) {
+            for (const bound of element.boundElements ?? []) {
+              if (bound.type === "text") ids.add(bound.id);
+            }
+          }
+        }
+        const elements = scene.filter((element) => ids.has(element.id));
+        if (elements.length === 0) return null;
+        const svg = await exportToSvg({
+          elements,
+          appState: {
+            exportBackground: false,
+            exportWithDarkMode: false,
+            viewBackgroundColor: "#ffffff",
+          },
+          files: api.getFiles(),
+          exportPadding: 4,
+        });
+        return new XMLSerializer().serializeToString(svg);
+      },
     }),
     [showPending],
   );
@@ -199,6 +228,13 @@ export function Canvas({
     (elements, appState, files) => {
       latest.current = { elements, files };
       onChange?.(latest.current);
+      const selected = Object.keys(appState.selectedElementIds).filter(
+        (id) => appState.selectedElementIds[id],
+      );
+      if (selected.length > 0 !== selectedIds.current.length > 0) {
+        onSelectionChange?.(selected.length > 0);
+      }
+      selectedIds.current = selected;
       if (appState.gridModeEnabled !== gridRef.current) {
         gridRef.current = appState.gridModeEnabled;
         onGridChange?.(appState.gridModeEnabled);
@@ -206,7 +242,7 @@ export function Canvas({
       // The scene arrives after the API does; a jump asked for on mount waits for it.
       if (pendingScroll.current && apiRef.current) showPending(apiRef.current);
     },
-    [onChange, onGridChange, showPending],
+    [onChange, onGridChange, onSelectionChange, showPending],
   );
 
   const handleScroll = useCallback<NonNullable<ExcalidrawProps["onScrollChange"]>>(

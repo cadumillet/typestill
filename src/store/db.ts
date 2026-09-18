@@ -91,6 +91,17 @@ export class TypestillDb extends Dexie {
       });
     // Version 8: documents may carry the highlight mark (backup version 7). No data changes.
     this.version(8).stores({ ...stores, thumbnails: "pageId, notebookId" });
+    // Version 9: pages got clippings (backup version 8). Existing pages have none.
+    this.version(9)
+      .stores({ ...stores, thumbnails: "pageId, notebookId" })
+      .upgrade((tx) =>
+        tx
+          .table("pages")
+          .toCollection()
+          .modify((page: { clippings?: unknown }) => {
+            page.clippings ??= [];
+          }),
+      );
   }
 }
 

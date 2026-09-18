@@ -6,11 +6,13 @@ import { backupFileName, parseBackup, serializeBackup } from "../store/backup";
 import { isZipBackup, packBackupZip, unpackBackupZip, zipBackupFileName } from "../store/zip";
 import { getDb, type TypestillDb } from "../store/db";
 import { clampMargin, pageMm, snapDivider } from "../page/paper";
+import { placeClipping, type Clipping } from "../page/clippings";
 import { placeImages, type Zine } from "../page/zine";
 import { getTheme } from "../theme/themes";
 import { canAddPage } from "./pageRules";
 import {
   columnsForDivider,
+  newId,
   referencedFileIds,
   type Canvas,
   type CanvasView,
@@ -55,7 +57,7 @@ import {
 } from "../store/notebooks";
 import type { Cover } from "./cover";
 import { downloadBlob, downloadText } from "./files";
-import { importImage } from "./images";
+import { imageSize, importImage } from "./images";
 
 export interface NotebookSession {
   notebook: Notebook;
@@ -99,6 +101,14 @@ export interface NotebookSession {
   addImages: (cell: number | null, files: File[]) => Promise<number>;
   /** Puts an image from the pool into a cell of the open zine page. */
   placeFile: (cell: number, fileId: string) => void;
+  /**
+   * Adds an image (already imported: an SVG or a PNG) to the notebook's files and places
+   * it on the open lined page as a clipping, centred at its natural size. Does nothing
+   * on a zine page.
+   */
+  addClipping: (data: BinaryFileData) => Promise<void>;
+  /** The open page's clippings as moved, resized, relayered or deleted. */
+  setClippings: (clippings: Clipping[]) => void;
   /** Removes an image from the notebook. Throws FileInUseError while a page or the canvas uses it. */
   deleteImage: (fileId: string) => Promise<void>;
   /** Tags are defined on the notebook; a page carries one or none. */
@@ -505,6 +515,51 @@ export function useNotebookSession(
     [db, state],
   );
 
+  const addClipping = useCallback(
+    async (data: BinaryFileData) => {
+      if (!state) return;
+      const page = state.pages[state.index];
+      if (page.kind !== "lined") return;
+      const notebookId = state.notebook.id;
+      const natural = await imageSize(data.dataURL);
+      await addFile(db, notebookId, data);
+      const clipping = placeClipping(
+        pageMm(state.notebook.pageSize, state.notebook.orientation),
+        natural,
+        { id: newId(), fileId: data.id },
+      );
+      // The page is read again: it may have been edited while the image was decoded.
+      setState((current) => {
+        if (!current || current.notebook.id !== notebookId) return current;
+        const files = { ...current.files, [data.id]: data };
+        const at = current.pages.findIndex((p) => p.id === page.id);
+        if (at < 0) return { ...current, files };
+        const clippings = [...current.pages[at].clippings, clipping];
+        updatePage(db, page.id, { clippings }).catch(report);
+        const pages = current.pages.map((p, i) => (i === at ? { ...p, clippings } : p));
+        return { ...current, pages, files };
+      });
+    },
+    [db, state],
+  );
+
+  const setClippings = useCallback(
+    (clippings: Clipping[]) => {
+      if (!state) return;
+      const page = state.pages[state.index];
+      updatePage(db, page.id, { clippings }).catch(report);
+      setState((current) =>
+        current
+          ? {
+              ...current,
+              pages: current.pages.map((p, i) => (i === current.index ? { ...p, clippings } : p)),
+            }
+          : current,
+      );
+    },
+    [db, state],
+  );
+
   const placeFile = useCallback(
     (cell: number, fileId: string) => {
       if (!state) return;
@@ -856,6 +911,8 @@ export function useNotebookSession(
     setKind,
     addImages,
     placeFile,
+    addClipping,
+    setClippings,
     deleteImage,
     addTag,
     updateTag,
