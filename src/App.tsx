@@ -6,6 +6,7 @@ import { PageRail } from "./notebook/PageRail";
 import { NotebookSwitcher } from "./notebook/NotebookSwitcher";
 import { PageSettings } from "./notebook/PageSettings";
 import { SettingsDialog } from "./notebook/SettingsDialog";
+import { WelcomeDialog } from "./notebook/WelcomeDialog";
 import { useNotebookSession } from "./notebook/useNotebookSession";
 import { isBlankDocument } from "./page/document";
 import { TextPage } from "./page/TextPage";
@@ -100,28 +101,41 @@ export function App() {
 
   // The open page's thumbnail follows its content and its look. The key is everything
   // that changes how the page renders; nothing is rendered while the session loads.
-  const current = session?.page;
+  const loaded = session && !("firstRun" in session) ? session : null;
+  const current = loaded?.page;
   usePageThumbnail(
     deskElement,
     current?.id ?? "",
-    session && current
+    loaded && current
       ? [
           current.id,
           columnsKey(current.columns),
           JSON.stringify(current.zine ?? null),
-          session.notebook.themeId,
-          session.notebook.pageSize,
-          session.notebook.orientation,
+          loaded.notebook.themeId,
+          loaded.notebook.pageSize,
+          loaded.notebook.orientation,
           current.divider,
           current.margin,
         ].join("|")
       : "",
-    Boolean(session) && !preview,
-    session ? session.saveThumbnail : () => undefined,
+    Boolean(loaded) && !preview,
+    loaded ? loaded.saveThumbnail : () => undefined,
   );
 
   if (!session) {
     return <div className="loading">Opening notebook…</div>;
+  }
+
+  // A true first run: storage holds no notebook. The welcome dialog makes the first one.
+  if ("firstRun" in session) {
+    return (
+      <div className="loading">
+        <WelcomeDialog
+          onOpen={(name, cover) => session.createNotebook(name, cover)}
+          onRestore={session.restoreBackup}
+        />
+      </div>
+    );
   }
 
   const { notebook, pages, index, page } = session;

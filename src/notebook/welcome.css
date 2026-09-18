@@ -1,0 +1,44 @@
+/* The first-run welcome: the settings dialog's look with a wordmark and a short introduction. */
+
+.welcome {
+  width: 380px;
+}
+
+.welcome__wordmark {
+  margin: 0 0 10px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.welcome__intro {
+  margin: 0 0 20px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.welcome__name input {
+  flex: 1;
+  min-width: 0;
+}
+
+.welcome__actions {
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+
+.welcome__backup {
+  padding-left: 0;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.welcome__backup:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.welcome button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

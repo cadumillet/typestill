@@ -47,6 +47,7 @@ import {
   updateTag as updateTagRecord,
   type NotebookSummary,
 } from "../store/notebooks";
+import type { Cover } from "./cover";
 import { downloadText } from "./files";
 import { importImage } from "./images";
 
@@ -107,7 +108,7 @@ export interface NotebookSession {
   /** Saves everything pending, then opens another notebook at its remembered page. */
   openNotebook: (id: string) => Promise<void>;
   /** Creates a notebook with one empty page and opens it. */
-  createNotebook: (name: string) => Promise<void>;
+  createNotebook: (name: string, cover?: Partial<Cover>) => Promise<void>;
   /** The cover, the theme, the page size and orientation of every page, and the defaults for new pages. */
   updateSettings: (
     settings: Pick<Notebook, "cover" | "themeId" | "pageSize" | "orientation" | "defaults">,
@@ -119,6 +120,16 @@ export interface NotebookSession {
    * already exists. Throws BackupError for files that are not valid backups.
    */
   restoreBackup: (file: File) => Promise<void>;
+}
+
+/**
+ * What the hook returns on a true first run, when storage holds no notebook: the app
+ * shows the welcome dialog, and one of these two calls turns into a loaded session.
+ */
+export interface FirstRun {
+  firstRun: true;
+  createNotebook: NotebookSession["createNotebook"];
+  restoreBackup: NotebookSession["restoreBackup"];
 }
 
 interface Loaded {
@@ -139,12 +150,15 @@ const viewKey = (view: CanvasView) => `${view.scrollX},${view.scrollY},${view.zo
 const report = (error: unknown) => console.error("typestill: save failed", error);
 
 /**
- * Opens the most recently used notebook (creating one on first launch) and keeps it
- * saved: page text and the canvas drawing are autosaved as they change, and the canvas
- * view is remembered per page. Returns null until the notebook has loaded.
+ * Opens the most recently used notebook and keeps it saved: page text and the canvas
+ * drawing are autosaved as they change, and the canvas view is remembered per page.
+ * Returns null until storage has been read, a FirstRun while it holds no notebook, and
+ * the session once a notebook is open.
  */
-export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession | null {
+export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession | FirstRun | null {
   const [state, setState] = useState<Loaded | null>(null);
+  /** Storage was read and holds no notebook. Cleared as soon as one is loaded. */
+  const [firstRun, setFirstRun] = useState(false);
   const pageSaver = useRef<Autosave<Column[]> | null>(null);
   const zineSaver = useRef<Autosave<Zine> | null>(null);
   const viewSaver = useRef<Autosave<CanvasView> | null>(null);
@@ -230,6 +244,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
       canvasSaver.current.markClean({ elements: canvas.elements, files });
       attachPage(pages[index]);
       loads.current += 1;
+      setFirstRun(false);
       setState({
         loadId: loads.current,
         notebook,
@@ -246,16 +261,18 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     [db, attachPage],
   );
 
-  // Open the most recently used notebook, creating one on first launch.
+  // Open the most recently used notebook. With none in storage this is a first run: the
+  // welcome dialog creates the notebook (or restores a backup) instead of the hook.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const list = await listNotebooks(db);
       if (cancelled) return;
-      const notebookId =
-        list[0]?.id ?? (await createNotebookRecord(db, { name: "Notebook" })).notebook.id;
-      if (cancelled) return;
-      await load(notebookId);
+      if (list.length === 0) {
+        setFirstRun(true);
+        return;
+      }
+      await load(list[0].id);
     })().catch(report);
     return () => {
       cancelled = true;
@@ -604,9 +621,9 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
   );
 
   const createNotebook = useCallback(
-    async (name: string) => {
+    async (name: string, cover?: Partial<Cover>) => {
       await detach();
-      const { notebook } = await createNotebookRecord(db, { name });
+      const { notebook } = await createNotebookRecord(db, { name, cover });
       await load(notebook.id);
     },
     [db, detach, load],
@@ -664,7 +681,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     [db, detach, load],
   );
 
-  if (!state) return null;
+  if (!state) return firstRun ? { firstRun: true, createNotebook, restoreBackup } : null;
   return {
     ...state,
     page: state.pages[state.index],
