@@ -19,7 +19,6 @@ import { COVER_COLORS, coverFromFields } from "./cover";
 import { CoverSwatch } from "./CoverSwatch";
 import { PageRail } from "./PageRail";
 import { NEW_SECTION_VALUE, SECTION_COLORS, nextSectionColor } from "./sections";
-import { features } from "../features";
 import "./settings.css";
 
 export type NotebookSettings = Pick<
@@ -201,20 +200,18 @@ export function NotebookBox({
           Close
         </button>
       </div>
-      {!features.edge && (
-        <fieldset className="settings__group">
-          <legend>Map</legend>
-          <PageRail
-            sections={notebook.sections}
-            pages={pages}
-            index={index}
-            sides={sides}
-            onSelect={onSelectPage}
-            onOpenSection={onOpenSection}
-            thumbnails={thumbnails}
-          />
-        </fieldset>
-      )}
+      <fieldset className="settings__group">
+        <legend>Map</legend>
+        <PageRail
+          sections={notebook.sections}
+          pages={pages}
+          index={index}
+          sides={sides}
+          onSelect={onSelectPage}
+          onOpenSection={onOpenSection}
+          thumbnails={thumbnails}
+        />
+      </fieldset>
       <fieldset className="settings__group">
         <legend>Sections</legend>
         <ul className="settings__sections">
