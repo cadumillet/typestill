@@ -1,5 +1,5 @@
-// The page editor's schema: paragraphs with an alignment, text with bold, italic and
-// colour marks, and a hard break for a line break inside a paragraph. Nothing else.
+// The page editor's schema: paragraphs with an alignment, text with bold, italic, colour
+// and highlight marks, and a hard break for a line break inside a paragraph. Nothing else.
 // The JSON of these documents is what a column stores (see ../document.ts).
 
 import { Schema, type Node as EditorNode } from "prosemirror-model";
@@ -7,6 +7,7 @@ import { inkColorOf } from "../../canvas/palette";
 import {
   ALIGNMENTS,
   documentFromText,
+  isTint,
   type Alignment,
   type Column,
   type EditorDocument,
@@ -76,6 +77,21 @@ export const schema = new Schema({
         },
       ],
       toDOM: (mark) => ["span", { style: `color: ${mark.attrs.color}` }, 0],
+    },
+    // A marker stroke behind the text, by tint id; the theme picks the colour. Only our
+    // own <mark data-tint> is read back: pasted background colours are dropped.
+    highlight: {
+      attrs: { tint: {} },
+      parseDOM: [
+        {
+          tag: "mark",
+          getAttrs: (dom) => {
+            const tint = dom.getAttribute("data-tint");
+            return isTint(tint) ? { tint } : false;
+          },
+        },
+      ],
+      toDOM: (mark) => ["mark", { "data-tint": mark.attrs.tint }, 0],
     },
   },
 });

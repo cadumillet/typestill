@@ -89,6 +89,8 @@ export class TypestillDb extends Dexie {
             delete notebook.defaults?.showDate;
           });
       });
+    // Version 8: documents may carry the highlight mark (backup version 7). No data changes.
+    this.version(8).stores({ ...stores, thumbnails: "pageId, notebookId" });
   }
 }
 

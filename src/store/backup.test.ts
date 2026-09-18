@@ -21,6 +21,7 @@ const formatted: EditorDocument = {
         { type: "text", text: "hello ", marks: [{ type: "bold" }] },
         { type: "hard_break" },
         { type: "text", text: "world", marks: [{ type: "color", attrs: { color: "#e03131" } }] },
+        { type: "text", text: "!", marks: [{ type: "highlight", attrs: { tint: "yellow" } }] },
       ],
     },
   ],
@@ -47,7 +48,7 @@ const doc: NotebookDocument = {
       tagId: null,
       showPageNumber: true,
       margin: 20,
-      columns: [{ text: "hello \nworld", doc: formatted }, columnFromText("world")],
+      columns: [{ text: "hello \nworld!", doc: formatted }, columnFromText("world")],
       divider: 70,
       canvasView: { scrollX: 0, scrollY: 0, zoom: 1 },
     },
@@ -209,6 +210,16 @@ describe("backup", () => {
     const mixed = JSON.parse(serializeBackup(doc));
     mixed.version = 5;
     expect(() => parseBackup(JSON.stringify(mixed))).toThrow(/zine/);
+  });
+
+  it("reads version 6 files as they are, and refuses an unknown highlight tint", () => {
+    const raw = JSON.parse(serializeBackup(doc));
+    raw.version = 6;
+    expect(parseBackup(JSON.stringify(raw))).toEqual(doc);
+
+    const tinted = JSON.parse(serializeBackup(doc));
+    tinted.notebook.pages[0].columns[0].doc.content[0].content[3].marks[0].attrs.tint = "orange";
+    expect(() => parseBackup(JSON.stringify(tinted))).toThrow(/columns/);
   });
 
   it("names the file after the notebook and the date", () => {

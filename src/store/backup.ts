@@ -17,8 +17,10 @@ import { DEFAULT_THEME_ID } from "../theme/themes";
 import type { Column, NotebookDocument, Page } from "./model";
 
 export const BACKUP_FORMAT = "typestill-notebook";
-export const BACKUP_VERSION = 6;
-const READABLE_VERSIONS = new Set([1, 2, 3, 4, 5, 6]);
+// Version 7 added the highlight mark to the documents: nothing to convert, but an older
+// app would refuse the mark, so the version says so.
+export const BACKUP_VERSION = 7;
+const READABLE_VERSIONS = new Set([1, 2, 3, 4, 5, 6, 7]);
 
 export interface BackupFile {
   format: typeof BACKUP_FORMAT;

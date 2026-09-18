@@ -1,8 +1,8 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { INK_COLORS } from "../canvas/palette";
+import { HIGHLIGHT_TINTS, INK_COLORS } from "../canvas/palette";
 import { IconButton } from "../shell/IconButton";
 import { keyLabel } from "../shell/keys";
-import { AlignCenter, AlignLeft, AlignRight, Bold, Italic } from "../shell/icons";
+import { AlignCenter, AlignLeft, AlignRight, Bold, Highlighter, Italic } from "../shell/icons";
 import { ALIGNMENTS, type Alignment } from "./document";
 import type { FormatAction, FormatState } from "./editor/commands";
 import "./formatbar.css";
@@ -27,9 +27,10 @@ const ALIGNMENT_ICONS: Record<Alignment, { label: string; key: string; icon: () 
 };
 
 /**
- * The floating bar over a text selection: bold, italic, the ink palette and the three
- * alignments. It sits above the selection's first line, or below it when there is no
- * room, and never leaves the page. Its buttons keep the editor's focus and selection.
+ * The floating bar over a text selection: bold, italic, the ink palette, the highlighter
+ * with its tints, and the three alignments. It sits above the selection's first line, or
+ * below it when there is no room, and never leaves the page. Its buttons keep the
+ * editor's focus and selection.
  */
 export function FormatBar({ anchor, bounds, format, onAction }: FormatBarProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -91,6 +92,38 @@ export function FormatBar({ anchor, bounds, format, onAction }: FormatBarProps) 
             onClick={() => onAction({ type: "color", color: color.value })}
           />
         ))}
+      </div>
+      <div className="format-bar__group">
+        <IconButton
+          label="Highlight"
+          shortcut={shortcut("H", true)}
+          pressed={format.highlight !== null}
+          onClick={() => onAction({ type: "highlighter" })}
+        >
+          <Highlighter />
+        </IconButton>
+        {HIGHLIGHT_TINTS.map(({ tint, name }) => (
+          <button
+            key={tint}
+            type="button"
+            className="format-bar__swatch format-bar__swatch--tint"
+            style={{
+              backgroundImage: `linear-gradient(var(--page-highlight-${tint}), var(--page-highlight-${tint}))`,
+            }}
+            aria-label={`${name} highlight`}
+            aria-pressed={format.highlight === tint}
+            data-tooltip={name}
+            onClick={() => onAction({ type: "highlight", tint })}
+          />
+        ))}
+        <button
+          type="button"
+          className="format-bar__swatch format-bar__swatch--none"
+          aria-label="No highlight"
+          aria-pressed={format.highlight === null}
+          data-tooltip="None"
+          onClick={() => onAction({ type: "highlight", tint: null })}
+        />
       </div>
       <div className="format-bar__group">
         {ALIGNMENTS.map((align) => {

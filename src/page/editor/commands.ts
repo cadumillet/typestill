@@ -3,15 +3,19 @@
 // splits the paragraph and the new one keeps the alignment.
 
 import { splitBlockAs, toggleMark } from "prosemirror-commands";
-import { Fragment, Slice, type ResolvedPos } from "prosemirror-model";
+import { Fragment, Slice, type Mark, type ResolvedPos } from "prosemirror-model";
 import type { Command, EditorState } from "prosemirror-state";
-import type { Alignment } from "../document";
+import type { Alignment, Tint } from "../document";
 import { schema } from "./schema";
 
 export type FormatAction =
   | { type: "bold" }
   | { type: "italic" }
   | { type: "color"; color: string | null }
+  /** A tint from the swatches, or null for no highlight. */
+  | { type: "highlight"; tint: Tint | null }
+  /** The highlighter button and its shortcut: the last tint used, or off. */
+  | { type: "highlighter" }
   | { type: "align"; align: Alignment };
 
 /** What the selection has, for the format bar. */
@@ -20,6 +24,8 @@ export interface FormatState {
   italic: boolean;
   /** The colour at the start of the selection, null for the default ink. */
   color: string | null;
+  /** The highlight tint at the start of the selection, null for none. */
+  highlight: Tint | null;
   align: Alignment;
 }
 
@@ -44,6 +50,58 @@ export function setColor(color: string | null): Command {
     return true;
   };
 }
+
+/** The tint the highlighter button applies: the last one picked, yellow to begin with. */
+let lastTint: Tint = "yellow";
+
+export const lastHighlightTint = (): Tint => lastTint;
+
+/** Whether the whole selection (or the caret's marks) carries the highlight, of `tint` if given. */
+function hasHighlight(state: EditorState, tint?: Tint): boolean {
+  const type = schema.marks.highlight;
+  const matches = (marks: readonly Mark[]) => {
+    const mark = type.isInSet(marks);
+    return !!mark && (tint === undefined || mark.attrs.tint === tint);
+  };
+  const { $from, from, to, empty } = state.selection;
+  if (empty) return matches(state.storedMarks ?? $from.marks());
+  let all = true;
+  let any = false;
+  state.doc.nodesBetween(from, to, (node) => {
+    if (!node.isText) return;
+    any = true;
+    if (!matches(node.marks)) all = false;
+  });
+  return any && all;
+}
+
+/**
+ * Highlights the selection, or the text typed next when it is empty, with a tint; the
+ * same tint on a run that already has it takes the highlight off. Null takes it off too.
+ */
+export function setHighlight(tint: Tint | null): Command {
+  return (state, dispatch) => {
+    const type = schema.marks.highlight;
+    const remove = tint === null || hasHighlight(state, tint);
+    if (tint) lastTint = tint;
+    const tr = state.tr;
+    if (state.selection.empty) {
+      if (remove) tr.removeStoredMark(type);
+      else tr.addStoredMark(type.create({ tint }));
+    } else {
+      for (const { $from, $to } of state.selection.ranges) {
+        if (remove) tr.removeMark($from.pos, $to.pos, type);
+        else tr.addMark($from.pos, $to.pos, type.create({ tint }));
+      }
+    }
+    dispatch?.(tr);
+    return true;
+  };
+}
+
+/** The highlighter: off on a highlighted run, else the last tint used. */
+export const toggleHighlight: Command = (state, dispatch) =>
+  setHighlight(hasHighlight(state) ? null : lastTint)(state, dispatch);
 
 /** Aligns every paragraph the selection touches. */
 export function setAlignment(align: Alignment): Command {
@@ -85,6 +143,10 @@ export function formatCommand(action: FormatAction): Command {
       return toggleItalic;
     case "color":
       return setColor(action.color);
+    case "highlight":
+      return setHighlight(action.tint);
+    case "highlighter":
+      return toggleHighlight;
     case "align":
       return setAlignment(action.align);
   }
@@ -98,10 +160,12 @@ export function formatState(state: EditorState): FormatState {
       ? !!schema.marks[name].isInSet(marks)
       : state.doc.rangeHasMark(from, to, schema.marks[name]);
   const color = schema.marks.color.isInSet(marks);
+  const highlight = schema.marks.highlight.isInSet(marks);
   return {
     bold: hasMark("bold"),
     italic: hasMark("italic"),
     color: color ? (color.attrs.color as string) : null,
+    highlight: highlight ? (highlight.attrs.tint as Tint) : null,
     align: ($from.parent.attrs.align as Alignment | undefined) ?? "left",
   };
 }

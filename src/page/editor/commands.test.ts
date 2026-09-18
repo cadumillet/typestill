@@ -4,11 +4,14 @@ import { documentFromText, textFromDocument, type EditorDocument } from "../docu
 import {
   formatState,
   insertHardBreak,
+  lastHighlightTint,
   parseClipboardText,
   setAlignment,
   setColor,
+  setHighlight,
   splitParagraph,
   toggleBold,
+  toggleHighlight,
 } from "./commands";
 import { columnOf, loadColumn, schema } from "./schema";
 
@@ -47,6 +50,50 @@ describe("setAlignment", () => {
     const first = run(stateFor("one\ntwo\nthree", 1, 4), setAlignment("center"));
     expect(alignments(first)).toEqual(["center", "left", "left"]);
     expect(run(first, setAlignment("center"))).toBe(first);
+  });
+});
+
+describe("setHighlight", () => {
+  const tintsOf = (state: EditorState) => {
+    const tints: (string | null)[] = [];
+    state.doc.descendants((node) => {
+      if (node.isText) {
+        const mark = schema.marks.highlight.isInSet(node.marks);
+        tints.push(mark ? (mark.attrs.tint as string) : null);
+      }
+    });
+    return tints;
+  };
+
+  it("highlights a selection with a tint and takes the same tint off again", () => {
+    const green = run(stateFor("one two", 1, 4), setHighlight("green"));
+    expect(tintsOf(green)).toEqual(["green", null]);
+    expect(formatState(green).highlight).toBe("green");
+    expect(lastHighlightTint()).toBe("green");
+    expect(tintsOf(run(green, setHighlight("green")))).toEqual([null]);
+  });
+
+  it("changes the tint of a highlighted run, and null takes any highlight off", () => {
+    const green = run(stateFor("one two", 1, 4), setHighlight("green"));
+    const pink = run(green, setHighlight("pink"));
+    expect(tintsOf(pink)).toEqual(["pink", null]);
+    expect(tintsOf(run(pink, setHighlight(null)))).toEqual([null]);
+  });
+
+  it("the highlighter applies the last tint used and toggles off on a highlighted run", () => {
+    run(stateFor("x", 1, 2), setHighlight("blue"));
+    const state = run(stateFor("one two", 1, 4), toggleHighlight);
+    expect(tintsOf(state)).toEqual(["blue", null]);
+    // A run only partly highlighted gets the highlight over its whole length.
+    const wider = state.apply(state.tr.setSelection(TextSelection.create(state.doc, 1, 8)));
+    expect(tintsOf(run(wider, toggleHighlight))).toEqual(["blue"]);
+    expect(tintsOf(run(state, toggleHighlight))).toEqual([null]);
+  });
+
+  it("stores the mark at a caret so the text typed next is highlighted", () => {
+    const state = run(stateFor("one", 4), setHighlight("yellow"));
+    expect(schema.marks.highlight.isInSet(state.storedMarks ?? [])?.attrs.tint).toBe("yellow");
+    expect(formatState(state).highlight).toBe("yellow");
   });
 });
 

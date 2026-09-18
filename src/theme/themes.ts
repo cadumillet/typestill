@@ -1,6 +1,7 @@
 // The built-in themes. Ruled is the notebook's original look; Plain is a monospaced
 // typeface on the same grid with nothing drawn; Dark is Ruled on dark paper.
 
+import { HIGHLIGHT_COLORS } from "../canvas/palette";
 import { DEFAULT_MARGIN_MM, RULED_GRID, TEXT_LINE_HEIGHT } from "../page/paper";
 import { DEFAULT_ZINE_PADDING_MM, DEFAULT_ZINE_TEXT_ROWS } from "../page/zine";
 import type { Font, Theme } from "./theme";
@@ -49,6 +50,7 @@ export const RULED: Theme = {
     margin: "#f0b4b4",
     divider: "#dedede",
   },
+  highlights: HIGHLIGHT_COLORS,
   page: { border: true, cornerMm: 3 },
 };
 
@@ -64,10 +66,15 @@ export const PLAIN: Theme = {
     margin: "#e4e2dc",
     divider: "#dedede",
   },
+  highlights: HIGHLIGHT_COLORS,
   page: { border: true, cornerMm: 3 },
 };
 
-/** Dark paper, light ink, dimmed rules and margin line; the same five colour picks. */
+/**
+ * Dark paper, light ink, dimmed rules and margin line; the same five colour picks. The
+ * highlights are translucent (open-color shade 6 at 40%), since multiplying a tint over
+ * dark paper would leave nothing to see.
+ */
 export const DARK: Theme = {
   id: "dark",
   name: "Dark",
@@ -79,6 +86,12 @@ export const DARK: Theme = {
     rule: "#383b42",
     margin: "#5c3a3a",
     divider: "#3a3936",
+  },
+  highlights: {
+    yellow: "rgb(250 176 5 / 0.4)",
+    green: "rgb(64 192 87 / 0.4)",
+    blue: "rgb(51 154 240 / 0.4)",
+    pink: "rgb(240 101 149 / 0.4)",
   },
   page: { border: true, cornerMm: 3 },
 };

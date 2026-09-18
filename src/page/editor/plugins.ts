@@ -8,6 +8,7 @@ import {
   setAlignment,
   splitParagraph,
   toggleBold,
+  toggleHighlight,
   toggleItalic,
 } from "./commands";
 
@@ -57,6 +58,7 @@ export function editorPlugins(capacity: CapacityOptions): Plugin[] {
     keymap({
       "Mod-b": toggleBold,
       "Mod-i": toggleItalic,
+      "Mod-Shift-h": toggleHighlight,
       "Mod-Shift-l": setAlignment("left"),
       "Mod-Shift-e": setAlignment("center"),
       "Mod-Shift-r": setAlignment("right"),

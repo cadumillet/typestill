@@ -1,12 +1,22 @@
 // The stored form of a column's content: ProseMirror's JSON for the page editor's schema
-// (see editor/schema.ts). Paragraphs carry an alignment; text carries bold, italic and
-// colour marks; a hard break is a line break inside a paragraph. These helpers work on
-// the JSON alone so the store, the backup converter and their tests need no editor.
+// (see editor/schema.ts). Paragraphs carry an alignment; text carries bold, italic,
+// colour and highlight marks; a hard break is a line break inside a paragraph. These
+// helpers work on the JSON alone so the store, the backup converter and their tests need
+// no editor.
 
 export type Alignment = "left" | "center" | "right";
 export const ALIGNMENTS: readonly Alignment[] = ["left", "center", "right"];
 
-export type MarkJson = { type: "bold" | "italic" } | { type: "color"; attrs: { color: string } };
+/** A highlight's tint: an id each theme renders on its own paper, yellow first. */
+export type Tint = "yellow" | "green" | "blue" | "pink";
+export const TINTS: readonly Tint[] = ["yellow", "green", "blue", "pink"];
+
+export const isTint = (value: unknown): value is Tint => TINTS.includes(value as Tint);
+
+export type MarkJson =
+  | { type: "bold" | "italic" }
+  | { type: "color"; attrs: { color: string } }
+  | { type: "highlight"; attrs: { tint: Tint } };
 
 export interface TextJson {
   type: "text";
@@ -90,6 +100,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 function isMark(value: unknown): value is MarkJson {
   if (!isRecord(value)) return false;
   if (value.type === "bold" || value.type === "italic") return true;
+  if (value.type === "highlight") return isRecord(value.attrs) && isTint(value.attrs.tint);
   return value.type === "color" && isRecord(value.attrs) && typeof value.attrs.color === "string";
 }
 
