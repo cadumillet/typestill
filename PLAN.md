@@ -4,7 +4,7 @@ A digital notebook made to be the bridge between digital notes and real commonpl
 
 The idea: a notebook where each side has its own character. On the left, fixed-size lined pages you write on like a simple note editor, in Excalidraw's handwriting font, always on the lines. On the right, one infinite Excalidraw canvas per notebook for drawings, diagrams and images, with an optional grid that snaps. Pages remember where they left the canvas, so each page opens next to its own part of the drawing. Pages come in two kinds: lined pages for writing, and zine pages for images with a little text. No productivity-app machinery.
 
-Status (2026-09-17): Phase 1 is complete and on `main`: the store, the page editor, the canvas panel and split view, storage wiring with autosave and per-page canvas views, backup download and restore, notebook settings, the left rail and the bare notebook switcher. Phase 2 has started with text formatting: the page editor is on ProseMirror with bold, italic, colour and alignment, a floating format bar, and the backup format at version 2. Next is the notebook cover, then zine pages (specified in sections 2, 3 and 5 on 2026-09-17). Visual refinement is deliberately left for the end; the page's paper look should be settled before export work starts.
+Status (2026-09-17): Phase 1 is complete and on `main`: the store, the page editor, the canvas panel and split view, storage wiring with autosave and per-page canvas views, backup download and restore, notebook settings, the left rail and the bare notebook switcher. Phase 2 has started with text formatting: the page editor is on ProseMirror with bold, italic, colour and alignment, a floating format bar, and the backup format at version 2. Next is the notebook cover, then zine pages, the media pool and themes (all specified in sections 2, 3 and 5 on 2026-09-17 and 2026-09-18). Visual refinement is deliberately left for the end; the page's paper look should be settled before export work starts.
 
 ---
 
@@ -19,6 +19,7 @@ Status (2026-09-17): Phase 1 is complete and on `main`: the store, the page edit
 - Everything drawn on the canvas is plain Excalidraw. We only build the shell around it.
 - Simplicity over features. Each page kind does one thing well: lined pages hold writing, zine pages hold images. Images never go into lined pages.
 - The owner holds the data: browser storage plus backup files they keep. No accounts, no backend.
+- It behaves like a real notebook in human hands. Things stay tied together, and the user plays by its rules rather than the app quietly untying them.
 
 ## 2. Product spec
 
@@ -53,10 +54,24 @@ Status (2026-09-17): Phase 1 is complete and on `main`: the store, the page edit
 - A second page kind, for images, next to lined pages. A notebook mixes both freely. The kind is chosen when a page is created and can change only while the page is empty.
 - A zine page is composed like a Behance project, but small: one media block, which is a single image or a grid of two to four images, plus optional text below the media, beside it, or both. Nothing else on the page; nothing is dragged.
 - The media block fills the page. Padding is a page setting: zero means the images bleed to the page edges; otherwise the same margin on every side and the same gap between blocks.
-- Text below reserves a fixed number of lines at the bottom (default four, a page setting). Text beside reserves a column on the right, a third of the page width (left is an option). Text blocks use the same editor as lined pages with the same formatting, no rules, and the same hard stop when full.
+- Text below reserves a fixed number of lines at the bottom (default four, a page setting). Text beside reserves a column on the right, a third of the page width (left is an option). Text blocks use the same editor as lined pages with the same formatting and the same hard stop when full, but no rules and the theme's zine font, a typeface rather than the handwriting of lined pages.
 - Grid presets: two side by side, two stacked, two by two. Each cell fills with its image cropped to cover it; a per-image "fit" option letterboxes instead. Empty cells show a placeholder until an image is dropped in.
 - Images come from paste, drop or a file picker. They are downscaled on import (long edge 2048px, re-encoded), stored once per notebook by content hash in the same files table the canvas uses, and inlined in backups.
 - Zine pages remember a canvas view like lined pages, appear in the rail like any page, face each other in the two-page spread, and export at physical size like lined pages.
+
+### Media pool
+- Every notebook has one media pool: every image in the notebook, whether placed on a zine page or drawn onto the canvas. One image is one record, by content hash, however many places use it.
+- The side panel shows the pool when a zine page is open and the canvas when a lined page is open. A control in the panel switches to the other for a look; the mode follows the page again on the next page change.
+- Images enter the pool by dropping files on the pool or on a page, by paste, or with a file picker. They are downscaled on import (see section 5). The same file imported twice is one image.
+- An image is placed by dragging it from the pool onto a cell of the page's media block, or by selecting a cell and clicking an image. Dropping onto a filled cell replaces the image there. Dragging an image onto the canvas adds it there as an Excalidraw image element.
+- Each image in the pool shows where it is used: page numbers and the canvas. An image in use cannot be deleted; the user replaces it first. Deleting an unused image removes it from the notebook.
+
+### Themes
+- A theme is the look of the pages and nothing else: the fonts, the line grid, the rules and margin line, the colours, the zine defaults. The app's chrome is not themed.
+- Every notebook references one theme. Changing it re-lays out every page at once; text keeps its lines, and the usual rule for text past the last line applies.
+- Built-in themes come with the app. "Ruled" is today's look: Excalifont on lines at 7mm with the red margin line. "Plain" is a monospaced typeface with no visible rules and no margin line, on the same invisible grid. Rules can be lines, dots or none; the grid and the hard stop are always there, since they are the constraint, not the decoration.
+- "Dark" is the third built-in theme, right after the first two: dark paper, light ink, dimmed rules and margin line, the same five colour picks. Because the pages are themed and the chrome is not, Dark comes with an app appearance setting, light, dark or system, that the chrome and the canvas follow (Excalidraw has its own dark theme). Picking the Dark theme suggests the dark appearance; the two stay separate settings.
+- Custom themes come later: made in settings from the same fields, with user-provided font files stored in the notebook, travelling in backups. A notebook template, meaning a theme plus notebook defaults and a page size, is also later.
 
 ### Canvas (drawing)
 - One infinite Excalidraw canvas per notebook. Pan and zoom as in Excalidraw.
@@ -102,6 +117,7 @@ Notebook {
   lastOpenedAt: number
   lastPageId: string | null            // the page the notebook opens at
   cover: { color: string, emoji: string | null, subtitle: string | null }
+  themeId: string                      // a built-in theme, or later a custom one
   pageSize: "A5" | "A4" | "Letter"
   orientation: "portrait" | "landscape"
   defaults: {
@@ -145,6 +161,32 @@ Zine {
   textRows: number
 }
 
+Theme {
+  id: string
+  name: string
+  lined: {
+    font: Font
+    pitchMm: number                    // rule pitch, and the text line height
+    firstRuleMm: number
+    bottomMm: number                   // no rule closer than this to the bottom edge
+    rules: "lines" | "dots" | "none"
+    marginLine: boolean
+    defaultMarginMm: number
+    textInsetMm: number
+    rightInsetMm: number
+  }
+  zine: { font: Font, defaultPaddingMm: number, defaultTextRows: number }
+  colours: { paper: string, ink: string, rule: string, margin: string, divider: string }
+  page: { border: boolean, cornerMm: number }
+}
+
+Font {
+  family: string
+  source: "bundled" | "file"           // a font shipped with the app, or a file in the notebook
+  fileId?: string
+  lineHeight: number                   // unitless; the font size is the pitch divided by it
+}                                      // the baseline offset is measured at runtime, never stored
+
 Canvas {
   notebookId: string                   // one per notebook
   gridEnabled: boolean
@@ -159,6 +201,7 @@ Notes:
 - The canvas's `elements` is valid Excalidraw data. It can be exported as a normal `.excalidraw` file at any time, and future sync/collab can reuse Excalidraw's own reconciliation instead of a custom one.
 - Backup file = notebook, pages, canvas and files as one JSON document, images base64 inside. A zip backup with images as separate files is planned for Phase 3, for notebooks heavy with photos. Format version 2; version 1 files (plain-string columns) are converted on open, each line break becoming a paragraph boundary. The IndexedDB schema has the same upgrade (Dexie version 2).
 - Page thumbnails are cached separately in IndexedDB and are not part of the file.
+- Built-in themes are code, not records. Custom themes (later) are records under the notebook and go into the backup with it.
 
 ## 4. Tech stack
 
@@ -181,6 +224,10 @@ Notes:
 **Zine pages.** A zine page is a fixed layout, not a free canvas: the media block plus optional text below or beside it, computed from the page size, the padding and the text reservations. Nothing is dragged; the page settings popover holds the padding, the grid preset, the text placement and the rows reserved. The media block renders images with object-fit; the text blocks reuse the ProseMirror column with its capacity check and no rules. Export renders the same DOM as lined pages. Files are the notebook's existing files table, content-hashed and shared with the canvas; pruning walks zine pages as well as the canvas.
 
 **Images.** Photos would swamp browser storage and backups, so images are downscaled on import with a canvas in the browser (long edge 2048px, JPEG at quality 0.85, PNG kept only when transparent) and stored as data URLs. A 2048px JPEG is a few hundred KB, so a notebook with a hundred images is tens of MB in IndexedDB and in its backup, which browsers handle but is worth showing in notebook settings. Nothing here needs a backend: the owner's browser holds the data and the owner holds the backups; only sync or collaboration would, and both stay "later".
+
+**Media pool.** The pool is a view over the notebook's files table with a usage index: the image references of every zine page plus the file ids of the canvas's image elements, kept in the session and refreshed on save. The panel has two modes, canvas and pool, chosen from the open page's kind. Placing an image on a page writes its file id into the media block; dragging one onto the canvas goes through Excalidraw's API (add the file, then insert an image element). Deletion is refused while the usage index lists the image anywhere, and the pool shows those places.
+
+**Themes.** The constants in the paper module (pitch, first rule, bottom margin, insets, the line height ratio) and the colour tokens become the fields of a theme, with today's values as the "Ruled" theme, and the page components take the theme as a prop and set the CSS custom properties from it. Two things stop being constants. Fonts load through the FontFace API from bundled files or from a file in the notebook's files table, never from the network. The baseline offset that puts text on the rules is measured at runtime per font and size (the browser reports a font's ascent and descent from a canvas text measurement) and cached, replacing the hand-tuned ratio, so any font lands on the rules without per-font numbers in the theme. Rules are drawn by CSS from the theme as lines, dots or nothing; the mirror-based capacity check does not change. The zine text font is a second font slot on the theme. Export renders the same DOM, so themes carry through to PDF and PNG.
 
 **Page export with identical wrapping.** Render the page's DOM into an SVG foreignObject with the font inlined as data URLs, draw it to a canvas at 2x, then composite the date stamp and page number. The same DOM wraps identically on screen and in the export. Print CSS is the fallback if foreignObject proves unreliable.
 
@@ -219,6 +266,9 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - Text formatting: bold, italic, colour, alignment; the page editor moves onto ProseMirror (section 5) (done)
 - Notebook cover: colour, optional emoji and subtitle, set in notebook settings; shown as a swatch in the switcher and the app bar (the shelf renders it as a card in Phase 3)
 - Zine pages: the page kind and its picker on new page, the media block (single image or grid preset), optional text below and beside, padding and reservations in page settings, image import with downscaling, files shared with the canvas
+- Media pool: the panel's pool mode on zine pages, usage index, placing by drag or click, drag onto the canvas, deletion refused while in use
+- Themes: the theme model with the built-in Ruled and Plain themes, a theme field on the notebook and a picker in settings, runtime baseline measurement, the zine text font
+- Dark: the built-in Dark theme, and the app appearance setting (light, dark, system) for the chrome and the canvas, right after the themes land
 - Divider drag and inheritance polish (two columns exist since Phase 1)
 - Tags: create, assign, color; rail coloring and filtering
 - Hover thumbnails in the rail
@@ -237,14 +287,10 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - Proper shelf screen, notebooks shown as their covers
 - First-run onboarding
 
-### Ideas under discussion (2026-09-17, not yet specified)
-- Media pool: on a zine page the side panel shows the notebook's image pool instead of the drawing canvas. The pool is a view over the notebook's files table (every image, whether used on a zine page or the canvas) with import by drop or picker, and images are placed on the page from it.
-- Zine text blocks use a different font style from lined pages (a typeface rather than handwriting), set by the theme.
-- Themes: the page layout's variables (font, line pitch, rules and margin line on or off, insets, paper and ink colours, the zine text font and defaults) extracted from the code into a theme the notebook references. Built-in themes first (the current ruled look, a plain monospaced one without lines); user-made themes and "notebook templates" (theme plus notebook defaults) later. Themes change the page look only, nothing else in the app. Assessed as feasible; see the decisions log once specified.
-
 ### Later, not now
 - Images on text pages with text wrapping around them: superseded by zine pages on 2026-09-17. The float approach stays documented in the decisions log in case it is ever wanted.
 - Cursor alternatives for pages: highlighting the active rule, or only the piece of rule under the next character, instead of a caret. Tried on 2026-09-17, not adopted for now.
+- Custom themes made in settings, user font files stored in the notebook, and notebook templates (theme plus defaults plus page size)
 - Tag-based links between pages and canvas areas
 - Multiple notebooks polish (sorting)
 - Sync
@@ -279,3 +325,7 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - Mission (2026-09-17): typestill is a digital notebook made to be the bridge between digital notes and real commonplace notebooks and zines. Opinionated but flexible, simplicity at its core. Note-taking is close to its end behaviour; the remaining area is images, handled by zine pages.
 - Zine pages (2026-09-17): a second page kind with one media block (a single image or a grid of up to four) and optional text below and/or beside it; padding as a page setting, no free placement, a fixed number of text rows. Text blocks reuse the lined editor without rules. Images are downscaled on import, stored in the notebook's files table by content hash and inlined in backups. No backend: browser storage plus owner-held backups remain the whole story.
 - Page sizes: A4 may be descoped, since zine pages want small pages. Not decided.
+- Media pool (2026-09-18): an image in use on a page or the canvas cannot be deleted from the pool. Replace it first, then delete. Things stay tied, as in a real notebook; the user plays by its rules. The pool is one per notebook, over the same files table the canvas uses, and the side panel shows it on zine pages in place of the canvas.
+- Themes (2026-09-18): the page look is a theme the notebook references; built-in Ruled and Plain first, custom themes and templates later. Rules may be lines, dots or none, but the line grid and the hard stop are never themed away. Fonts are bundled or stored in the notebook, never fetched from the network; the baseline offset is measured at runtime rather than stored. This brings dot and blank paper back as theme choices without the page-level paper setting that was removed on 2026-09-17.
+- Zine text blocks use the theme's zine font, a typeface rather than the lined pages' handwriting.
+- Dark (2026-09-18): a built-in Dark page theme, implemented right after the first themes, paired with an app appearance setting for the chrome and the canvas. Appearance is not part of a theme; themes stay page-only.
