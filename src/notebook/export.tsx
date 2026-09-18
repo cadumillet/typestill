@@ -48,7 +48,7 @@ function pageElement(page: Page, source: ExportSource, theme: Theme) {
   ) : (
     <TextPage
       {...common}
-      margin={page.margin}
+      margin={notebook.defaults.margin}
       columns={page.columns}
       divider={page.divider}
       files={source.files}

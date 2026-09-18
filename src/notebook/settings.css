@@ -214,3 +214,20 @@ button.primary {
   margin-top: 4px;
   font-size: 12px;
 }
+
+/* The box's head: the notebook's name and Close; changes apply as they are made. */
+.settings__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.settings__head .settings__title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

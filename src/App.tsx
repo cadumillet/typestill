@@ -3,11 +3,9 @@ import { flushSync } from "react-dom";
 import { DrawingTools } from "./notebook/DrawingTools";
 import { MediaPool } from "./notebook/MediaPool";
 import { PAGE_BAR_HEIGHT, PageBar } from "./notebook/PageBar";
-import { PageRail } from "./notebook/PageRail";
 import { CoverSwatch } from "./notebook/CoverSwatch";
-import { PageSettings } from "./notebook/PageSettings";
 import { SearchBox } from "./notebook/SearchBox";
-import { SettingsDialog } from "./notebook/SettingsDialog";
+import { NotebookBox } from "./notebook/NotebookBox";
 import { Shelf } from "./notebook/Shelf";
 import { WelcomeDialog } from "./notebook/WelcomeDialog";
 import { useNotebookSession } from "./notebook/useNotebookSession";
@@ -74,7 +72,8 @@ export function App() {
   const session = useNotebookSession();
   const { appearance, setAppearance } = useAppearance();
   const [preview, setPreview] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  /** The notebook box: the map, the sections, this page and the notebook's settings. */
+  const [boxOpen, setBoxOpen] = useState(false);
   /** The zine page whose media pool is open in the side panel; the panel closes with the page. */
   const [poolPageId, setPoolPageId] = useState<string | null>(null);
   const [panelWidth, setPanelWidth] = useState(
@@ -152,6 +151,7 @@ export function App() {
       if (features.zinePages) void loaded?.newPage("zine");
     },
     drawingMode: () => setDrawingMode(!drawingMode),
+    notebookBox: () => setBoxOpen(true),
   });
 
   if (!session) {
@@ -272,9 +272,12 @@ export function App() {
     }
   };
 
+  /** The margin line every page follows: the notebook's, not the page's stored one (section 8). */
+  const margin = notebook.defaults.margin;
+
   const setTwoColumns = (enabled: boolean) => {
     const width = pageMm(notebook.pageSize, notebook.orientation).width;
-    void session.setDivider(enabled ? defaultDivider(width, page.margin) : null);
+    void session.setDivider(enabled ? defaultDivider(width, margin) : null);
   };
 
   const pageIsEmpty =
@@ -320,7 +323,7 @@ export function App() {
     await session.deletePage();
   };
 
-  /** "New section…" from page settings: names a section and moves the page there. */
+  /** "New section…" from the box's This page group: names a section and moves the page there. */
   const newSection = async () => {
     const name = window.prompt("Name for the new section", "Section")?.trim();
     if (!name) return;
@@ -357,10 +360,10 @@ export function App() {
     }
   };
 
-  // Storage, for the settings dialog: from the session's state (the dormant canvas as
+  // Storage, for the notebook box: from the session's state (the dormant canvas as
   // loaded), so a prune shows up at once.
   const storage = (() => {
-    if (!settingsOpen) return { total: 0, images: 0, imageCount: 0, unusedCount: 0 };
+    if (!boxOpen) return { total: 0, images: 0, imageCount: 0, unusedCount: 0 };
     const size = notebookSize({ ...notebook, pages, canvas: session.canvas, files: session.files });
     const usage = fileUsage(pages, session.canvasFileIds);
     const unusedCount = Object.keys(session.files).filter((id) => {
@@ -370,7 +373,12 @@ export function App() {
     return { ...size, unusedCount };
   })();
 
-  const openSettings = () => setSettingsOpen(true);
+  const openBox = () => setBoxOpen(true);
+  /** The map's clicks open a page or a section and close the box. */
+  const openFromMap = (go: () => void) => {
+    setBoxOpen(false);
+    go();
+  };
 
   const pruneImages = async () => {
     if (
@@ -399,12 +407,7 @@ export function App() {
           <header className="app-header" style={{ paddingRight: barInset }}>
             <span className="wordmark">typestill</span>
             <div className="app-header__actions">
-              <button
-                type="button"
-                className="notebook-button"
-                onClick={openSettings}
-                title="Notebook settings"
-              >
+              <button type="button" className="notebook-button" onClick={openBox} title="Notebook">
                 <CoverSwatch cover={notebook.cover} name={notebook.name} size={16} />
                 <span className="notebook-button__name">{notebook.name}</span>
               </button>
@@ -412,7 +415,7 @@ export function App() {
               <Menu
                 label="Notebook"
                 items={[
-                  { label: "Settings…", onSelect: openSettings },
+                  { label: "Notebook…", onSelect: openBox },
                   {
                     label: "Export PDF",
                     onSelect: () =>
@@ -451,33 +454,36 @@ export function App() {
               </IconButton>
             </div>
           </header>
-          <SettingsDialog
-            open={settingsOpen}
+          <NotebookBox
+            open={boxOpen}
+            onClose={() => setBoxOpen(false)}
             notebook={notebook}
-            appearance={appearance}
-            onSave={(settings, nextAppearance) => {
-              setAppearance(nextAppearance);
-              return session.updateSettings(settings);
-            }}
-            onClose={() => setSettingsOpen(false)}
-            storage={storage}
-            onPruneImages={() => void pruneImages()}
+            pages={pages}
+            index={index}
+            sides={sides}
+            thumbnails={session.thumbnails}
+            onSelectPage={(i) => openFromMap(() => session.goTo(i))}
+            onOpenSection={(sectionId) => openFromMap(() => void session.openSection(sectionId))}
             onAddSection={(input) => void session.addSection(input)}
             onUpdateSection={(sectionId, patch) => void session.updateSection(sectionId, patch)}
             onMoveSection={(sectionId, direction) => void session.moveSection(sectionId, direction)}
             onDeleteSection={(sectionId) => void removeSection(sectionId)}
+            page={page}
+            onSectionChange={session.setPageSection}
+            onNewSection={() => void newSection()}
+            twoColumns={page.kind === "lined" ? page.divider !== null : null}
+            onTwoColumnsChange={setTwoColumns}
+            showKind={features.zinePages}
+            canChangeKind={pageIsEmpty}
+            onKindChange={(kind) => void session.setKind(kind)}
+            onPaddingChange={setPadding}
+            onUpdateSettings={(patch) => void session.updateSettings(patch)}
+            appearance={appearance}
+            onAppearanceChange={setAppearance}
+            storage={storage}
+            onPruneImages={() => void pruneImages()}
           />
           <div className="workspace">
-            <PageRail
-              pages={pages}
-              index={index}
-              onSelect={session.goTo}
-              offsetTop={pageTop}
-              sections={notebook.sections}
-              sides={sides}
-              onOpenSection={(sectionId) => void session.openSection(sectionId)}
-              thumbnails={session.thumbnails}
-            />
             <main className="desk" ref={attachDesk}>
               {fit && (
                 <div className="desk__sheet" style={{ width: fit.width }}>
@@ -561,7 +567,7 @@ export function App() {
                               orientation={notebook.orientation}
                               theme={theme}
                               zoom={fit.zoom}
-                              margin={shownPage.margin}
+                              margin={margin}
                               columns={shownPage.columns}
                               divider={shownPage.divider}
                               preview={preview}
@@ -584,7 +590,8 @@ export function App() {
                     onSelect={session.goTo}
                     previousShortcut={shortcutLabel("previousPage")}
                     nextShortcut={shortcutLabel("nextPage")}
-                    onOpenMap={openSettings}
+                    onOpenMap={openBox}
+                    mapShortcut={shortcutLabel("notebookBox")}
                     canAdd={canAdd}
                     addShortcut={shortcutLabel("newLinedPage")}
                     zinePages={features.zinePages}
@@ -605,23 +612,7 @@ export function App() {
                     }
                     poolOpen={page.kind === "zine" ? panelOpen : null}
                     onTogglePool={() => setPoolPageId(panelOpen ? null : page.id)}
-                  >
-                    <PageSettings
-                      page={page}
-                      number={index + 1}
-                      count={pages.length}
-                      canChangeKind={pageIsEmpty}
-                      showKind={features.zinePages}
-                      onKindChange={(kind) => void session.setKind(kind)}
-                      sections={notebook.sections}
-                      onSectionChange={session.setPageSection}
-                      onNewSection={() => void newSection()}
-                      onMarginChange={(margin) => void session.setPageMargin(margin)}
-                      twoColumns={page.divider !== null}
-                      onTwoColumnsChange={setTwoColumns}
-                      onPaddingChange={setPadding}
-                    />
-                  </PageBar>
+                  />
                 </div>
               )}
               {drawingMode && fit && pageBox && (

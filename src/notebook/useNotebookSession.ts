@@ -153,11 +153,14 @@ export interface NotebookSession {
   closeNotebook: () => Promise<void>;
   /** Creates a notebook with one empty page and opens it. */
   createNotebook: (name: string, cover?: Partial<Cover>) => Promise<void>;
-  /** The name and cover, the theme, the page size and orientation of every page, and the defaults for new pages. */
+  /**
+   * The name and cover, the theme, the page size and orientation of every page, and the
+   * defaults for new pages, any of them. The margin line default is the margin every page
+   * follows, so a change to it re-snaps the dividers it pushes on.
+   */
   updateSettings: (
-    settings: Pick<
-      Notebook,
-      "name" | "cover" | "themeId" | "pageSize" | "orientation" | "defaults"
+    settings: Partial<
+      Pick<Notebook, "name" | "cover" | "themeId" | "pageSize" | "orientation" | "defaults">
     >,
   ) => Promise<void>;
   /**
@@ -932,26 +935,51 @@ export function useNotebookSession(
 
   const updateSettings = useCallback(
     async (
-      settings: Pick<
-        Notebook,
-        "name" | "cover" | "themeId" | "pageSize" | "orientation" | "defaults"
+      settings: Partial<
+        Pick<Notebook, "name" | "cover" | "themeId" | "pageSize" | "orientation" | "defaults">
       >,
     ) => {
       if (!state) return;
       await updateNotebookSettings(db, state.notebook.id, settings);
-      setState((current) =>
-        current
-          ? {
-              ...current,
-              notebook: { ...current.notebook, ...settings },
-              notebooks: current.notebooks.map((n) =>
-                n.id === current.notebook.id
-                  ? { ...n, name: settings.name, cover: settings.cover }
-                  : n,
-              ),
-            }
-          : current,
-      );
+      const notebook = { ...state.notebook, ...settings };
+      // The pages follow the notebook's margin: a divider the new margin pushes on moves
+      // to the nearest step that still leaves room for the left column.
+      const resnapped: { id: string; divider: number }[] = [];
+      if (notebook.defaults.margin !== state.notebook.defaults.margin) {
+        const width = pageMm(notebook.pageSize, notebook.orientation).width;
+        const lined = getTheme(notebook.themeId).lined;
+        for (const page of state.pages) {
+          if (page.divider === null) continue;
+          const divider = snapDivider(page.divider, width, notebook.defaults.margin, lined);
+          if (divider !== page.divider) resnapped.push({ id: page.id, divider });
+        }
+        await pageSaver.current?.flush();
+        for (const { id, divider } of resnapped) await setPageDivider(db, id, divider);
+      }
+      setState((current) => {
+        if (!current) return current;
+        const moved = new Map(resnapped.map(({ id, divider }) => [id, divider]));
+        const pages =
+          moved.size === 0
+            ? current.pages
+            : current.pages.map((page) => {
+                const divider = moved.get(page.id);
+                return divider === undefined
+                  ? page
+                  : { ...page, divider, columns: columnsForDivider(page.columns, divider) };
+              });
+        if (moved.has(pages[current.index].id)) {
+          pageSaver.current?.markClean(pages[current.index].columns);
+        }
+        return {
+          ...current,
+          notebook: { ...current.notebook, ...settings },
+          pages,
+          notebooks: current.notebooks.map((n) =>
+            n.id === current.notebook.id ? { ...n, name: notebook.name, cover: notebook.cover } : n,
+          ),
+        };
+      });
     },
     [db, state],
   );

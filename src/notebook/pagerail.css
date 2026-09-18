@@ -1,34 +1,46 @@
-/* The left rail: one column per section, each a tab over a vertical stack of
-   GitHub-contribution-style squares, one per page of the section. */
+/* The notebook's map, at the top of the notebook box: one column per section, each a
+   tab with the section's name over a vertical stack of GitHub-contribution-style squares,
+   one per page of the section. */
 
 .page-rail {
   position: relative;
-  flex: none;
+}
+
+/* The columns scroll sideways when there are many sections; the hover box is outside
+   the scroller so it is never clipped by it. */
+.page-rail__columns {
   display: flex;
-  min-height: 0;
-  padding: 0 4px 0 12px;
+  align-items: flex-start;
+  gap: 10px;
+  max-height: 40vh;
+  overflow: auto;
+  padding: 2px 0 8px;
 }
 
 .page-rail__column {
   flex: none;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  min-height: 0;
-  width: 16px;
+  align-items: flex-start;
 }
 
-/* The section's tab: a short bar in the section's colour, rounded at the top like a
-   divider's tab, with the section's name on hover. */
+/* The section's tab: a pill in the section's colour with its name, like a divider's
+   tab; a click opens the section where it was left. */
 .page-rail__tab {
   flex: none;
   display: block;
-  width: 12px;
-  height: 8px;
+  max-width: 120px;
   margin-bottom: 6px;
-  padding: 0;
+  padding: 2px 8px;
   border: 0;
-  border-radius: 3px 3px 1px 1px;
+  border-radius: 6px 6px 3px 3px;
+  background: var(--section);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
   transition: filter 120ms;
 }
@@ -38,26 +50,16 @@
 }
 
 .page-rail__list {
-  flex: 1;
-  min-height: 0;
-  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 4px;
   margin: 0;
-  padding: 0 0 12px;
+  padding: 0 0 0 2px;
   list-style: none;
-  overflow-y: auto;
-  scroll-padding: 24px 0;
-  scrollbar-width: none;
 }
 
-.page-rail__list::-webkit-scrollbar {
-  display: none;
-}
-
-/* A page's square is a light tint of its section's colour (--section, set by the rail)
-   over the desk; the open page's is the colour itself. */
+/* A page's square is a light tint of its section's colour (--section, set by the map)
+   over the surface; the open page's is the colour itself. */
 .page-rail__square {
   display: block;
   width: 12px;
@@ -65,13 +67,13 @@
   padding: 0;
   border: 0;
   border-radius: 3px;
-  background: color-mix(in srgb, var(--section) 35%, var(--desk));
+  background: color-mix(in srgb, var(--section) 35%, var(--surface));
   cursor: pointer;
   transition: background 120ms;
 }
 
 .page-rail__square:hover {
-  background: color-mix(in srgb, var(--section) 60%, var(--desk));
+  background: color-mix(in srgb, var(--section) 60%, var(--surface));
 }
 
 .page-rail__square[aria-current="page"] {
@@ -84,10 +86,9 @@
   outline-offset: 1px;
 }
 
-/* Hover label and thumbnail beside the rail. The label is styled like the app bar tooltips. */
+/* Hover label and thumbnail beside the square. The label is styled like the app bar tooltips. */
 .page-rail__hover {
   position: absolute;
-  left: calc(100% - 2px);
   transform: translateY(-50%);
   z-index: 20;
   display: flex;

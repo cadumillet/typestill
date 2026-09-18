@@ -3,7 +3,7 @@ import { Popover } from "../shell/Popover";
 import { Sliders } from "../shell/icons";
 import { OPACITIES, type DrawingAids, type Opacity } from "../page/drawingMode";
 import type { DrawingLayer } from "../store/model";
-import "./pagesettings.css";
+import "./drawingtools.css";
 
 export interface DrawingToolsProps {
   /** The viewing aids: the opacity of the text and of the rules while drawing. */
@@ -37,9 +37,9 @@ function Segments<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="page-settings__row page-settings__row--static">
+    <div className="drawing-tools__row">
       <span>{label}</span>
-      <span className="page-settings__segments" role="radiogroup" aria-label={label}>
+      <span className="drawing-tools__segments" role="radiogroup" aria-label={label}>
         {options.map((option) => (
           <button
             key={option.value}
@@ -76,7 +76,7 @@ export function DrawingTools({ aids, onAidsChange, layer, onLayerChange }: Drawi
         </IconButton>
       )}
     >
-      <div className="page-settings">
+      <div className="drawing-tools">
         <Segments
           label="Text"
           value={aids.text}

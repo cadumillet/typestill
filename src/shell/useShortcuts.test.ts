@@ -38,6 +38,7 @@ describe("shortcutFor", () => {
     expect(shortcutFor(alt("KeyN"), focus())).toBe("newLinedPage");
     expect(shortcutFor(alt("KeyN", { shiftKey: true }), focus())).toBe("newZinePage");
     expect(shortcutFor(shiftTab(), focus())).toBe("drawingMode");
+    expect(shortcutFor(alt("KeyM"), focus())).toBe("notebookBox");
   });
 
   it("matches letters by physical key, since Option changes the character on a Mac", () => {
@@ -112,6 +113,7 @@ describe("shortcut labels", () => {
     expect(shortcutLabel("newLinedPage", true)).toBe("⌥N");
     expect(shortcutLabel("newZinePage", true)).toBe("⌥⇧N");
     expect(shortcutLabel("drawingMode", true)).toBe("⇧⇥");
+    expect(shortcutLabel("notebookBox", true)).toBe("⌥M");
     expect(shortcutLabel("previousPage", false)).toBe("Alt+↑");
     expect(shortcutLabel("newZinePage", false)).toBe("Alt+Shift+N");
     expect(shortcutLabel("drawingMode", false)).toBe("Shift+Tab");
