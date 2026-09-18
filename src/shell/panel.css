@@ -8,3 +8,23 @@
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
   overflow: hidden;
 }
+
+/* The control that swaps what the panel shows, over the content's top-left corner. */
+.panel__mode {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 5;
+}
+
+.panel__mode .icon-button {
+  background: #fff;
+  border-color: #e6e4de;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+}
+
+/* The tooltip would be clipped by the panel's left edge if centred. */
+.panel__mode .icon-button[data-tooltip]::after {
+  left: 0;
+  transform: none;
+}

@@ -336,6 +336,21 @@ export async function addFile(
   await db.files.put({ notebookId, id: data.id, data });
 }
 
+export class FileInUseError extends Error {
+  constructor(public readonly fileId: string) {
+    super("The image is in use and cannot be deleted");
+    this.name = "FileInUseError";
+  }
+}
+
+/** Deletes an image the notebook no longer uses anywhere. Throws FileInUseError otherwise. */
+export async function deleteFile(db: TypestillDb, notebookId: string, id: string): Promise<void> {
+  await db.transaction("rw", [db.pages, db.canvases, db.files], async () => {
+    if ((await usedFileIds(db, notebookId)).has(id)) throw new FileInUseError(id);
+    await db.files.delete([notebookId, id]);
+  });
+}
+
 /** File ids in use anywhere in the notebook: on zine pages or on the canvas. */
 export async function usedFileIds(db: TypestillDb, notebookId: string): Promise<Set<string>> {
   const [pages, canvas] = await Promise.all([listPages(db, notebookId), getCanvas(db, notebookId)]);

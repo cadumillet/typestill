@@ -7,6 +7,7 @@ import { getDb, type TypestillDb } from "../store/db";
 import { placeImages, type Zine } from "../page/zine";
 import {
   columnsForDivider,
+  referencedFileIds,
   type Canvas,
   type CanvasView,
   type Column,
@@ -18,6 +19,7 @@ import {
   addFile,
   createNotebook as createNotebookRecord,
   createPage,
+  deleteFile,
   exportNotebook,
   getCanvas,
   getNotebook,
@@ -50,6 +52,8 @@ export interface NotebookSession {
   /** The canvas as loaded. The editor reads it once; later changes live in the editor. */
   canvas: Canvas;
   files: Record<string, BinaryFileData>;
+  /** File ids the canvas's image elements use right now. Feeds the media pool's usage. */
+  canvasFileIds: string[];
   /** The view the open page remembers. Changes only when a page is opened. */
   restoreView: CanvasView | null;
   /** Increments each time a notebook is loaded. Key the canvas editor by it so it starts over. */
@@ -64,12 +68,16 @@ export interface NotebookSession {
   /** Changes the open page's kind. Only an empty page can change; the store refuses otherwise. */
   setKind: (kind: PageKind) => Promise<void>;
   /**
-   * Imports images into the notebook's files (downscaled, keyed by content) and places
-   * them on the open zine page: the first in the given cell, the rest in the empty cells
-   * after it. Returns how many images were read; files the browser cannot decode are
-   * skipped.
+   * Imports images into the notebook's files (downscaled, keyed by content) and, given a
+   * cell, places them on the open zine page: the first in that cell, the rest in the
+   * empty cells after it. Returns how many images were read; files the browser cannot
+   * decode are skipped.
    */
-  addImages: (cell: number, files: File[]) => Promise<number>;
+  addImages: (cell: number | null, files: File[]) => Promise<number>;
+  /** Puts an image from the pool into a cell of the open zine page. */
+  placeFile: (cell: number, fileId: string) => void;
+  /** Removes an image from the notebook. Throws FileInUseError while a page or the canvas uses it. */
+  deleteImage: (fileId: string) => Promise<void>;
   /** Canvas callbacks carry the loadId of the editor that sent them; stale editors are ignored. */
   onCanvasChange: (content: CanvasContent, loadId: number) => void;
   onCanvasViewChange: (view: CanvasView, loadId: number) => void;
@@ -97,6 +105,7 @@ interface Loaded {
   index: number;
   canvas: Canvas;
   files: Record<string, BinaryFileData>;
+  canvasFileIds: string[];
   restoreView: CanvasView | null;
 }
 
@@ -203,6 +212,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
         index,
         canvas,
         files,
+        canvasFileIds: referencedFileIds(canvas.elements),
         restoreView: pages[index].canvasView,
       });
     },
@@ -336,7 +346,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
   );
 
   const addImages = useCallback(
-    async (cell: number, files: File[]) => {
+    async (cell: number | null, files: File[]) => {
       if (!state) return 0;
       const notebookId = state.notebook.id;
       const pageId = state.pages[state.index].id;
@@ -357,16 +367,42 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
       // were being read. Saving is keyed by content, so running twice is harmless.
       setState((current) => {
         if (!current || current.notebook.id !== notebookId) return current;
+        const files = { ...current.files, ...added };
         const at = current.pages.findIndex((page) => page.id === pageId);
         const target = current.pages[at]?.zine;
-        if (!target) return current;
+        if (cell === null || !target) return { ...current, files };
         const zine = placeImages(target, cell, ids);
         if (at === current.index) zineSaver.current?.onChange(zine);
         else savePageZine(db, pageId, zine).catch(report);
         const pages = current.pages.map((page, i) => (i === at ? { ...page, zine } : page));
-        return { ...current, pages, files: { ...current.files, ...added } };
+        return { ...current, pages, files };
       });
       return ids.length;
+    },
+    [db, state],
+  );
+
+  const placeFile = useCallback(
+    (cell: number, fileId: string) => {
+      if (!state) return;
+      const zine = state.pages[state.index].zine;
+      if (!zine || !state.files[fileId]) return;
+      setZine(placeImages(zine, cell, [fileId]));
+    },
+    [state, setZine],
+  );
+
+  const deleteImage = useCallback(
+    async (fileId: string) => {
+      if (!state) return;
+      await Promise.all([zineSaver.current?.flush(), canvasSaver.current?.flush()]);
+      await deleteFile(db, state.notebook.id, fileId);
+      setState((current) => {
+        if (!current) return current;
+        const files = { ...current.files };
+        delete files[fileId];
+        return { ...current, files };
+      });
     },
     [db, state],
   );
@@ -376,6 +412,12 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
   const onCanvasChange = useCallback((content: CanvasContent, loadId: number) => {
     if (loadId !== loads.current) return;
     canvasSaver.current?.onChange(content);
+    const ids = referencedFileIds(content.elements);
+    setState((current) => {
+      if (!current || current.loadId !== loadId) return current;
+      if (ids.join() === current.canvasFileIds.join()) return current;
+      return { ...current, canvasFileIds: ids };
+    });
   }, []);
 
   const onCanvasViewChange = useCallback((view: CanvasView, loadId: number) => {
@@ -470,6 +512,8 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     setZine,
     setKind,
     addImages,
+    placeFile,
+    deleteImage,
     onCanvasChange,
     onCanvasViewChange,
     onGridChange,

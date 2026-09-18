@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { Canvas, type CanvasContent } from "./canvas/Canvas";
+import { MediaPool } from "./notebook/MediaPool";
 import { PageRail } from "./notebook/PageRail";
 import { NotebookSwitcher } from "./notebook/NotebookSwitcher";
 import { PageSettings } from "./notebook/PageSettings";
@@ -15,7 +16,17 @@ import { IconButton } from "./shell/IconButton";
 import { Menu } from "./shell/Menu";
 import { Panel } from "./shell/Panel";
 import { SplitView } from "./shell/SplitView";
-import { ChevronLeft, ChevronRight, Dots, Eye, NewPage, SidePanel } from "./shell/icons";
+import { FileInUseError } from "./store/notebooks";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Dots,
+  Eye,
+  Images,
+  NewPage,
+  Pencil,
+  SidePanel,
+} from "./shell/icons";
 
 const DESK_PADDING = 24;
 /** Panel margins plus the width below which Excalidraw falls into its mobile layout. */
@@ -56,6 +67,11 @@ export function App() {
   }>();
   const [deskRef, desk] = useElementSize<HTMLElement>();
   const fileInput = useRef<HTMLInputElement>(null);
+  // The panel shows the media pool on zine pages and the canvas on lined pages. A peek
+  // at the other lasts until the next page change, so it is tagged with its page.
+  const [peek, setPeek] = useState<{ pageId: string; mode: "canvas" | "pool" } | null>(null);
+  /** The zine cell chosen by clicking it, where a paste or a click in the pool lands. */
+  const [chosenCell, setChosenCell] = useState<{ pageId: string; cell: number } | null>(null);
 
   const handleWidth = useCallback((width: number) => {
     setPanelWidth(width);
@@ -121,10 +137,28 @@ export function App() {
     session.setZine(next);
   };
 
-  const addImages = async (cell: number, files: File[]) => {
+  const addImages = async (cell: number | null, files: File[]) => {
     const added = await session.addImages(cell, files);
     if (added === 0) window.alert("None of these files could be read as an image.");
   };
+
+  const deleteImage = async (fileId: string) => {
+    if (!window.confirm("Delete this image from the notebook?")) return;
+    try {
+      await session.deleteImage(fileId);
+    } catch (error) {
+      window.alert(
+        error instanceof FileInUseError
+          ? "This image is in use on a page or the canvas. Replace it there first."
+          : "Could not delete the image.",
+      );
+    }
+  };
+
+  const panelMode = peek?.pageId === page.id ? peek.mode : page.kind === "zine" ? "pool" : "canvas";
+  const selectedCell = chosenCell?.pageId === page.id ? chosenCell.cell : null;
+  const setSelectedCell = (cell: number | null) =>
+    setChosenCell(cell === null ? null : { pageId: page.id, cell });
 
   return (
     <SplitView
@@ -241,6 +275,9 @@ export function App() {
                   preview={preview}
                   onChange={session.setZine}
                   onAddImages={(cell, files) => void addImages(cell, files)}
+                  onPlaceFile={session.placeFile}
+                  selectedCell={selectedCell}
+                  onSelectCell={setSelectedCell}
                 />
               )}
               {fit && page.kind === "lined" && (
@@ -261,21 +298,44 @@ export function App() {
         </>
       }
       panel={
-        <Panel label="Canvas">
-          <Canvas
-            key={session.loadId}
-            initial={
-              canvasSnapshot?.loadId === session.loadId
-                ? canvasSnapshot.content
-                : { elements: session.canvas.elements, files: session.files }
-            }
-            initialGridEnabled={session.canvas.gridEnabled}
-            view={session.restoreView}
-            onChange={(content) => session.onCanvasChange(content, session.loadId)}
-            onViewChange={(view) => session.onCanvasViewChange(view, session.loadId)}
-            onGridChange={session.onGridChange}
-            onUnmount={(content) => setCanvasSnapshot({ loadId: session.loadId, content })}
-          />
+        <Panel label={panelMode === "pool" ? "Media pool" : "Canvas"}>
+          {panelMode === "pool" ? (
+            <MediaPool
+              files={session.files}
+              pages={pages}
+              canvasFileIds={session.canvasFileIds}
+              canPlace={page.kind === "zine" && selectedCell !== null}
+              onAddImages={(files) => void addImages(null, files)}
+              onPlace={(fileId) => selectedCell !== null && session.placeFile(selectedCell, fileId)}
+              onDelete={(fileId) => void deleteImage(fileId)}
+            />
+          ) : (
+            <Canvas
+              key={session.loadId}
+              initial={
+                canvasSnapshot?.loadId === session.loadId
+                  ? canvasSnapshot.content
+                  : { elements: session.canvas.elements, files: session.files }
+              }
+              initialGridEnabled={session.canvas.gridEnabled}
+              view={session.restoreView}
+              onChange={(content) => session.onCanvasChange(content, session.loadId)}
+              onViewChange={(view) => session.onCanvasViewChange(view, session.loadId)}
+              onGridChange={session.onGridChange}
+              onUnmount={(content) => setCanvasSnapshot({ loadId: session.loadId, content })}
+              resolveFile={(id) => session.files[id]}
+            />
+          )}
+          <div className="panel__mode">
+            <IconButton
+              label={panelMode === "pool" ? "Show canvas" : "Show media pool"}
+              onClick={() =>
+                setPeek({ pageId: page.id, mode: panelMode === "pool" ? "canvas" : "pool" })
+              }
+            >
+              {panelMode === "pool" ? <Pencil /> : <Images />}
+            </IconButton>
+          </div>
         </Panel>
       }
     />
