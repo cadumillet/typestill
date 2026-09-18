@@ -124,3 +124,9 @@ export const Pencil = () => (
     <path d="M10 5l3 3" />
   </svg>
 );
+
+export const Filter = () => (
+  <svg {...base}>
+    <path d="M3 4.5h12l-4.5 5.5v4l-3-1.5v-2.5z" />
+  </svg>
+);

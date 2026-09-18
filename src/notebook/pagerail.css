@@ -44,6 +44,51 @@
   background: var(--ink);
 }
 
+/* A tagged square keeps its colour; the open one gets a ring instead. */
+.page-rail__square.has-tag[aria-current="page"] {
+  box-shadow:
+    0 0 0 2px var(--desk),
+    0 0 0 3.5px var(--ink);
+}
+
+.page-rail__square.has-tag:hover {
+  filter: brightness(1.15);
+}
+
+/* The tag filter, above the squares. Absolute so the squares stay aligned with the page. */
+.page-rail__filter {
+  position: absolute;
+  top: 4px;
+  left: 9px;
+  z-index: 3;
+}
+
+.page-rail__filter-button {
+  width: 26px;
+  height: 26px;
+}
+
+.page-rail__filter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-rail__filter-item[aria-checked="true"] {
+  font-weight: 600;
+}
+
+.page-rail__dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.page-rail__dot--none {
+  background: var(--rail);
+}
+
 .page-rail__square:focus-visible {
   outline: 2px solid var(--accent-line);
   outline-offset: 1px;

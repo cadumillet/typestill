@@ -14,12 +14,15 @@ import {
   type Notebook,
   type Page,
   type PageKind,
+  type Tag,
 } from "../store/model";
 import {
   addFile,
+  addTag as addTagRecord,
   createNotebook as createNotebookRecord,
   createPage,
   deleteFile,
+  deleteTag as deleteTagRecord,
   exportNotebook,
   getCanvas,
   getNotebook,
@@ -37,6 +40,7 @@ import {
   touchNotebook,
   updateNotebookSettings,
   updatePage,
+  updateTag as updateTagRecord,
   type NotebookSummary,
 } from "../store/notebooks";
 import { downloadText } from "./files";
@@ -78,6 +82,12 @@ export interface NotebookSession {
   placeFile: (cell: number, fileId: string) => void;
   /** Removes an image from the notebook. Throws FileInUseError while a page or the canvas uses it. */
   deleteImage: (fileId: string) => Promise<void>;
+  /** Tags are defined on the notebook; a page carries one or none. */
+  addTag: (input: { name: string; color: string }) => Promise<Tag>;
+  updateTag: (tagId: string, patch: Partial<Pick<Tag, "name" | "color">>) => Promise<void>;
+  /** Removes the tag and untags its pages. */
+  deleteTag: (tagId: string) => Promise<void>;
+  setPageTag: (tagId: string | null) => void;
   /** Canvas callbacks carry the loadId of the editor that sent them; stale editors are ignored. */
   onCanvasChange: (content: CanvasContent, loadId: number) => void;
   onCanvasViewChange: (view: CanvasView, loadId: number) => void;
@@ -409,6 +419,80 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     [db, state],
   );
 
+  const addTag = useCallback(
+    async (input: { name: string; color: string }) => {
+      if (!state) throw new Error("No notebook open");
+      const tag = await addTagRecord(db, state.notebook.id, input);
+      setState((current) =>
+        current
+          ? { ...current, notebook: { ...current.notebook, tags: [...current.notebook.tags, tag] } }
+          : current,
+      );
+      return tag;
+    },
+    [db, state],
+  );
+
+  const updateTag = useCallback(
+    async (tagId: string, patch: Partial<Pick<Tag, "name" | "color">>) => {
+      if (!state) return;
+      await updateTagRecord(db, state.notebook.id, tagId, patch);
+      setState((current) =>
+        current
+          ? {
+              ...current,
+              notebook: {
+                ...current.notebook,
+                tags: current.notebook.tags.map((tag) =>
+                  tag.id === tagId ? { ...tag, ...patch } : tag,
+                ),
+              },
+            }
+          : current,
+      );
+    },
+    [db, state],
+  );
+
+  const deleteTag = useCallback(
+    async (tagId: string) => {
+      if (!state) return;
+      await deleteTagRecord(db, state.notebook.id, tagId);
+      setState((current) =>
+        current
+          ? {
+              ...current,
+              notebook: {
+                ...current.notebook,
+                tags: current.notebook.tags.filter((tag) => tag.id !== tagId),
+              },
+              pages: current.pages.map((page) =>
+                page.tagId === tagId ? { ...page, tagId: null } : page,
+              ),
+            }
+          : current,
+      );
+    },
+    [db, state],
+  );
+
+  const setPageTag = useCallback(
+    (tagId: string | null) => {
+      if (!state) return;
+      const page = state.pages[state.index];
+      updatePage(db, page.id, { tagId }).catch(report);
+      setState((current) =>
+        current
+          ? {
+              ...current,
+              pages: current.pages.map((p, i) => (i === current.index ? { ...p, tagId } : p)),
+            }
+          : current,
+      );
+    },
+    [db, state],
+  );
+
   // An editor from a previous load can still fire (for instance on a resize) while it is
   // being replaced; its content must never reach the current notebook.
   const onCanvasChange = useCallback((content: CanvasContent, loadId: number) => {
@@ -516,6 +600,10 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     addImages,
     placeFile,
     deleteImage,
+    addTag,
+    updateTag,
+    deleteTag,
+    setPageTag,
     onCanvasChange,
     onCanvasViewChange,
     onGridChange,

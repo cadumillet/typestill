@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { PAGE_SIZES_MM, type Orientation, type PageSize } from "../page/paper";
-import type { Notebook } from "../store/model";
+import type { Notebook, Tag } from "../store/model";
 import { APPEARANCES, resolveAppearance, type Appearance } from "../shell/appearance";
 import { THEMES, getTheme, isDarkTheme } from "../theme/themes";
 import { COVER_COLORS, coverFromFields } from "./cover";
 import { CoverSwatch } from "./CoverSwatch";
+import { TAG_COLORS, nextTagColor } from "./tags";
 import "./settings.css";
 
 export type NotebookSettings = Pick<Notebook, "cover" | "themeId" | "pageSize" | "orientation">;
@@ -16,6 +17,10 @@ export interface SettingsDialogProps {
   appearance: Appearance;
   onSave: (settings: NotebookSettings, appearance: Appearance) => void | Promise<void>;
   onClose: () => void;
+  /** Tag edits apply at once, not on Save. */
+  onAddTag: (input: { name: string; color: string }) => void;
+  onUpdateTag: (tagId: string, patch: Partial<Pick<Tag, "name" | "color">>) => void;
+  onDeleteTag: (tagId: string) => void;
 }
 
 const APPEARANCE_LABELS: Record<Appearance, string> = {
@@ -34,6 +39,9 @@ export function SettingsDialog({
   appearance: currentAppearance,
   onSave,
   onClose,
+  onAddTag,
+  onUpdateTag,
+  onDeleteTag,
 }: SettingsDialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const [themeId, setThemeId] = useState(notebook.themeId);
@@ -176,6 +184,55 @@ export function SettingsDialog({
             Apply to every page. Text keeps its lines; on a smaller page or a theme with a wider
             font, text past the last line stays saved but out of view.
           </p>
+        </fieldset>
+        <fieldset className="settings__group">
+          <legend>Tags</legend>
+          {notebook.tags.length === 0 && (
+            <p className="settings__note settings__note--first">
+              No tags yet. A page can carry one tag; its colour marks the page in the rail.
+            </p>
+          )}
+          <ul className="settings__tags">
+            {notebook.tags.map((tag) => (
+              <li key={tag.id} className="settings__tag">
+                <input
+                  type="text"
+                  value={tag.name}
+                  aria-label="Tag name"
+                  onChange={(event) => onUpdateTag(tag.id, { name: event.target.value })}
+                />
+                <span className="settings__swatches" role="radiogroup" aria-label="Tag colour">
+                  {TAG_COLORS.map((choice) => (
+                    <button
+                      key={choice.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={choice.value === tag.color}
+                      aria-label={choice.name}
+                      className="settings__swatch settings__swatch--small"
+                      style={{ background: choice.value }}
+                      onClick={() => onUpdateTag(tag.id, { color: choice.value })}
+                    />
+                  ))}
+                </span>
+                <button
+                  type="button"
+                  className="settings__tag-delete"
+                  aria-label={`Delete tag ${tag.name}`}
+                  onClick={() => onDeleteTag(tag.id)}
+                >
+                  Delete
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            className="settings__add-tag"
+            onClick={() => onAddTag({ name: "New tag", color: nextTagColor(notebook.tags) })}
+          >
+            Add tag
+          </button>
         </fieldset>
         <fieldset className="settings__group">
           <legend>App</legend>

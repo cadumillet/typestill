@@ -120,3 +120,54 @@ button.primary {
 .settings__group .settings__note {
   margin: 4px 0 0;
 }
+
+.settings__note--first {
+  margin-top: 0;
+}
+
+.settings__tags {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.settings__tag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.settings__tag input {
+  flex: 1;
+  min-width: 0;
+  width: 0;
+}
+
+.settings__tag .settings__swatches {
+  margin-bottom: 0;
+  gap: 3px;
+}
+
+.settings__swatch--small {
+  width: 16px;
+  height: 16px;
+  border-width: 1.5px;
+}
+
+.settings__tag-delete {
+  padding: 2px 6px;
+  font-size: 11px;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.settings__tag-delete:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.settings__add-tag {
+  margin-top: 4px;
+  font-size: 12px;
+}

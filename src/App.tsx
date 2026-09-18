@@ -11,6 +11,7 @@ import { TextPage } from "./page/TextPage";
 import { ZinePage } from "./page/ZinePage";
 import { defaultDivider, fitPage, pageGeometry, pageMm } from "./page/paper";
 import { imagesForLayout, isZineEmpty, type Zine } from "./page/zine";
+import { nextTagColor } from "./notebook/tags";
 import { useElementSize } from "./page/useElementSize";
 import { useAppearance } from "./shell/appearance";
 import { IconButton } from "./shell/IconButton";
@@ -75,6 +76,8 @@ export function App() {
   const [peek, setPeek] = useState<{ pageId: string; mode: "canvas" | "pool" } | null>(null);
   /** The zine cell chosen by clicking it, where a paste or a click in the pool lands. */
   const [chosenCell, setChosenCell] = useState<{ pageId: string; cell: number } | null>(null);
+  /** The rail's tag filter; null shows every page. */
+  const [filterTagId, setFilterTagId] = useState<string | null>(null);
 
   const handleWidth = useCallback((width: number) => {
     setPanelWidth(width);
@@ -159,6 +162,22 @@ export function App() {
     }
   };
 
+  const newTag = async () => {
+    const name = window.prompt("Name for the new tag", "Tag")?.trim();
+    if (!name) return;
+    const tag = await session.addTag({ name, color: nextTagColor(notebook.tags) });
+    session.setPageTag(tag.id);
+  };
+
+  const removeTag = async (tagId: string) => {
+    const tag = notebook.tags.find((t) => t.id === tagId);
+    const count = pages.filter((p) => p.tagId === tagId).length;
+    const pagesNote =
+      count === 0 ? "" : ` ${count === 1 ? "One page loses" : `${count} pages lose`} the tag.`;
+    if (!window.confirm(`Delete the tag "${tag?.name ?? ""}"?${pagesNote}`)) return;
+    await session.deleteTag(tagId);
+  };
+
   const panelMode = peek?.pageId === page.id ? peek.mode : page.kind === "zine" ? "pool" : "canvas";
   const selectedCell = chosenCell?.pageId === page.id ? chosenCell.cell : null;
   const setSelectedCell = (cell: number | null) =>
@@ -217,6 +236,9 @@ export function App() {
                 count={pages.length}
                 canChangeKind={pageIsEmpty}
                 onKindChange={(kind) => void session.setKind(kind)}
+                tags={notebook.tags}
+                onTagChange={session.setPageTag}
+                onNewTag={() => void newTag()}
                 twoColumns={page.divider !== null}
                 onTwoColumnsChange={setTwoColumns}
                 onZineChange={changeZine}
@@ -263,6 +285,9 @@ export function App() {
               return session.updateSettings(settings);
             }}
             onClose={() => setSettingsOpen(false)}
+            onAddTag={(input) => void session.addTag(input)}
+            onUpdateTag={(tagId, patch) => void session.updateTag(tagId, patch)}
+            onDeleteTag={(tagId) => void removeTag(tagId)}
           />
           <div className="workspace">
             <PageRail
@@ -270,6 +295,9 @@ export function App() {
               index={index}
               onSelect={session.goTo}
               offsetTop={desk && fit ? Math.max(0, (desk.height - fit.height) / 2) : 0}
+              tags={notebook.tags}
+              filterTagId={filterTagId}
+              onFilterChange={setFilterTagId}
             />
             <main className="desk" ref={deskRef}>
               {fit && page.kind === "zine" && page.zine && (
