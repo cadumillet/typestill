@@ -10,6 +10,7 @@ import {
 import type { Notebook, Tag } from "../store/model";
 import { APPEARANCES, resolveAppearance, type Appearance } from "../shell/appearance";
 import { THEMES, getTheme, isDarkTheme } from "../theme/themes";
+import { formatBytes } from "../store/zip";
 import { COVER_COLORS, coverFromFields } from "./cover";
 import { CoverSwatch } from "./CoverSwatch";
 import { TAG_COLORS, nextTagColor } from "./tags";
@@ -27,6 +28,10 @@ export interface SettingsDialogProps {
   appearance: Appearance;
   onSave: (settings: NotebookSettings, appearance: Appearance) => void | Promise<void>;
   onClose: () => void;
+  /** What the notebook takes in this browser, and how many images nothing uses. */
+  storage: { total: number; images: number; imageCount: number; unusedCount: number };
+  /** Removes the unused images at once (after a confirm the caller owns). */
+  onPruneImages: () => void;
   /** Tag edits apply at once, not on Save. */
   onAddTag: (input: { name: string; color: string }) => void;
   onUpdateTag: (tagId: string, patch: Partial<Pick<Tag, "name" | "color">>) => void;
@@ -49,6 +54,8 @@ export function SettingsDialog({
   appearance: currentAppearance,
   onSave,
   onClose,
+  storage,
+  onPruneImages,
   onAddTag,
   onUpdateTag,
   onDeleteTag,
@@ -298,6 +305,25 @@ export function SettingsDialog({
             onClick={() => onAddTag({ name: "New tag", color: nextTagColor(notebook.tags) })}
           >
             Add tag
+          </button>
+        </fieldset>
+        <fieldset className="settings__group">
+          <legend>Storage</legend>
+          <p className="settings__note settings__note--first">
+            {formatBytes(storage.total)} in this browser
+            {storage.imageCount > 0 &&
+              `, of which ${formatBytes(storage.images)} in ${storage.imageCount} ${storage.imageCount === 1 ? "image" : "images"}`}
+            . Backups carry all of it; with images they come as a zip.
+          </p>
+          <button
+            type="button"
+            className="settings__prune"
+            disabled={storage.unusedCount === 0}
+            onClick={onPruneImages}
+          >
+            {storage.unusedCount === 0
+              ? "No unused images"
+              : `Remove ${storage.unusedCount} unused ${storage.unusedCount === 1 ? "image" : "images"}…`}
           </button>
         </fieldset>
         <fieldset className="settings__group">

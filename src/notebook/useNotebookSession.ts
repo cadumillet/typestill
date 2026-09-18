@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CanvasContent } from "../canvas/Canvas";
 import { createAutosave, columnsKey, elementsKey, type Autosave } from "../store/autosave";
 import { backupFileName, parseBackup, serializeBackup } from "../store/backup";
+import { isZipBackup, packBackupZip, unpackBackupZip, zipBackupFileName } from "../store/zip";
 import { getDb, type TypestillDb } from "../store/db";
 import { clampMargin, pageMm, snapDivider } from "../page/paper";
 import { placeImages, type Zine } from "../page/zine";
@@ -34,6 +35,7 @@ import {
   listPages,
   loadNotebookFiles,
   loadThumbnails,
+  pruneFiles,
   saveCanvasContent,
   savePageText,
   savePageZine,
@@ -49,7 +51,7 @@ import {
   type NotebookSummary,
 } from "../store/notebooks";
 import type { Cover } from "./cover";
-import { downloadText } from "./files";
+import { downloadBlob, downloadText } from "./files";
 import { importImage } from "./images";
 
 export interface NotebookSession {
@@ -120,8 +122,13 @@ export interface NotebookSession {
   updateSettings: (
     settings: Pick<Notebook, "cover" | "themeId" | "pageSize" | "orientation" | "defaults">,
   ) => Promise<void>;
-  /** Saves everything pending, then offers the notebook as a backup file. */
+  /**
+   * Saves everything pending, then offers the notebook as a backup file: a zip with the
+   * images as files when the notebook has any, else one JSON document.
+   */
   downloadBackup: () => Promise<void>;
+  /** Removes the images no page and not the canvas uses. Returns how many went. */
+  pruneImages: () => Promise<number>;
   /**
    * Restores a backup file and opens that notebook. Asks before replacing a notebook that
    * already exists. Throws BackupError for files that are not valid backups.
@@ -690,12 +697,31 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
       canvasSaver.current?.flush(),
     ]);
     const doc = await exportNotebook(db, state.notebook.id);
-    if (doc) downloadText(backupFileName(doc), serializeBackup(doc));
+    if (!doc) return;
+    if (Object.keys(doc.files).length > 0) {
+      const bytes = new Uint8Array(packBackupZip(doc));
+      downloadBlob(zipBackupFileName(doc), new Blob([bytes], { type: "application/zip" }));
+    } else {
+      downloadText(backupFileName(doc), serializeBackup(doc));
+    }
+  }, [db, state]);
+
+  const pruneImages = useCallback(async () => {
+    if (!state) return 0;
+    await Promise.all([zineSaver.current?.flush(), canvasSaver.current?.flush()]);
+    const removed = await pruneFiles(db, state.notebook.id);
+    if (removed > 0) {
+      const files = await loadNotebookFiles(db, state.notebook.id);
+      setState((current) => (current ? { ...current, files } : current));
+    }
+    return removed;
   }, [db, state]);
 
   const restoreBackup = useCallback(
     async (file: File) => {
-      const doc = parseBackup(await file.text());
+      const doc = isZipBackup(file)
+        ? unpackBackupZip(new Uint8Array(await file.arrayBuffer()))
+        : parseBackup(await file.text());
       const existing = await getNotebook(db, doc.id);
       if (
         existing &&
@@ -740,6 +766,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     createNotebook,
     updateSettings,
     downloadBackup,
+    pruneImages,
     restoreBackup,
   };
 }

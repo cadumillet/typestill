@@ -17,6 +17,9 @@ import { imagesForLayout, isZineEmpty, type Zine } from "./page/zine";
 import { exportCanvasPng, exportFileName, exportPagePng, exportPdf } from "./notebook/export";
 import { downloadBlob } from "./notebook/files";
 import { nextTagColor } from "./notebook/tags";
+import { fileUsage, isUsed } from "./notebook/pool";
+import { notebookSize } from "./store/zip";
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { usePageThumbnail } from "./notebook/usePageThumbnail";
 import { columnsKey } from "./store/autosave";
 import { useElementSize } from "./page/useElementSize";
@@ -69,6 +72,8 @@ export function App() {
   const { appearance, scheme, setAppearance } = useAppearance();
   const [preview, setPreview] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** The canvas as it was when settings opened, for the storage figures. */
+  const [settingsCanvas, setSettingsCanvas] = useState<readonly ExcalidrawElement[]>([]);
   const [panelOpen, setPanelOpen] = useState(true);
   const [panelWidth, setPanelWidth] = useState(
     () => readStoredWidth() ?? Math.round(window.innerWidth * 0.55),
@@ -288,6 +293,40 @@ export function App() {
         ? canvasSnapshot.content
         : { elements: session.canvas.elements, files: session.files };
 
+  // Storage, for the settings dialog: from the session's state and the canvas as it was
+  // when the dialog opened, so a prune shows up at once.
+  const storage = (() => {
+    if (!settingsOpen) return { total: 0, images: 0, imageCount: 0, unusedCount: 0 };
+    const size = notebookSize({
+      ...notebook,
+      pages,
+      canvas: { ...session.canvas, elements: [...settingsCanvas] },
+      files: session.files,
+    });
+    const usage = fileUsage(pages, session.canvasFileIds);
+    const unusedCount = Object.keys(session.files).filter((id) => {
+      const use = usage.get(id);
+      return !use || !isUsed(use);
+    }).length;
+    return { ...size, unusedCount };
+  })();
+
+  const openSettings = () => {
+    setSettingsCanvas(currentCanvas().elements);
+    setSettingsOpen(true);
+  };
+
+  const pruneImages = async () => {
+    if (
+      !window.confirm(
+        `Remove ${storage.unusedCount} unused ${storage.unusedCount === 1 ? "image" : "images"} from the notebook? They are not on any page or the canvas.`,
+      )
+    ) {
+      return;
+    }
+    await session.pruneImages();
+  };
+
   const panelMode = peek?.pageId === page.id ? peek.mode : page.kind === "zine" ? "pool" : "canvas";
 
   /** The canvas's elements as the editor has them, or as loaded while it has not reported yet. */
@@ -382,7 +421,7 @@ export function App() {
               <Menu
                 label="Notebook"
                 items={[
-                  { label: "Settings…", onSelect: () => setSettingsOpen(true) },
+                  { label: "Settings…", onSelect: openSettings },
                   {
                     label: "Export PDF",
                     onSelect: () =>
@@ -419,7 +458,7 @@ export function App() {
               <input
                 ref={fileInput}
                 type="file"
-                accept=".json,application/json"
+                accept=".json,.zip,application/json,application/zip"
                 hidden
                 onChange={(event) => {
                   const file = event.target.files?.[0];
@@ -449,6 +488,8 @@ export function App() {
               return session.updateSettings(settings);
             }}
             onClose={() => setSettingsOpen(false)}
+            storage={storage}
+            onPruneImages={() => void pruneImages()}
             onAddTag={(input) => void session.addTag(input)}
             onUpdateTag={(tagId, patch) => void session.updateTag(tagId, patch)}
             onDeleteTag={(tagId) => void removeTag(tagId)}
