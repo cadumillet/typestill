@@ -165,3 +165,10 @@ export const Sliders = () => (
     <circle cx="11.5" cy="12.5" r="1.75" fill="var(--surface)" />
   </svg>
 );
+
+export const Columns = () => (
+  <svg {...base}>
+    <rect x="3" y="3.5" width="5" height="11" rx="1" />
+    <rect x="10" y="3.5" width="5" height="11" rx="1" />
+  </svg>
+);

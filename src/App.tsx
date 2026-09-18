@@ -30,7 +30,7 @@ import { pageSide, sideAt, sideIndexOfPage, sideSequence, spreadOf, type Side } 
 import { isZineEmpty } from "./page/zine";
 import { exportFileName, exportPagePng, exportPdf } from "./notebook/export";
 import { downloadBlob } from "./notebook/files";
-import { nextSectionColor } from "./notebook/sections";
+import { nextSectionColor, sectionOf } from "./notebook/sections";
 import { fileUsage, isUsed } from "./notebook/pool";
 import { notebookSize } from "./store/zip";
 import { usePageThumbnail } from "./notebook/usePageThumbnail";
@@ -580,14 +580,18 @@ export function App() {
                   <PageBar
                     index={index}
                     count={pages.length}
+                    section={sectionOf(page, notebook.sections)}
                     onSelect={session.goTo}
                     previousShortcut={shortcutLabel("previousPage")}
                     nextShortcut={shortcutLabel("nextPage")}
+                    onOpenMap={openSettings}
                     canAdd={canAdd}
                     addShortcut={shortcutLabel("newLinedPage")}
                     zinePages={features.zinePages}
                     onAdd={(kind) => void session.newPage(kind)}
                     onDelete={() => void deletePage()}
+                    twoColumns={page.kind === "lined" ? page.divider !== null : null}
+                    onTwoColumnsChange={setTwoColumns}
                     drawing={drawingMode}
                     drawingShortcut={shortcutLabel("drawingMode")}
                     onToggleDrawing={() => setDrawingMode(!drawingMode)}

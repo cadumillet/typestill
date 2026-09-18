@@ -1,24 +1,50 @@
-/* The bar under the page or spread: as wide as it, the controls centred. */
+/* The bar under the page or spread: as wide as it, with the navigation centred on it and
+   the other controls at its ends. */
 
 .page-bar {
   flex: none;
   box-sizing: border-box;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: center;
-  gap: 2px;
   padding-top: 8px;
 }
 
+.page-bar__group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.page-bar__group--start {
+  justify-self: start;
+}
+
+.page-bar__group--end {
+  justify-self: end;
+}
+
+/* The counter: the section's dot and "n / N", a button like the others but as wide as
+   its text. */
 .page-bar__counter {
-  min-width: 48px;
-  text-align: center;
+  width: auto;
+  gap: 6px;
+  padding: 0 8px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 
-.page-bar__gap {
-  width: 10px;
+.page-bar__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--section);
+}
+
+.page-bar__count {
+  min-width: 36px;
+  text-align: center;
 }
 
 /* The bar sits at the bottom of the desk, so its popovers open over the page. */
