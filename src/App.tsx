@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import { DrawingTools } from "./notebook/DrawingTools";
 import { MediaPool } from "./notebook/MediaPool";
@@ -11,7 +11,8 @@ import { WelcomeDialog } from "./notebook/WelcomeDialog";
 import { useNotebookSession } from "./notebook/useNotebookSession";
 import { features } from "./features";
 import { isBlankDocument } from "./page/document";
-import { GridView } from "./notebook/GridView";
+import { Overview } from "./notebook/Overview";
+import { useBackgroundThumbnails } from "./notebook/useBackgroundThumbnails";
 import { TextPage } from "./page/TextPage";
 import { ZinePage } from "./page/ZinePage";
 import { defaultDivider, fitPage, mmToCssPx, pageGeometry, pageMm } from "./page/paper";
@@ -75,8 +76,8 @@ export function App() {
   const [preview, setPreview] = useState(false);
   /** The notebook box: the sections, this page and the notebook's settings. */
   const [boxOpen, setBoxOpen] = useState(false);
-  /** The grid view over the desk: the whole notebook at a glance. */
-  const [gridOpen, setGridOpen] = useState(false);
+  /** The overview over the desk: the notebook's spreads stacked. */
+  const [overviewOpen, setOverviewOpen] = useState(false);
   /** The zine page whose media pool is open in the side panel; the panel closes with the page. */
   const [poolPageId, setPoolPageId] = useState<string | null>(null);
   const [panelWidth, setPanelWidth] = useState(
@@ -143,13 +144,33 @@ export function App() {
     loaded ? loaded.saveThumbnail : () => undefined,
   );
 
+  // While the overview is open, the pages it shows that have no thumbnail yet (pages
+  // converted or never opened) get one rendered in the background, one at a time; never
+  // in drawing mode, where the drawing is live.
+  const thumbnailSource = useMemo(
+    () => (loaded ? { notebook: loaded.notebook, files: loaded.files } : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [loaded?.notebook, loaded?.files],
+  );
+  const saveThumbnailOf = loaded?.saveThumbnail;
+  useBackgroundThumbnails(
+    Boolean(loaded) && overviewOpen && !drawingMode,
+    loaded?.pages ?? [],
+    loaded?.thumbnails ?? {},
+    thumbnailSource,
+    useCallback(
+      (pageId: string, dataURL: string) => saveThumbnailOf?.(dataURL, pageId),
+      [saveThumbnailOf],
+    ),
+  );
+
   // The shell's shortcuts mirror the page bar: page navigation, new page, drawing mode.
   // With zine pages behind their flag the zine chord stays claimed but does nothing.
   useShortcuts({
     previousPage: () => loaded?.goTo(loaded.index - 1),
     nextPage: () => loaded?.goTo(loaded.index + 1),
     drawingMode: () => setDrawingMode(!drawingMode),
-    gridView: () => setGridOpen((open) => !open),
+    overview: () => setOverviewOpen((open) => !open),
   });
 
   if (!session) {
@@ -378,9 +399,9 @@ export function App() {
     }
   };
 
-  /** Opens a page from the grid view and closes it. */
-  const openFromGrid = (go: () => void) => {
-    setGridOpen(false);
+  /** Opens a page from the overview and closes it. */
+  const openFromOverview = (go: () => void) => {
+    setOverviewOpen(false);
     go();
   };
 
@@ -595,9 +616,9 @@ export function App() {
                     onSelect={session.goTo}
                     previousShortcut={shortcutLabel("previousPage")}
                     nextShortcut={shortcutLabel("nextPage")}
-                    gridOpen={gridOpen}
-                    gridShortcut={shortcutLabel("gridView")}
-                    onToggleGrid={() => setGridOpen((open) => !open)}
+                    overviewOpen={overviewOpen}
+                    overviewShortcut={shortcutLabel("overview")}
+                    onToggleOverview={() => setOverviewOpen((open) => !open)}
                     twoColumns={page.kind === "lined" ? page.divider !== null : null}
                     onTwoColumnsChange={setTwoColumns}
                     drawing={drawingMode}
@@ -621,16 +642,17 @@ export function App() {
                   onOutsidePointerDown={openAtDeskPoint}
                 />
               )}
-              {gridOpen && (
-                <GridView
+              {overviewOpen && (
+                <Overview
+                  notebook={notebook}
                   pages={pages}
                   index={index}
-                  sections={notebook.sections}
-                  size={notebook.size}
                   thumbnails={session.thumbnails}
-                  onSelect={(i) => openFromGrid(() => session.goTo(i))}
-                  onOpenSection={(sectionId) => openFromGrid(() => session.openSection(sectionId))}
-                  onClose={() => setGridOpen(false)}
+                  onSelect={(i) => openFromOverview(() => session.goTo(i))}
+                  onOpenSection={(sectionId) =>
+                    openFromOverview(() => session.openSection(sectionId))
+                  }
+                  onClose={() => setOverviewOpen(false)}
                 />
               )}
             </main>

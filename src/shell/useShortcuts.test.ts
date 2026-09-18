@@ -36,17 +36,17 @@ describe("shortcutFor", () => {
     expect(shortcutFor(alt("ArrowUp"), focus())).toBe("previousPage");
     expect(shortcutFor(alt("ArrowDown"), focus())).toBe("nextPage");
     expect(shortcutFor(shiftTab(), focus())).toBe("drawingMode");
-    expect(shortcutFor(alt("KeyM"), focus())).toBe("gridView");
+    expect(shortcutFor(alt("KeyM"), focus())).toBe("overview");
   });
 
   it("matches letters by physical key, since Option changes the character on a Mac", () => {
-    expect(shortcutFor(alt("KeyM", { key: "µ" }), focus())).toBe("gridView");
-    expect(shortcutFor(alt("KeyM", { key: "µ" }), focus({ inEditor: true }))).toBe("gridView");
+    expect(shortcutFor(alt("KeyM", { key: "µ" }), focus())).toBe("overview");
+    expect(shortcutFor(alt("KeyM", { key: "µ" }), focus({ inEditor: true }))).toBe("overview");
   });
 
   it("works with the caret in the page editor and with nothing focused", () => {
     expect(shortcutFor(alt("ArrowDown"), focus({ inEditor: true }))).toBe("nextPage");
-    expect(shortcutFor(alt("KeyM"), focus({ inEditor: true }))).toBe("gridView");
+    expect(shortcutFor(alt("KeyM"), focus({ inEditor: true }))).toBe("overview");
     expect(shortcutFor(shiftTab(), focus({ inEditor: true }))).toBe("drawingMode");
   });
 
@@ -96,7 +96,7 @@ describe("shortcutRepeats", () => {
   it("lets a held key flip pages but not toggle the views", () => {
     expect(shortcutRepeats("previousPage")).toBe(true);
     expect(shortcutRepeats("nextPage")).toBe(true);
-    expect(shortcutRepeats("gridView")).toBe(false);
+    expect(shortcutRepeats("overview")).toBe(false);
     expect(shortcutRepeats("drawingMode")).toBe(false);
   });
 });
@@ -106,9 +106,9 @@ describe("shortcut labels", () => {
     expect(shortcutLabel("previousPage", true)).toBe("⌥↑");
     expect(shortcutLabel("nextPage", true)).toBe("⌥↓");
     expect(shortcutLabel("drawingMode", true)).toBe("⇧⇥");
-    expect(shortcutLabel("gridView", true)).toBe("⌥M");
+    expect(shortcutLabel("overview", true)).toBe("⌥M");
     expect(shortcutLabel("previousPage", false)).toBe("Alt+↑");
-    expect(shortcutLabel("gridView", false)).toBe("Alt+M");
+    expect(shortcutLabel("overview", false)).toBe("Alt+M");
     expect(shortcutLabel("drawingMode", false)).toBe("Shift+Tab");
   });
 

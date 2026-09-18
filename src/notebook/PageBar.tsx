@@ -16,10 +16,10 @@ export interface PageBarProps {
   onSelect: (index: number) => void;
   previousShortcut?: string;
   nextShortcut?: string;
-  /** The grid view: the counter and the grid button at the left end toggle it. */
-  gridOpen: boolean;
-  gridShortcut?: string;
-  onToggleGrid: () => void;
+  /** The overview: the counter and the overview button at the left end toggle it. */
+  overviewOpen: boolean;
+  overviewShortcut?: string;
+  onToggleOverview: () => void;
   /** The layout toggle, on lined pages: whether the page has two columns; null hides it. */
   twoColumns: boolean | null;
   onTwoColumnsChange: (enabled: boolean) => void;
@@ -38,8 +38,8 @@ export interface PageBarProps {
 
 /**
  * The bar under the page or spread, as wide as it. In its middle, centred on the page:
- * previous, the counter (the section's dot and "n / N", a button that toggles the grid
- * view), next. At its left end: the grid view button. At its right end: the layout
+ * previous, the counter (the section's dot and "n / N", a button that toggles the
+ * overview), next. At its left end: the overview button. At its right end: the layout
  * toggle (two columns, on lined pages), the pencil that switches drawing mode with the
  * drawing tools while it is on, and on zine pages the media pool toggle. There is no new
  * page and no delete page: the notebook has its pages. Its popovers and tooltips open
@@ -52,9 +52,9 @@ export function PageBar({
   onSelect,
   previousShortcut,
   nextShortcut,
-  gridOpen,
-  gridShortcut,
-  onToggleGrid,
+  overviewOpen,
+  overviewShortcut,
+  onToggleOverview,
   twoColumns,
   onTwoColumnsChange,
   drawing,
@@ -69,10 +69,10 @@ export function PageBar({
     <nav className="page-bar" aria-label="Page controls" style={{ height: PAGE_BAR_HEIGHT }}>
       <div className="page-bar__group page-bar__group--start">
         <IconButton
-          label={gridOpen ? "Close the grid" : "Grid view"}
-          shortcut={gridShortcut}
-          pressed={gridOpen}
-          onClick={onToggleGrid}
+          label={overviewOpen ? "Close the overview" : "Overview"}
+          shortcut={overviewShortcut}
+          pressed={overviewOpen}
+          onClick={onToggleOverview}
         >
           <Grid />
         </IconButton>
@@ -87,11 +87,11 @@ export function PageBar({
           <ChevronLeft />
         </IconButton>
         <IconButton
-          label={section ? `Grid view (${section.name})` : "Grid view"}
-          shortcut={gridShortcut}
+          label={section ? `Overview (${section.name})` : "Overview"}
+          shortcut={overviewShortcut}
           className="page-bar__counter"
-          pressed={gridOpen}
-          onClick={onToggleGrid}
+          pressed={overviewOpen}
+          onClick={onToggleOverview}
         >
           {section && (
             <span

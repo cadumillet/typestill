@@ -141,8 +141,8 @@ export interface NotebookSession {
   setPageMarks: (patch: Partial<Pick<Page, "showPageNumber">>) => void;
   /** Moves the open page's margin line; the divider is re-snapped if the margin pushes on it. */
   setPageMargin: (margin: number) => Promise<void>;
-  /** Stores a fresh thumbnail of the open page. */
-  saveThumbnail: (dataURL: string) => void;
+  /** Stores a fresh thumbnail of the open page, or of `pageId` (the overview's background renders). */
+  saveThumbnail: (dataURL: string, pageId?: string) => void;
   /**
    * A page's drawing as its editor reports it, tagged with the editor's loadId (stale
    * editors are ignored) and the page it draws on, since an editor reports its last
@@ -807,14 +807,12 @@ export function useNotebookSession(
   );
 
   const saveThumbnail = useCallback(
-    (dataURL: string) => {
+    (dataURL: string, pageId?: string) => {
       if (!state) return;
-      const page = state.pages[state.index];
-      saveThumbnailRecord(db, state.notebook.id, page.id, dataURL).catch(report);
+      const id = pageId ?? state.pages[state.index].id;
+      saveThumbnailRecord(db, state.notebook.id, id, dataURL).catch(report);
       setState((current) =>
-        current
-          ? { ...current, thumbnails: { ...current.thumbnails, [page.id]: dataURL } }
-          : current,
+        current ? { ...current, thumbnails: { ...current.thumbnails, [id]: dataURL } } : current,
       );
     },
     [db, state],
