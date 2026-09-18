@@ -286,6 +286,7 @@ export function App() {
                 onTagChange={session.setPageTag}
                 onNewTag={() => void newTag()}
                 onMarksChange={session.setPageMarks}
+                onMarginChange={(margin) => void session.setPageMargin(margin)}
                 twoColumns={page.divider !== null}
                 onTwoColumnsChange={setTwoColumns}
                 onZineChange={changeZine}

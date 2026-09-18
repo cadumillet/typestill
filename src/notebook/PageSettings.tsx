@@ -2,6 +2,7 @@ import { columnFromText } from "../page/document";
 import { IconButton } from "../shell/IconButton";
 import { Popover } from "../shell/Popover";
 import { PageSettings as PageIcon } from "../shell/icons";
+import { MAX_MARGIN_MM, MIN_MARGIN_MM } from "../page/paper";
 import {
   MAX_ZINE_PADDING_MM,
   MAX_ZINE_TEXT_ROWS,
@@ -27,6 +28,8 @@ export interface PageSettingsProps {
   onNewTag: () => void;
   /** The page's date stamp and page number toggles. */
   onMarksChange: (patch: Partial<Pick<Page, "showDate" | "showPageNumber">>) => void;
+  /** Lined pages: the margin line offset in mm. */
+  onMarginChange: (margin: number) => void;
   /** Lined pages. */
   twoColumns: boolean;
   onTwoColumnsChange: (enabled: boolean) => void;
@@ -67,6 +70,7 @@ export function PageSettings({
   onTagChange,
   onNewTag,
   onMarksChange,
+  onMarginChange,
   twoColumns,
   onTwoColumnsChange,
   onZineChange,
@@ -146,14 +150,33 @@ export function PageSettings({
           Page number
         </label>
         {page.kind === "lined" && (
-          <label className="page-settings__row">
-            <input
-              type="checkbox"
-              checked={twoColumns}
-              onChange={(event) => onTwoColumnsChange(event.target.checked)}
-            />
-            Two columns
-          </label>
+          <>
+            <label className="page-settings__row page-settings__row--field">
+              <span>Margin line</span>
+              <span className="page-settings__unit">
+                <input
+                  type="number"
+                  min={MIN_MARGIN_MM}
+                  max={MAX_MARGIN_MM}
+                  step={1}
+                  value={page.margin}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    if (Number.isFinite(value)) onMarginChange(value);
+                  }}
+                />
+                mm
+              </span>
+            </label>
+            <label className="page-settings__row">
+              <input
+                type="checkbox"
+                checked={twoColumns}
+                onChange={(event) => onTwoColumnsChange(event.target.checked)}
+              />
+              Two columns
+            </label>
+          </>
         )}
         {page.kind === "zine" && zine && (
           <>

@@ -178,3 +178,14 @@ button.primary {
   gap: 8px;
   margin-bottom: 6px;
 }
+
+.settings__unit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.settings__number {
+  width: 56px;
+}

@@ -4,7 +4,9 @@ import type { CanvasContent } from "../canvas/Canvas";
 import { createAutosave, columnsKey, elementsKey, type Autosave } from "../store/autosave";
 import { backupFileName, parseBackup, serializeBackup } from "../store/backup";
 import { getDb, type TypestillDb } from "../store/db";
+import { clampMargin, pageMm, snapDivider } from "../page/paper";
 import { placeImages, type Zine } from "../page/zine";
+import { getTheme } from "../theme/themes";
 import {
   columnsForDivider,
   referencedFileIds,
@@ -94,6 +96,8 @@ export interface NotebookSession {
   setPageTag: (tagId: string | null) => void;
   /** The open page's date stamp and page number toggles. */
   setPageMarks: (patch: Partial<Pick<Page, "showDate" | "showPageNumber">>) => void;
+  /** Moves the open page's margin line; the divider is re-snapped if the margin pushes on it. */
+  setPageMargin: (margin: number) => Promise<void>;
   /** Stores a fresh thumbnail of the open page. */
   saveThumbnail: (dataURL: string) => void;
   /** Canvas callbacks carry the loadId of the editor that sent them; stale editors are ignored. */
@@ -521,6 +525,35 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     [db, state],
   );
 
+  const setPageMargin = useCallback(
+    async (requested: number) => {
+      if (!state) return;
+      const page = state.pages[state.index];
+      const margin = clampMargin(requested);
+      if (margin === page.margin) return;
+      await updatePage(db, page.id, { margin });
+      setState((current) =>
+        current
+          ? {
+              ...current,
+              pages: current.pages.map((p, i) => (i === current.index ? { ...p, margin } : p)),
+            }
+          : current,
+      );
+      if (page.divider !== null) {
+        const width = pageMm(state.notebook.pageSize, state.notebook.orientation).width;
+        const divider = snapDivider(
+          page.divider,
+          width,
+          margin,
+          getTheme(state.notebook.themeId).lined,
+        );
+        if (divider !== page.divider) await setDivider(divider);
+      }
+    },
+    [db, state, setDivider],
+  );
+
   const saveThumbnail = useCallback(
     (dataURL: string) => {
       if (!state) return;
@@ -649,6 +682,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     deleteTag,
     setPageTag,
     setPageMarks,
+    setPageMargin,
     saveThumbnail,
     onCanvasChange,
     onCanvasViewChange,

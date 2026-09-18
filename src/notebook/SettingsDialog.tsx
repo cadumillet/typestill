@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { PAGE_SIZES_MM, type Orientation, type PageSize } from "../page/paper";
+import {
+  MAX_MARGIN_MM,
+  MIN_MARGIN_MM,
+  PAGE_SIZES_MM,
+  clampMargin,
+  type Orientation,
+  type PageSize,
+} from "../page/paper";
 import type { Notebook, Tag } from "../store/model";
 import { APPEARANCES, resolveAppearance, type Appearance } from "../shell/appearance";
 import { THEMES, getTheme, isDarkTheme } from "../theme/themes";
@@ -53,6 +60,7 @@ export function SettingsDialog({
   const [orientation, setOrientation] = useState(notebook.orientation);
   const [showDate, setShowDate] = useState(notebook.defaults.showDate);
   const [showPageNumber, setShowPageNumber] = useState(notebook.defaults.showPageNumber);
+  const [margin, setMargin] = useState(notebook.defaults.margin);
   const [color, setColor] = useState(notebook.cover.color);
   const [emoji, setEmoji] = useState(notebook.cover.emoji ?? "");
   const [subtitle, setSubtitle] = useState(notebook.cover.subtitle ?? "");
@@ -69,6 +77,7 @@ export function SettingsDialog({
       setOrientation(notebook.orientation);
       setShowDate(notebook.defaults.showDate);
       setShowPageNumber(notebook.defaults.showPageNumber);
+      setMargin(notebook.defaults.margin);
       setColor(notebook.cover.color);
       setEmoji(notebook.cover.emoji ?? "");
       setSubtitle(notebook.cover.subtitle ?? "");
@@ -102,7 +111,7 @@ export function SettingsDialog({
         themeId,
         pageSize,
         orientation,
-        defaults: { ...notebook.defaults, showDate, showPageNumber },
+        defaults: { ...notebook.defaults, showDate, showPageNumber, margin: clampMargin(margin) },
       },
       appearance,
     );
@@ -204,6 +213,24 @@ export function SettingsDialog({
         </fieldset>
         <fieldset className="settings__group">
           <legend>New pages</legend>
+          <label className="settings__field">
+            <span>Margin line</span>
+            <span className="settings__unit">
+              <input
+                type="number"
+                min={MIN_MARGIN_MM}
+                max={MAX_MARGIN_MM}
+                step={1}
+                value={margin}
+                className="settings__number"
+                onChange={(event) => {
+                  const value = Number(event.target.value);
+                  if (Number.isFinite(value)) setMargin(value);
+                }}
+              />
+              mm
+            </span>
+          </label>
           <label className="settings__check">
             <input
               type="checkbox"

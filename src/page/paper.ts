@@ -74,6 +74,14 @@ export function defaultDivider(widthMm: number, marginMm: number): number {
   return marginMm + (widthMm - marginMm) / 2;
 }
 
+/** The margin line can sit anywhere in this range, in mm from the left edge. */
+export const MIN_MARGIN_MM = 5;
+export const MAX_MARGIN_MM = 60;
+
+export function clampMargin(mm: number): number {
+  return Math.min(MAX_MARGIN_MM, Math.max(MIN_MARGIN_MM, Math.round(mm)));
+}
+
 /** The divider moves in steps of this many mm. */
 export const DIVIDER_STEP_MM = 10;
 /** Narrowest a column of text can be made by dragging the divider. */
