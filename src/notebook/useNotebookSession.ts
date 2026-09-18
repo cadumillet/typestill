@@ -25,6 +25,7 @@ import {
   createNotebook as createNotebookRecord,
   createPage,
   deleteFile,
+  deleteNotebook as deleteNotebookRecord,
   deletePage as deletePageRecord,
   deleteTag as deleteTagRecord,
   exportNotebook,
@@ -36,6 +37,7 @@ import {
   loadNotebookFiles,
   loadThumbnails,
   pruneFiles,
+  renameNotebook as renameNotebookRecord,
   saveCanvasContent,
   savePageText,
   savePageZine,
@@ -116,6 +118,8 @@ export interface NotebookSession {
   onGridChange: (enabled: boolean) => void;
   /** Saves everything pending, then opens another notebook at its remembered page. */
   openNotebook: (id: string) => Promise<void>;
+  /** Saves everything pending and puts the notebook back on the shelf. */
+  closeNotebook: () => Promise<void>;
   /** Creates a notebook with one empty page and opens it. */
   createNotebook: (name: string, cover?: Partial<Cover>) => Promise<void>;
   /** The cover, the theme, the page size and orientation of every page, and the defaults for new pages. */
@@ -146,6 +150,21 @@ export interface FirstRun {
   restoreBackup: NotebookSession["restoreBackup"];
 }
 
+/**
+ * What the hook returns while no notebook is open: the shelf, where notebooks are
+ * created, renamed, deleted and opened. This is where the app starts.
+ */
+export interface Shelf {
+  shelf: true;
+  notebooks: NotebookSummary[];
+  openNotebook: (id: string) => Promise<void>;
+  createNotebook: NotebookSession["createNotebook"];
+  renameNotebook: (id: string, name: string) => Promise<void>;
+  /** Deletes the notebook with everything in it. The caller asks first. */
+  deleteNotebook: (id: string) => Promise<void>;
+  restoreBackup: NotebookSession["restoreBackup"];
+}
+
 interface Loaded {
   loadId: number;
   notebook: Notebook;
@@ -166,13 +185,17 @@ const report = (error: unknown) => console.error("typestill: save failed", error
 /**
  * Opens the most recently used notebook and keeps it saved: page text and the canvas
  * drawing are autosaved as they change, and the canvas view is remembered per page.
- * Returns null until storage has been read, a FirstRun while it holds no notebook, and
- * the session once a notebook is open.
+ * Returns null until storage has been read, a FirstRun while it holds no notebook, the
+ * Shelf while none is open, and the session once one is.
  */
-export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession | FirstRun | null {
+export function useNotebookSession(
+  db: TypestillDb = getDb(),
+): NotebookSession | Shelf | FirstRun | null {
   const [state, setState] = useState<Loaded | null>(null);
   /** Storage was read and holds no notebook. Cleared as soon as one is loaded. */
   const [firstRun, setFirstRun] = useState(false);
+  /** The shelf's listing while no notebook is open; null while storage is being read. */
+  const [shelf, setShelf] = useState<NotebookSummary[] | null>(null);
   const pageSaver = useRef<Autosave<Column[]> | null>(null);
   const zineSaver = useRef<Autosave<Zine> | null>(null);
   const viewSaver = useRef<Autosave<CanvasView> | null>(null);
@@ -259,6 +282,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
       attachPage(pages[index]);
       loads.current += 1;
       setFirstRun(false);
+      setShelf(null);
       setState({
         loadId: loads.current,
         notebook,
@@ -275,23 +299,20 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     [db, attachPage],
   );
 
-  // Open the most recently used notebook. With none in storage this is a first run: the
-  // welcome dialog creates the notebook (or restores a backup) instead of the hook.
+  // Start on the shelf. With nothing in storage this is a first run: the welcome dialog
+  // creates the notebook (or restores a backup) instead of the hook.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const list = await listNotebooks(db);
       if (cancelled) return;
-      if (list.length === 0) {
-        setFirstRun(true);
-        return;
-      }
-      await load(list[0].id);
+      if (list.length === 0) setFirstRun(true);
+      else setShelf(list);
     })().catch(report);
     return () => {
       cancelled = true;
     };
-  }, [db, load]);
+  }, [db]);
 
   // Nothing pending is lost when the tab goes away or is hidden.
   useEffect(() => {
@@ -651,11 +672,42 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
 
   const openNotebook = useCallback(
     async (id: string) => {
-      if (!state || id === state.notebook.id) return;
+      if (state && id === state.notebook.id) return;
       await detach();
       await load(id);
     },
     [state, detach, load],
+  );
+
+  const closeNotebook = useCallback(async () => {
+    await detach();
+    loads.current += 1;
+    setState(null);
+    setShelf(await listNotebooks(db));
+  }, [db, detach]);
+
+  const renameNotebook = useCallback(
+    async (id: string, name: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      await renameNotebookRecord(db, id, trimmed);
+      setShelf(await listNotebooks(db));
+    },
+    [db],
+  );
+
+  const deleteNotebook = useCallback(
+    async (id: string) => {
+      await deleteNotebookRecord(db, id);
+      const list = await listNotebooks(db);
+      if (list.length === 0) {
+        setShelf(null);
+        setFirstRun(true);
+      } else {
+        setShelf(list);
+      }
+    },
+    [db],
   );
 
   const createNotebook = useCallback(
@@ -738,7 +790,21 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     [db, detach, load],
   );
 
-  if (!state) return firstRun ? { firstRun: true, createNotebook, restoreBackup } : null;
+  if (!state) {
+    if (firstRun) return { firstRun: true, createNotebook, restoreBackup };
+    if (shelf) {
+      return {
+        shelf: true,
+        notebooks: shelf,
+        openNotebook,
+        createNotebook,
+        renameNotebook,
+        deleteNotebook,
+        restoreBackup,
+      };
+    }
+    return null;
+  }
   return {
     ...state,
     page: state.pages[state.index],
@@ -763,6 +829,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     onCanvasViewChange,
     onGridChange,
     openNotebook,
+    closeNotebook,
     createNotebook,
     updateSettings,
     downloadBackup,

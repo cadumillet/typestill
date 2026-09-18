@@ -10,7 +10,8 @@ export interface NotebookSwitcherProps {
   /** Page count of the open notebook, which the summaries may not have caught up with. */
   currentPageCount: number;
   onOpen: (id: string) => void;
-  onCreate: (name: string) => void;
+  /** Back to the shelf, where notebooks are created, renamed and deleted. */
+  onShelf: () => void;
 }
 
 /** Closes the popover the way Menu does: through the outside pointerdown it listens for. */
@@ -25,15 +26,9 @@ export function NotebookSwitcher({
   currentId,
   currentPageCount,
   onOpen,
-  onCreate,
+  onShelf,
 }: NotebookSwitcherProps) {
   const current = notebooks.find((n) => n.id === currentId);
-
-  const create = () => {
-    closePopovers();
-    const name = window.prompt("Name for the new notebook", "Notebook")?.trim();
-    if (name) onCreate(name);
-  };
 
   return (
     <Popover
@@ -86,8 +81,16 @@ export function NotebookSwitcher({
         })}
         <li role="separator" className="switcher__separator" />
         <li role="none">
-          <button type="button" role="menuitem" className="switcher__item" onClick={create}>
-            New notebook…
+          <button
+            type="button"
+            role="menuitem"
+            className="switcher__item"
+            onClick={() => {
+              closePopovers();
+              onShelf();
+            }}
+          >
+            Shelf…
           </button>
         </li>
       </ul>

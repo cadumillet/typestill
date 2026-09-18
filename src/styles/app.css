@@ -158,6 +158,19 @@ button[aria-pressed="true"] {
   letter-spacing: 0.02em;
 }
 
+/* Inside a notebook the wordmark is the way back to the shelf. */
+.wordmark--link {
+  padding: 2px 6px;
+  margin-left: -6px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink);
+}
+
+.wordmark--link:hover {
+  background: var(--hover);
+}
+
 /* Below the app bar: the page rail on the left and the desk with the page. */
 .workspace {
   flex: 1;
