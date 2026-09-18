@@ -61,7 +61,6 @@ function buildPage(
     createdAt,
     kind,
     tagId: null,
-    showDate: notebook.defaults.showDate,
     showPageNumber: notebook.defaults.showPageNumber,
     margin: notebook.defaults.margin,
     columns: kind === "lined" ? emptyColumns(divider) : [],
@@ -299,7 +298,7 @@ export async function setPageKind(db: TypestillDb, id: string, kind: PageKind): 
 export async function updatePage(
   db: TypestillDb,
   id: string,
-  patch: Partial<Pick<Page, "tagId" | "showDate" | "showPageNumber" | "margin" | "canvasView">>,
+  patch: Partial<Pick<Page, "tagId" | "showPageNumber" | "margin" | "canvasView">>,
 ): Promise<void> {
   await db.pages.update(id, patch);
 }

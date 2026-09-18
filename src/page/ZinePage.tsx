@@ -18,7 +18,34 @@ import { mmToCssPx, pageMm, type Orientation, type PageSize } from "./paper";
 import { pageLookStyle } from "./pageLook";
 import type { PageSide } from "./sides";
 import { useFormatBar } from "./useFormatBar";
-import { defaultCell, zineGeometry, type Box, type Zine, type ZineImage } from "./zine";
+import {
+  MAX_ZINE_TEXT_ROWS,
+  MEDIA_LAYOUTS,
+  addBlock,
+  defaultCell,
+  hasWriting,
+  imagesForLayout,
+  isMediaBlock,
+  mediaBlockFor,
+  mediaBlockOf,
+  mediaCells,
+  mediaLayoutOf,
+  removeBlock,
+  replaceBlock,
+  withMediaCells,
+  zineGeometry,
+  zineOptions,
+  type AddPlace,
+  type BlockAddress,
+  type BlockGeometry,
+  type Box,
+  type MediaBlock,
+  type MediaLayout,
+  type TextBlock,
+  type Zine,
+  type ZineBlockKind,
+  type ZineImage,
+} from "./zine";
 import "./textpage.css";
 import "./zinepage.css";
 
@@ -49,15 +76,25 @@ export interface ZinePageProps {
   onSelectCell?: (cell: number | null) => void;
 }
 
-/** Text blocks are the columns of a zine page: 0 below the media, 1 beside it. */
-const BELOW = 0;
-const BESIDE = 1;
+const KIND_LABELS: Record<ZineBlockKind, string> = { image: "Image", grid: "Grid", text: "Text" };
+
+const LAYOUT_LABELS: Record<MediaLayout, string> = {
+  single: "One image",
+  row: "Two side by side",
+  column: "Two stacked",
+  square: "Two by two",
+};
+
+/** Height of the "add below" strip and width of the "add beside" strips, in CSS px. */
+const ADD_ZONE_PX = 40;
 
 /**
- * A zine page: the media block (one image or a grid of up to four) with optional text
- * below and beside it, laid out from the page's zine settings. Nothing is dragged:
- * images land in cells by drop, paste or the file picker, and the text blocks are the
- * same editor as lined pages without rules, in the zine typeface.
+ * A zine page: rows of blocks composed in place. Hovering an empty page offers the
+ * first block; hovering under the last row offers what can go beneath; hovering the
+ * media block's edges offers a text block beside it; every block has its own tools.
+ * Nothing is dragged into position: images land in cells by drop, paste or the file
+ * picker, and text blocks are the same editor as lined pages without rules, in the
+ * zine typeface.
  */
 export function ZinePage({
   size,
@@ -83,6 +120,7 @@ export function ZinePage({
   const page = useRef<HTMLDivElement>(null);
   const bar = useFormatBar(page);
   const [fullBlocks, setFullBlocks] = useState<boolean[]>([]);
+  const [over, setOver] = useState(false);
   const locked = preview || readOnly;
 
   const setBlockFull = useCallback((index: number, full: boolean) => {
@@ -95,26 +133,85 @@ export function ZinePage({
   }, []);
 
   const geometry = zineGeometry(mm, zine, pitchMm, theme.lined.textInsetMm);
-  const cells = geometry.cells;
+  const options = zineOptions(zine);
+  const media = mediaBlockOf(zine);
+  const change = (next: Zine) => onChange?.(next);
 
-  const setImage = (cell: number, image: ZineImage | null) => {
-    const images = [...zine.media.images];
+  const setCell = (cell: number, image: ZineImage | null) => {
+    if (!media) return;
+    const images = [...mediaCells(media.block)];
     images[cell] = image;
-    onChange?.({ ...zine, media: { ...zine.media, images } });
+    change(replaceBlock(zine, media, withMediaCells(media.block, images)));
   };
 
-  const setText = (index: number, column: ColumnValue) => {
-    onChange?.(index === BELOW ? { ...zine, textBelow: column } : { ...zine, textBeside: column });
+  // Settings that would drop images or writing ask first; nothing is untied silently.
+  const setLayout = (at: BlockAddress, block: MediaBlock, layout: MediaLayout) => {
+    if (layout === mediaLayoutOf(block)) return;
+    const images = imagesForLayout(mediaCells(block), layout);
+    const dropped = mediaCells(block).slice(images.length).filter(Boolean).length;
+    if (
+      dropped > 0 &&
+      !window.confirm(
+        `This layout has fewer cells. ${dropped === 1 ? "One image" : `${dropped} images`} will be taken off the page (they stay in the notebook). Continue?`,
+      )
+    ) {
+      return;
+    }
+    change(replaceBlock(zine, at, mediaBlockFor(layout, images)));
   };
 
-  // Images pasted anywhere on the page go to the chosen cell, else the first empty one.
-  // Text pastes are left to the editors.
+  const remove = (at: BlockAddress, block: BlockGeometry["block"]) => {
+    if (isMediaBlock(block)) {
+      const count = mediaCells(block).filter(Boolean).length;
+      if (
+        count > 0 &&
+        !window.confirm(
+          `Remove this block? ${count === 1 ? "Its image stays" : `Its ${count} images stay`} in the media pool.`,
+        )
+      ) {
+        return;
+      }
+    } else if (
+      hasWriting(block) &&
+      !window.confirm("This text block has writing in it. Remove it?")
+    ) {
+      return;
+    }
+    change(removeBlock(zine, at));
+  };
+
+  const setRows = (at: BlockAddress, block: TextBlock, rows: number) => {
+    const next = Math.min(MAX_ZINE_TEXT_ROWS, Math.max(1, rows));
+    if (next !== block.rows) change(replaceBlock(zine, at, { ...block, rows: next }));
+  };
+
+  const add = (place: AddPlace, kind: ZineBlockKind) =>
+    change(addBlock(zine, place, kind, theme.zine));
+
+  // Images pasted anywhere on the page go to the chosen cell, else the first empty one;
+  // with no media block yet, they make one. Text pastes are left to the editors.
   const onPaste = (event: ClipboardEvent<HTMLDivElement>) => {
     if (locked) return;
     const images = imageFilesOf(event.clipboardData);
     if (images.length === 0) return;
     event.preventDefault();
-    onAddImages?.(selectedCell ?? defaultCell(zine), images);
+    onAddImages?.(selectedCell ?? defaultCell(zine) ?? (media ? null : 0), images);
+  };
+
+  // A page with no media block takes drops of files or pool images, and makes one.
+  const onDrop = (event: DragEvent<HTMLDivElement>) => {
+    setOver(false);
+    if (locked || media) return;
+    const fileId = event.dataTransfer.getData(POOL_DRAG_TYPE);
+    if (fileId) {
+      event.preventDefault();
+      onPlaceFile?.(0, fileId);
+      return;
+    }
+    const dropped = imageFilesOf(event.dataTransfer);
+    if (dropped.length === 0) return;
+    event.preventDefault();
+    onAddImages?.(0, dropped);
   };
 
   const style = {
@@ -132,23 +229,24 @@ export function ZinePage({
     height: px(box.height),
   });
 
-  const textBlocks: { index: number; value: ColumnValue; box: Box }[] = [];
-  if (zine.textBelow && geometry.textBelow) {
-    textBlocks.push({ index: BELOW, value: zine.textBelow, box: geometry.textBelow });
-  }
-  if (zine.textBeside && geometry.textBeside) {
-    textBlocks.push({ index: BESIDE, value: zine.textBeside, box: geometry.textBeside });
-  }
-
   const className = [
     "text-page",
     "zine-page",
     theme.page.border ? "has-border" : "",
     preview ? "is-preview" : "",
     side ? `side-${side}` : "",
+    over ? "is-over" : "",
   ]
     .filter(Boolean)
     .join(" ");
+
+  const blocks = geometry.rows.flat();
+  const lastRow = geometry.rows[geometry.rows.length - 1];
+  const besideBlock =
+    options.beside !== null
+      ? geometry.rows[options.beside].find((b) => isMediaBlock(b.block))
+      : null;
+  let textIndex = 0;
 
   return (
     <div
@@ -159,59 +257,166 @@ export function ZinePage({
       onPointerDown={(event) => {
         if (!(event.target as HTMLElement).closest(".zine-cell")) onSelectCell?.(null);
       }}
+      onDragOver={(event) => {
+        if (locked || media) return;
+        event.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={onDrop}
     >
-      {cells.map((box, index) => (
-        <ZineCell
-          key={index}
-          index={index}
-          image={zine.media.images[index] ?? null}
-          file={zine.media.images[index] ? files[zine.media.images[index].fileId] : undefined}
-          style={boxStyle(box)}
-          locked={locked}
-          preview={preview}
-          selected={selectedCell === index}
-          onSelect={() => onSelectCell?.(index)}
-          onFiles={(dropped) => onAddImages?.(index, dropped)}
-          onPlaceFile={(fileId) => onPlaceFile?.(index, fileId)}
-          onFit={(fit) => setImage(index, { ...zine.media.images[index]!, fit })}
-          onRemove={() => setImage(index, null)}
-        />
-      ))}
-      {textBlocks.map(({ index, value, box }) => {
-        const lines = Math.max(1, Math.floor(box.height / pitchMm + 1e-6));
+      {blocks.map((entry) => {
+        const { block, at, box } = entry;
+        if (isMediaBlock(block)) {
+          const cells = mediaCells(block);
+          return (
+            <div
+              key={`${at.row}-${at.index}`}
+              className="zine-block zine-block--media"
+              style={boxStyle(box)}
+            >
+              {entry.cells.map((cellBox, index) => (
+                <ZineCell
+                  key={index}
+                  index={index}
+                  image={cells[index] ?? null}
+                  file={cells[index] ? files[cells[index].fileId] : undefined}
+                  style={{
+                    left: px(cellBox.left - box.left),
+                    top: px(cellBox.top - box.top),
+                    width: px(cellBox.width),
+                    height: px(cellBox.height),
+                  }}
+                  locked={locked}
+                  preview={preview}
+                  selected={selectedCell === index}
+                  onSelect={() => onSelectCell?.(index)}
+                  onFiles={(dropped) => onAddImages?.(index, dropped)}
+                  onPlaceFile={(fileId) => onPlaceFile?.(index, fileId)}
+                  onFit={(fit) => setCell(index, { ...cells[index]!, fit })}
+                  onRemove={() => setCell(index, null)}
+                />
+              ))}
+              {!locked && (
+                <div className="zine-block__tools zine-chrome">
+                  <select
+                    aria-label="Layout"
+                    value={mediaLayoutOf(block)}
+                    onChange={(event) => setLayout(at, block, event.target.value as MediaLayout)}
+                  >
+                    {MEDIA_LAYOUTS.map((layout) => (
+                      <option key={layout} value={layout}>
+                        {LAYOUT_LABELS[layout]}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="button" onClick={() => remove(at, block)}>
+                    Remove block
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        }
+        const index = textIndex++;
+        const ownRow = geometry.rows[at.row].every((b) => !isMediaBlock(b.block));
+        const text = entry.text!;
         return (
-          <Column
-            key={index}
-            ref={bar.bindEditor(index)}
-            value={value}
-            readOnly={locked}
-            lines={lines}
-            pitch={pitch}
-            style={{
-              left: px(box.left),
-              width: px(box.width),
-              top: px(box.top),
-              height: lines * pitch,
-            }}
-            onChange={(column) => setText(index, column)}
-            onFull={(full) => setBlockFull(index, full)}
-            onSelection={(at) => bar.setColumnSelection(index, at)}
-          />
+          <div
+            key={`${at.row}-${at.index}`}
+            className="zine-block zine-block--text"
+            style={boxStyle(box)}
+          >
+            <Column
+              ref={bar.bindEditor(index)}
+              value={block.column}
+              readOnly={locked}
+              lines={entry.lines}
+              pitch={pitch}
+              style={{
+                left: px(text.left - box.left),
+                width: px(text.width),
+                top: px(text.top - box.top),
+                height: entry.lines * pitch,
+              }}
+              onChange={(column: ColumnValue) =>
+                change(replaceBlock(zine, at, { ...block, column }))
+              }
+              onFull={(full) => setBlockFull(index, full)}
+              onSelection={(selection) => bar.setColumnSelection(index, selection)}
+            />
+            {!locked && fullBlocks[index] && (
+              <div className="text-page__full zine-page__full zine-chrome">Text full</div>
+            )}
+            {!locked && (
+              <div className="zine-block__tools zine-chrome">
+                {ownRow && (
+                  <span className="zine-block__rows">
+                    <button
+                      type="button"
+                      aria-label="Fewer rows"
+                      onClick={() => setRows(at, block, block.rows - 1)}
+                    >
+                      −
+                    </button>
+                    {block.rows} {block.rows === 1 ? "row" : "rows"}
+                    <button
+                      type="button"
+                      aria-label="More rows"
+                      onClick={() => setRows(at, block, block.rows + 1)}
+                    >
+                      +
+                    </button>
+                  </span>
+                )}
+                <button type="button" onClick={() => remove(at, block)}>
+                  Remove
+                </button>
+              </div>
+            )}
+          </div>
         );
       })}
+      {!locked && blocks.length === 0 && (
+        <AddSpot
+          className="zine-add--first"
+          options={options.below}
+          onAdd={(kind) => add({ row: "below" }, kind)}
+        />
+      )}
+      {!locked && lastRow && options.below.length > 0 && (
+        <AddSpot
+          className="zine-add--below"
+          style={{
+            left: px(geometry.inner.left),
+            width: px(geometry.inner.width),
+            top: px(lastRow[0].box.top + lastRow[0].box.height) - ADD_ZONE_PX,
+            height: ADD_ZONE_PX,
+          }}
+          options={options.below}
+          onAdd={(kind) => add({ row: "below" }, kind)}
+        />
+      )}
       {!locked &&
-        textBlocks.map(
-          ({ index, box }) =>
-            fullBlocks[index] && (
-              <div
-                key={index}
-                className="text-page__full zine-page__full"
-                style={{ left: px(box.left), width: px(box.width), top: px(box.top + box.height) }}
-              >
-                Text full
-              </div>
-            ),
-        )}
+        besideBlock &&
+        options.beside !== null &&
+        (["left", "right"] as const).map((edge) => (
+          <AddSpot
+            key={edge}
+            className={`zine-add--beside zine-add--${edge}`}
+            style={{
+              left:
+                edge === "left"
+                  ? px(besideBlock.box.left)
+                  : px(besideBlock.box.left + besideBlock.box.width) - ADD_ZONE_PX,
+              width: ADD_ZONE_PX,
+              top: px(besideBlock.box.top) + ADD_ZONE_PX,
+              height: Math.max(0, px(besideBlock.box.height) - 2 * ADD_ZONE_PX),
+            }}
+            options={["text"]}
+            onAdd={(kind) => add({ row: options.beside!, side: edge }, kind)}
+          />
+        ))}
       <PageMarks number={number} zoom={zoom} />
       {!locked && bar.selection && (
         <FormatBar
@@ -220,6 +425,55 @@ export function ZinePage({
           format={bar.selection.format}
           onAction={bar.onAction}
         />
+      )}
+    </div>
+  );
+}
+
+interface AddSpotProps {
+  className: string;
+  style?: CSSProperties;
+  options: readonly ZineBlockKind[];
+  onAdd: (kind: ZineBlockKind) => void;
+}
+
+/**
+ * An affordance for adding a block, shown while its zone is hovered: one choice is a
+ * single "+ Text" pill; several are a plus that opens into a pill per choice.
+ */
+function AddSpot({ className, style, options, onAdd }: AddSpotProps) {
+  const [open, setOpen] = useState(false);
+  const pick = (kind: ZineBlockKind) => {
+    setOpen(false);
+    onAdd(kind);
+  };
+  return (
+    <div
+      className={`zine-add zine-chrome ${className}${open ? " is-open" : ""}`}
+      style={style}
+      onPointerLeave={() => setOpen(false)}
+    >
+      {options.length === 1 ? (
+        <button type="button" className="zine-add__pill" onClick={() => pick(options[0])}>
+          + {KIND_LABELS[options[0]]}
+        </button>
+      ) : open ? (
+        <span className="zine-add__choices">
+          {options.map((kind) => (
+            <button key={kind} type="button" className="zine-add__pill" onClick={() => pick(kind)}>
+              + {KIND_LABELS[kind]}
+            </button>
+          ))}
+        </span>
+      ) : (
+        <button
+          type="button"
+          className="zine-add__plus"
+          aria-label="Add a block"
+          onClick={() => setOpen(true)}
+        >
+          +
+        </button>
       )}
     </div>
   );
@@ -240,7 +494,7 @@ interface ZineCellProps {
   onRemove: () => void;
 }
 
-/** One cell of the media block: its image with fit and remove controls, or a placeholder. */
+/** One cell of the media block: its image with fit, replace and remove controls, or a placeholder. */
 function ZineCell({
   index,
   image,
@@ -265,12 +519,14 @@ function ZineCell({
     const fileId = event.dataTransfer.getData(POOL_DRAG_TYPE);
     if (fileId) {
       event.preventDefault();
+      event.stopPropagation();
       onPlaceFile(fileId);
       return;
     }
     const files = imageFilesOf(event.dataTransfer);
     if (files.length === 0) return;
     event.preventDefault();
+    event.stopPropagation();
     onFiles(files);
   };
 
@@ -292,6 +548,7 @@ function ZineCell({
       onDragOver={(event) => {
         if (locked) return;
         event.preventDefault();
+        event.stopPropagation();
         setOver(true);
       }}
       onDragLeave={() => setOver(false)}
@@ -306,11 +563,13 @@ function ZineCell({
           style={{ objectFit: image.fit }}
         />
       )}
-      {image && !file && !preview && <div className="zine-cell__missing">Missing image</div>}
+      {image && !file && !preview && (
+        <div className="zine-cell__missing zine-chrome">Missing image</div>
+      )}
       {!image && !preview && (
         <button
           type="button"
-          className="zine-cell__add"
+          className="zine-cell__add zine-chrome"
           disabled={locked}
           onClick={() => input.current?.click()}
         >
@@ -318,13 +577,16 @@ function ZineCell({
         </button>
       )}
       {image && !locked && (
-        <div className="zine-cell__tools">
+        <div className="zine-cell__tools zine-chrome">
           <button
             type="button"
             onClick={() => onFit(image.fit === "cover" ? "contain" : "cover")}
             aria-pressed={image.fit === "contain"}
           >
             {image.fit === "cover" ? "Fit" : "Fill"}
+          </button>
+          <button type="button" onClick={() => input.current?.click()}>
+            Replace
           </button>
           <button type="button" onClick={onRemove}>
             Remove

@@ -2,20 +2,23 @@
 //
 // Versions: 1 had plain-string columns; 2 (text formatting) has { text, doc } columns;
 // 3 (notebook cover) adds the cover; 4 (zine pages) adds the page kind and the zine
-// block; 5 (themes) adds the notebook's theme id. Older files are still read: version 1
+// block; 5 (themes) adds the notebook's theme id; 6 (zine blocks) stores zine pages as
+// rows of blocks and drops the date stamp fields. Older files are still read: version 1
 // columns are converted, each line break becoming a paragraph boundary, a missing cover
-// is the default one, a page without a kind is lined, and a missing theme is Ruled.
+// is the default one, a page without a kind is lined, a missing theme is Ruled, and a
+// zine page of the old shape is converted losslessly (see zineLegacy.ts).
 
 import { DEFAULT_COVER, isCover } from "../notebook/cover";
 import { columnFromText, isColumn } from "../page/document";
 import { DEFAULT_MARGIN_MM, PAGE_SIZES_MM } from "../page/paper";
-import { isZine } from "../page/zine";
+import { isZine, type Zine } from "../page/zine";
+import { convertLegacyZine, isLegacyZine } from "../page/zineLegacy";
 import { DEFAULT_THEME_ID } from "../theme/themes";
-import type { Column, NotebookDocument } from "./model";
+import type { Column, NotebookDocument, Page } from "./model";
 
 export const BACKUP_FORMAT = "typestill-notebook";
-export const BACKUP_VERSION = 5;
-const READABLE_VERSIONS = new Set([1, 2, 3, 4, 5]);
+export const BACKUP_VERSION = 6;
+const READABLE_VERSIONS = new Set([1, 2, 3, 4, 5, 6]);
 
 export interface BackupFile {
   format: typeof BACKUP_FORMAT;
@@ -104,7 +107,10 @@ export function parseBackup(text: string): NotebookDocument {
       "Page has an invalid kind",
     );
     const zine = page.kind === "zine";
-    expect(!zine || isZine(page.zine), "Page has an invalid zine block");
+    expect(
+      !zine || (version < 6 ? isLegacyZine(page.zine) : isZine(page.zine)),
+      "Page has an invalid zine block",
+    );
     expect(
       Array.isArray(page.columns) &&
         (zine
@@ -132,6 +138,9 @@ export function parseBackup(text: string): NotebookDocument {
   expect(isRecord(canvas) && Array.isArray(canvas.elements), "Invalid canvas");
   const defaults = nb.defaults as Record<string, unknown>;
   const doc = nb as unknown as NotebookDocument;
+  // The date stamp fields of versions 2 to 5 are dropped: the page has no date stamp.
+  const restDefaults = { ...doc.defaults } as NotebookDocument["defaults"] & { showDate?: unknown };
+  delete restDefaults.showDate;
   return {
     ...doc,
     lastOpenedAt: typeof nb.lastOpenedAt === "number" ? nb.lastOpenedAt : nb.createdAt,
@@ -139,17 +148,28 @@ export function parseBackup(text: string): NotebookDocument {
     cover: isCover(nb.cover) ? nb.cover : { ...DEFAULT_COVER },
     themeId: typeof nb.themeId === "string" ? nb.themeId : DEFAULT_THEME_ID,
     defaults: {
-      ...doc.defaults,
+      ...restDefaults,
+      showPageNumber: defaults.showPageNumber !== false,
       margin: typeof defaults.margin === "number" ? defaults.margin : DEFAULT_MARGIN_MM,
     },
-    pages: doc.pages.map((page) => ({
-      ...page,
-      kind: page.kind ?? "lined",
-      margin: typeof page.margin === "number" ? page.margin : DEFAULT_MARGIN_MM,
-      columns: (page.columns as (string | Column)[]).map((column) =>
-        typeof column === "string" ? columnFromText(column) : column,
-      ),
-    })),
+    pages: doc.pages.map((raw) => {
+      const page = { ...raw } as Page & { showDate?: unknown };
+      delete page.showDate;
+      const converted: Page = {
+        ...page,
+        kind: page.kind ?? "lined",
+        showPageNumber: page.showPageNumber !== false,
+        margin: typeof page.margin === "number" ? page.margin : DEFAULT_MARGIN_MM,
+        columns: (page.columns as (string | Column)[]).map((column) =>
+          typeof column === "string" ? columnFromText(column) : column,
+        ),
+      };
+      if (converted.kind === "zine") {
+        const zine = page.zine as unknown;
+        converted.zine = (version < 6 ? convertLegacyZine(zine as never) : zine) as Zine;
+      }
+      return converted;
+    }),
     canvas: {
       notebookId: nb.id,
       gridEnabled: canvas.gridEnabled !== false,

@@ -12,7 +12,6 @@ const lined = (id: string, ...texts: string[]): Page => ({
   createdAt: 1,
   kind: "lined",
   tagId: null,
-  showDate: true,
   showPageNumber: true,
   margin: 20,
   columns: texts.map(columnFromText),
@@ -26,8 +25,19 @@ const zine = (id: string, below: string | null, beside: string | null): Page => 
   columns: [],
   zine: {
     ...emptyZine(),
-    textBelow: below === null ? null : columnFromText(below),
-    textBeside: beside === null ? null : columnFromText(beside),
+    rows: [
+      {
+        blocks: [
+          { kind: "image", image: null },
+          ...(beside === null
+            ? []
+            : [{ kind: "text" as const, column: columnFromText(beside), rows: 4 }]),
+        ],
+      },
+      ...(below === null
+        ? []
+        : [{ blocks: [{ kind: "text" as const, column: columnFromText(below), rows: 4 }] }]),
+    ],
   },
 });
 
@@ -45,7 +55,7 @@ const text = (
 describe("pageText", () => {
   it("joins a lined page's columns and a zine page's text blocks", () => {
     expect(pageText(lined("p", "left\ncolumn", "right"))).toBe("left\ncolumn\nright");
-    expect(pageText(zine("z", "below", "beside"))).toBe("below\nbeside");
+    expect(pageText(zine("z", "below", "beside"))).toBe("beside\nbelow");
     expect(pageText(zine("z", null, "beside"))).toBe("beside");
     expect(pageText({ ...lined("p"), kind: "zine", zine: undefined })).toBe("");
   });

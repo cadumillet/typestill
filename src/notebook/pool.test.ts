@@ -10,7 +10,6 @@ const page = (id: string, images: (string | null)[] = []): Page => ({
   createdAt: 1,
   kind: images.length > 0 ? "zine" : "lined",
   tagId: null,
-  showDate: true,
   showPageNumber: true,
   margin: 20,
   columns: [],
@@ -20,10 +19,19 @@ const page = (id: string, images: (string | null)[] = []): Page => ({
     ? {
         zine: {
           ...emptyZine(),
-          media: {
-            layout: images.length === 1 ? "single" : "row",
-            images: images.map((fileId) => (fileId ? { fileId, fit: "cover" } : null)),
-          },
+          rows: [
+            {
+              blocks: [
+                images.length === 1
+                  ? { kind: "image", image: images[0] ? { fileId: images[0], fit: "cover" } : null }
+                  : {
+                      kind: "grid",
+                      layout: "row",
+                      images: images.map((fileId) => (fileId ? { fileId, fit: "cover" } : null)),
+                    },
+              ],
+            },
+          ],
         },
       }
     : {}),

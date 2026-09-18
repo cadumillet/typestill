@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable, type Table } from "dexie";
 import { DEFAULT_COVER } from "../notebook/cover";
 import { columnFromText } from "../page/document";
+import { convertLegacyZine, isLegacyZine } from "../page/zineLegacy";
 import { DEFAULT_THEME_ID } from "../theme/themes";
 import type { Canvas, Notebook, NotebookFile, Page, Thumbnail } from "./model";
 
@@ -69,6 +70,25 @@ export class TypestillDb extends Dexie {
       );
     // Version 6: page thumbnails, a cache outside the backup. No data to convert.
     this.version(6).stores({ ...stores, thumbnails: "pageId, notebookId" });
+    // Version 7: zine pages are rows of blocks (converted losslessly from the old media
+    // block shape), and the date stamp fields go, the page having no date stamp.
+    this.version(7)
+      .stores({ ...stores, thumbnails: "pageId, notebookId" })
+      .upgrade(async (tx) => {
+        await tx
+          .table("pages")
+          .toCollection()
+          .modify((page: { zine?: unknown; showDate?: unknown }) => {
+            if (isLegacyZine(page.zine)) page.zine = convertLegacyZine(page.zine);
+            delete page.showDate;
+          });
+        await tx
+          .table("notebooks")
+          .toCollection()
+          .modify((notebook: { defaults?: { showDate?: unknown } }) => {
+            delete notebook.defaults?.showDate;
+          });
+      });
   }
 }
 

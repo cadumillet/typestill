@@ -25,7 +25,7 @@ const doc: NotebookDocument = {
   themeId: "ruled",
   pageSize: "A5",
   orientation: "portrait",
-  defaults: { showDate: true, showPageNumber: true, margin: 20, divider: null },
+  defaults: { showPageNumber: true, margin: 20, divider: null },
   tags: [],
   pages: [
     {
@@ -34,7 +34,6 @@ const doc: NotebookDocument = {
       createdAt: 10,
       kind: "lined",
       tagId: null,
-      showDate: true,
       showPageNumber: true,
       margin: 20,
       columns: [columnFromText("hello")],
