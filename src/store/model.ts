@@ -23,8 +23,6 @@ export interface Tag {
 }
 
 export interface NotebookDefaults {
-  /** The date stamp was descoped in Phase 4: stored and ignored until the next format bump. */
-  showDate: boolean;
   showPageNumber: boolean;
   /** Margin line offset in mm from the left edge for new pages. */
   margin: number;
@@ -65,14 +63,12 @@ export interface Page {
   createdAt: number;
   kind: PageKind;
   tagId: string | null;
-  /** The date stamp was descoped in Phase 4: stored and ignored until the next format bump. */
-  showDate: boolean;
   showPageNumber: boolean;
   /** Margin line offset in mm from the left edge. */
   margin: number;
   /** Lined pages: one or two columns of text. Zine pages: none. */
   columns: Column[];
-  /** Zine pages: the media block and its text. */
+  /** Zine pages: the rows of blocks. */
   zine?: Zine;
   /** Divider offset in mm from the left edge, null for one column. */
   divider: number | null;
@@ -111,7 +107,6 @@ export interface NotebookDocument extends Notebook {
 }
 
 export const DEFAULT_NOTEBOOK_DEFAULTS: NotebookDefaults = {
-  showDate: true,
   showPageNumber: true,
   margin: DEFAULT_MARGIN_MM,
   divider: null,

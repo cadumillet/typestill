@@ -1,8 +1,20 @@
-/* A zine page: the media block's cells and the text blocks in the zine typeface. Shares
-   the sheet and the column styles of textpage.css; there are no rules or margin line. */
+/* A zine page: rows of blocks, the media block's cells and the text blocks in the zine
+   typeface. Shares the sheet and the column styles of textpage.css; there are no rules
+   or margin line. Everything marked .zine-chrome is editing chrome, stripped from
+   renders. */
 
 .zine-page {
   font-family: var(--page-font, "Assistant"), ui-sans-serif, system-ui, sans-serif;
+}
+
+.zine-page.is-over {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+
+.zine-block {
+  position: absolute;
+  z-index: 1;
 }
 
 .zine-cell {
@@ -66,35 +78,159 @@
   color: var(--danger);
 }
 
-/* Fit and remove, shown while the pointer is over a filled cell. */
-.zine-cell__tools {
+/* Small tool pills: a cell's (top right) and a block's (top left), shown on hover. */
+.zine-cell__tools,
+.zine-block__tools {
   position: absolute;
   top: 6px;
-  right: 6px;
+  z-index: 4;
   display: flex;
+  align-items: center;
   gap: 4px;
   opacity: 0;
   transition: opacity 120ms;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px;
+}
+
+.zine-cell__tools {
+  right: 6px;
+}
+
+.zine-block__tools {
+  left: 6px;
+}
+
+/* A text block's tools sit at its bottom-right corner, where the last row is usually
+   still empty, rather than over the first line of writing. */
+.zine-block--text .zine-block__tools {
+  top: auto;
+  left: auto;
+  right: 6px;
+  bottom: 6px;
 }
 
 .zine-cell:hover .zine-cell__tools,
-.zine-cell.is-selected .zine-cell__tools {
+.zine-cell.is-selected .zine-cell__tools,
+.zine-block:hover .zine-block__tools,
+.zine-block__tools:focus-within {
   opacity: 1;
 }
 
-.zine-cell__tools button {
+.zine-cell__tools button,
+.zine-block__tools button,
+.zine-block__tools select {
   padding: 2px 8px;
-  font-family: ui-sans-serif, system-ui, sans-serif;
-  font-size: 11px;
-  border-color: transparent;
+  font: inherit;
+  border: 1px solid transparent;
+  border-radius: 6px;
   background: var(--surface);
   color: var(--ink);
   box-shadow: 0 1px 2px var(--control-line);
 }
 
+.zine-block__rows {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px;
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 2px var(--control-line);
+}
+
+.zine-block__rows button {
+  padding: 0 6px;
+  box-shadow: none;
+}
+
+/* Where a block can be added: zones that show their pills while hovered. */
+.zine-add {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+}
+
+.zine-add--first {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 120ms;
+}
+
+.zine-page:hover .zine-add--first,
+.zine-add--first.is-open,
+.zine-add--first:focus-within {
+  opacity: 1;
+}
+
+.zine-add--below,
+.zine-add--beside {
+  opacity: 0;
+  transition: opacity 120ms;
+}
+
+.zine-add--below {
+  align-items: flex-end;
+  padding-bottom: 6px;
+  box-sizing: border-box;
+}
+
+.zine-add:hover,
+.zine-add.is-open,
+.zine-add:focus-within {
+  opacity: 1;
+}
+
+.zine-add__choices {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.zine-add__pill,
+.zine-add__plus {
+  font: inherit;
+  border: 1px solid transparent;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+  white-space: nowrap;
+}
+
+.zine-add__pill {
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.zine-add__plus {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.zine-add__pill:hover,
+.zine-add__plus:hover {
+  color: var(--accent);
+}
+
 .zine-page__full {
+  position: absolute;
+  left: 0;
+  right: 0;
   bottom: auto;
+  top: 100%;
   margin-top: 2px;
+  text-align: center;
 }
 
 /* Zine text is a typeface with a real bold. */

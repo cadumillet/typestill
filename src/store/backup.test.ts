@@ -36,7 +36,7 @@ const doc: NotebookDocument = {
   themeId: "plain",
   pageSize: "A5",
   orientation: "portrait",
-  defaults: { showDate: true, showPageNumber: true, margin: 20, divider: null },
+  defaults: { showPageNumber: true, margin: 20, divider: null },
   tags: [],
   pages: [
     {
@@ -45,7 +45,6 @@ const doc: NotebookDocument = {
       createdAt: 10,
       kind: "lined",
       tagId: null,
-      showDate: true,
       showPageNumber: true,
       margin: 20,
       columns: [{ text: "hello \nworld", doc: formatted }, columnFromText("world")],
@@ -58,17 +57,19 @@ const doc: NotebookDocument = {
       createdAt: 11,
       kind: "zine",
       tagId: null,
-      showDate: true,
       showPageNumber: true,
       margin: 20,
       columns: [],
       zine: {
         padding: 0,
-        media: { layout: "row", images: [{ fileId: "f1", fit: "cover" }, null] },
-        textBelow: columnFromText("caption"),
-        textBeside: null,
-        textSide: "right",
-        textRows: 4,
+        rows: [
+          {
+            blocks: [
+              { kind: "grid", layout: "row", images: [{ fileId: "f1", fit: "cover" }, null] },
+            ],
+          },
+          { blocks: [{ kind: "text", column: columnFromText("caption"), rows: 4 }] },
+        ],
       },
       divider: null,
       canvasView: null,
@@ -76,6 +77,16 @@ const doc: NotebookDocument = {
   ],
   canvas: { notebookId: "nb1", gridEnabled: false, elements: [] },
   files: { f1: fileData("f1") },
+};
+
+/** A zine page as versions 4 and 5 stored it. */
+const legacyZine = {
+  padding: 6,
+  media: { layout: "single", images: [{ fileId: "f1", fit: "contain" }] },
+  textBelow: columnFromText("caption"),
+  textBeside: columnFromText("beside"),
+  textSide: "left",
+  textRows: 3,
 };
 
 describe("backup", () => {
@@ -160,15 +171,44 @@ describe("backup", () => {
     for (const zine of [
       undefined,
       null,
-      { ...doc.pages[1].zine, media: { layout: "row", images: [null] } },
-      { ...doc.pages[1].zine, media: { layout: "grid", images: [null] } },
-      { ...doc.pages[1].zine, textRows: 0 },
-      { ...doc.pages[1].zine, textBelow: "caption" },
+      { padding: 0, rows: [{ blocks: [{ kind: "grid", layout: "row", images: [null] }] }] },
+      { padding: 0, rows: [{ blocks: [{ kind: "text", column: "caption", rows: 4 }] }] },
+      { padding: 0, rows: [{ blocks: [] }] },
+      // The old shape is version 5's, not version 6's.
+      legacyZine,
     ]) {
       const bad = JSON.parse(serializeBackup(doc));
       bad.notebook.pages[1].zine = zine;
       expect(() => parseBackup(JSON.stringify(bad))).toThrow(/zine/);
     }
+  });
+
+  it("converts version 5 zine pages to rows of blocks and drops the date stamp fields", () => {
+    const raw = JSON.parse(serializeBackup(doc));
+    raw.version = 5;
+    raw.notebook.defaults.showDate = true;
+    raw.notebook.pages[0].showDate = false;
+    raw.notebook.pages[1].showDate = true;
+    raw.notebook.pages[1].zine = legacyZine;
+    const parsed = parseBackup(JSON.stringify(raw));
+    expect(parsed.defaults).toEqual(doc.defaults);
+    expect("showDate" in parsed.pages[0]).toBe(false);
+    expect(parsed.pages[1].zine).toEqual({
+      padding: 6,
+      rows: [
+        {
+          blocks: [
+            { kind: "text", column: columnFromText("beside"), rows: 3 },
+            { kind: "image", image: { fileId: "f1", fit: "contain" } },
+          ],
+        },
+        { blocks: [{ kind: "text", column: columnFromText("caption"), rows: 3 }] },
+      ],
+    });
+    // A version-5 zine page must have the old shape; the new one is refused there.
+    const mixed = JSON.parse(serializeBackup(doc));
+    mixed.version = 5;
+    expect(() => parseBackup(JSON.stringify(mixed))).toThrow(/zine/);
   });
 
   it("names the file after the notebook and the date", () => {
@@ -207,6 +247,7 @@ describe("backup", () => {
   it("fills lastOpenedAt, the grid flag, margins and the cover when missing", () => {
     const raw = JSON.parse(serializeBackup(doc));
     raw.version = 2;
+    raw.notebook.pages.pop();
     delete raw.notebook.lastOpenedAt;
     delete raw.notebook.lastPageId;
     delete raw.notebook.canvas.gridEnabled;

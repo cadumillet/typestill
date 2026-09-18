@@ -108,7 +108,7 @@ export interface NotebookSession {
   deleteTag: (tagId: string) => Promise<void>;
   setPageTag: (tagId: string | null) => void;
   /** The open page's date stamp and page number toggles. */
-  setPageMarks: (patch: Partial<Pick<Page, "showDate" | "showPageNumber">>) => void;
+  setPageMarks: (patch: Partial<Pick<Page, "showPageNumber">>) => void;
   /** Moves the open page's margin line; the divider is re-snapped if the margin pushes on it. */
   setPageMargin: (margin: number) => Promise<void>;
   /** Stores a fresh thumbnail of the open page. */
@@ -587,7 +587,7 @@ export function useNotebookSession(
   );
 
   const setPageMarks = useCallback(
-    (patch: Partial<Pick<Page, "showDate" | "showPageNumber">>) => {
+    (patch: Partial<Pick<Page, "showPageNumber">>) => {
       if (!state) return;
       const page = state.pages[state.index];
       updatePage(db, page.id, patch).catch(report);

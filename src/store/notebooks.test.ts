@@ -4,7 +4,7 @@ import { DEFAULT_COVER } from "../notebook/cover";
 import { columnFromText, documentFromText } from "../page/document";
 import { TypestillDb } from "./db";
 import { element, fileData, imageElement } from "./fixtures";
-import { emptyZine } from "../page/zine";
+import { emptyZine, type Zine } from "../page/zine";
 import {
   FileInUseError,
   NotebookExistsError,
@@ -196,12 +196,12 @@ describe("pages", () => {
     const second = await createPage(db, notebook.id);
     await savePageText(db, second.id, [columnFromText("hello")]);
     await updatePage(db, second.id, {
-      showDate: false,
+      showPageNumber: false,
       canvasView: { scrollX: 1, scrollY: 2, zoom: 0.5 },
     });
     const stored = await db.pages.get(second.id);
     expect(stored?.columns).toEqual([columnFromText("hello")]);
-    expect(stored?.showDate).toBe(false);
+    expect(stored?.showPageNumber).toBe(false);
     expect(stored?.canvasView).toEqual({ scrollX: 1, scrollY: 2, zoom: 0.5 });
     expect((await deletePage(db, firstPage.id)).id).toBe(second.id);
     expect((await listPages(db, notebook.id)).map((p) => p.id)).toEqual([second.id]);
@@ -237,16 +237,16 @@ describe("pages", () => {
     const zine = await setPageKind(db, firstPage.id, "zine");
     await savePageZine(db, zine.id, {
       ...emptyZine(),
-      media: { layout: "single", images: [{ fileId: "f1", fit: "cover" }] },
+      rows: [{ blocks: [{ kind: "image", image: { fileId: "f1", fit: "cover" } }] }],
     });
     await addFile(db, notebook.id, fileData("f1"));
-    await updatePage(db, zine.id, { showDate: false, margin: 30 });
+    await updatePage(db, zine.id, { showPageNumber: false, margin: 30 });
     const fresh = await deletePage(db, zine.id);
     expect(fresh.id).not.toBe(zine.id);
     expect(fresh.kind).toBe("lined");
     expect(fresh.divider).toBe(70);
     expect(fresh.columns).toEqual([columnFromText(""), columnFromText("")]);
-    expect(fresh.showDate).toBe(notebook.defaults.showDate);
+    expect(fresh.showPageNumber).toBe(notebook.defaults.showPageNumber);
     expect(fresh.margin).toBe(notebook.defaults.margin);
     expect(fresh.createdAt).toBeGreaterThan(zine.createdAt);
     expect((await listPages(db, notebook.id)).map((p) => p.id)).toEqual([fresh.id]);
@@ -275,7 +275,7 @@ describe("pages", () => {
     expect((await db.pages.get(firstPage.id))?.columns).toEqual([columnFromText("left\nright")]);
   });
 
-  it("creates zine pages with an empty media block and no columns", async () => {
+  it("creates zine pages with no rows and no columns", async () => {
     const { notebook } = await createNotebook(db, { name: "A", defaults: { divider: 70 } });
     const page = await createPage(db, notebook.id, { kind: "zine" });
     expect(page.kind).toBe("zine");
@@ -283,9 +283,13 @@ describe("pages", () => {
     expect(page.divider).toBeNull();
     expect(page.zine).toEqual(emptyZine());
     expect(isPageEmpty(page)).toBe(true);
-    const zine = {
+    const zine: Zine = {
       ...emptyZine(),
-      media: { layout: "row" as const, images: [{ fileId: "f1", fit: "cover" as const }, null] },
+      rows: [
+        {
+          blocks: [{ kind: "grid", layout: "row", images: [{ fileId: "f1", fit: "cover" }, null] }],
+        },
+      ],
     };
     await savePageZine(db, page.id, zine);
     const stored = await db.pages.get(page.id);
@@ -326,6 +330,66 @@ describe("pages", () => {
     const upgraded = new TypestillDb(name);
     try {
       expect((await upgraded.pages.get("p1"))?.kind).toBe("lined");
+    } finally {
+      await upgraded.delete();
+    }
+  });
+
+  it("upgrades version 6 zine pages to rows of blocks and drops the date stamp fields", async () => {
+    const name = `test-${crypto.randomUUID()}`;
+    const old = new Dexie(name);
+    old.version(6).stores({
+      notebooks: "id, lastOpenedAt",
+      pages: "id, notebookId, [notebookId+createdAt]",
+      canvases: "notebookId",
+      files: "[notebookId+id], notebookId",
+      thumbnails: "pageId, notebookId",
+    });
+    await old.table("notebooks").add({
+      id: "nb",
+      lastOpenedAt: 1,
+      defaults: { showDate: true, showPageNumber: false, margin: 20, divider: null },
+    });
+    await old.table("pages").bulkAdd([
+      { id: "p1", notebookId: "nb", createdAt: 1, kind: "lined", showDate: true, columns: [] },
+      {
+        id: "p2",
+        notebookId: "nb",
+        createdAt: 2,
+        kind: "zine",
+        showDate: false,
+        columns: [],
+        zine: {
+          padding: 4,
+          media: { layout: "row", images: [{ fileId: "f1", fit: "cover" }, null] },
+          textBelow: columnFromText("caption"),
+          textBeside: columnFromText("aside"),
+          textSide: "right",
+          textRows: 2,
+        },
+      },
+    ]);
+    old.close();
+    const upgraded = new TypestillDb(name);
+    try {
+      const notebook = await upgraded.notebooks.get("nb");
+      expect(notebook?.defaults).toEqual({ showPageNumber: false, margin: 20, divider: null });
+      const lined = await upgraded.pages.get("p1");
+      expect(lined && "showDate" in lined).toBe(false);
+      const zine = await upgraded.pages.get("p2");
+      expect(zine && "showDate" in zine).toBe(false);
+      expect(zine?.zine).toEqual({
+        padding: 4,
+        rows: [
+          {
+            blocks: [
+              { kind: "grid", layout: "row", images: [{ fileId: "f1", fit: "cover" }, null] },
+              { kind: "text", column: columnFromText("aside"), rows: 2 },
+            ],
+          },
+          { blocks: [{ kind: "text", column: columnFromText("caption"), rows: 2 }] },
+        ],
+      });
     } finally {
       await upgraded.delete();
     }
@@ -410,7 +474,7 @@ describe("files", () => {
     const page = await createPage(db, notebook.id, { kind: "zine" });
     await savePageZine(db, page.id, {
       ...emptyZine(),
-      media: { layout: "single", images: [{ fileId: "f1", fit: "cover" }] },
+      rows: [{ blocks: [{ kind: "image", image: { fileId: "f1", fit: "cover" } }] }],
     });
     await saveCanvasContent(db, notebook.id, [imageElement("img", "f2")], {});
     expect([...(await usedFileIds(db, notebook.id))].sort()).toEqual(["f1", "f2"]);

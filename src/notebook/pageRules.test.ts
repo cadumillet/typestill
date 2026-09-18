@@ -11,7 +11,6 @@ const lined = (text: string): Page => ({
   createdAt: 1,
   kind: "lined",
   tagId: null,
-  showDate: false,
   showPageNumber: true,
   margin: 20,
   columns: [columnFromText(text)],
@@ -34,7 +33,10 @@ describe("canAddPage", () => {
     expect(canAddPage(zine)).toBe(false);
     const withImage: Page = {
       ...zine,
-      zine: { ...zine.zine!, media: { layout: "single", images: [{ fileId: "f", fit: "cover" }] } },
+      zine: {
+        ...zine.zine!,
+        rows: [{ blocks: [{ kind: "image", image: { fileId: "f", fit: "cover" } }] }],
+      },
     };
     expect(canAddPage(withImage)).toBe(true);
   });

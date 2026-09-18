@@ -16,7 +16,7 @@ import { TextPage } from "./page/TextPage";
 import { ZinePage } from "./page/ZinePage";
 import { defaultDivider, fitPage, mmToCssPx, pageGeometry, pageMm } from "./page/paper";
 import { pageSide, spreadOf } from "./page/sides";
-import { imagesForLayout, isZineEmpty, type Zine } from "./page/zine";
+import { isZineEmpty } from "./page/zine";
 import { exportCanvasPng, exportFileName, exportPagePng, exportPdf } from "./notebook/export";
 import { downloadBlob } from "./notebook/files";
 import { nextTagColor } from "./notebook/tags";
@@ -239,31 +239,8 @@ export function App() {
   /** The one-page rule: no new page while the open page is empty. */
   const canAdd = canAddPage(page);
 
-  // Settings that would drop images or text ask first; nothing is untied silently.
-  const changeZine = (patch: Partial<Zine>) => {
-    const zine = page.zine;
-    if (!zine) return;
-    const next = { ...zine, ...patch };
-    if (patch.media && patch.media.layout !== zine.media.layout) {
-      const images = imagesForLayout(zine.media.images, patch.media.layout);
-      const dropped = zine.media.images.slice(images.length).filter(Boolean).length;
-      if (
-        dropped > 0 &&
-        !window.confirm(
-          `This layout has fewer cells. ${dropped === 1 ? "One image" : `${dropped} images`} will be taken off the page (they stay in the notebook). Continue?`,
-        )
-      ) {
-        return;
-      }
-      next.media = { layout: patch.media.layout, images };
-    }
-    for (const block of ["textBelow", "textBeside"] as const) {
-      const before = zine[block];
-      if (patch[block] === null && before && !isBlankDocument(before.doc)) {
-        if (!window.confirm("This text block has writing in it. Remove it?")) return;
-      }
-    }
-    session.setZine(next);
+  const setPadding = (padding: number) => {
+    if (page.zine) session.setZine({ ...page.zine, padding });
   };
 
   const addImages = async (cell: number | null, files: File[]) => {
@@ -461,7 +438,7 @@ export function App() {
                 onMarginChange={(margin) => void session.setPageMargin(margin)}
                 twoColumns={page.divider !== null}
                 onTwoColumnsChange={setTwoColumns}
-                onZineChange={changeZine}
+                onPaddingChange={setPadding}
               />
               <Menu
                 label="Notebook"

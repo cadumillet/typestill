@@ -10,9 +10,7 @@ const STRIPPED = [
   ".text-page__mirror",
   ".text-page__full",
   ".text-page__divider-handle",
-  ".zine-cell__tools",
-  ".zine-cell__add",
-  ".zine-cell__missing",
+  ".zine-chrome",
 ];
 
 export interface RenderOptions {
