@@ -231,3 +231,19 @@ button.primary {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* A section's "starts at page" field and its page count. */
+.settings__start {
+  flex: none;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.settings__start input[type="number"] {
+  width: 48px;
+}
+
+.settings__pages {
+  min-width: 52px;
+}

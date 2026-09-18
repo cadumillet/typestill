@@ -9,16 +9,14 @@ import {
   type Orientation,
   type PageSize,
 } from "../page/paper";
-import type { Side } from "../page/sides";
 import { MAX_ZINE_PADDING_MM } from "../page/zine";
-import type { Notebook, Page, PageKind, Section } from "../store/model";
+import { SHEET, type Notebook, type Page, type PageKind, type Section } from "../store/model";
 import { APPEARANCES, resolveAppearance, type Appearance } from "../shell/appearance";
 import { THEMES, getTheme, isDarkTheme } from "../theme/themes";
 import { formatBytes } from "../store/zip";
 import { COVER_COLORS, coverFromFields } from "./cover";
 import { CoverSwatch } from "./CoverSwatch";
-import { PageRail } from "./PageRail";
-import { NEW_SECTION_VALUE, SECTION_COLORS, nextSectionColor } from "./sections";
+import { SECTION_COLORS, nextSectionColor, sectionOf, sectionRange } from "./sections";
 import "./settings.css";
 
 export type NotebookSettings = Pick<
@@ -30,26 +28,20 @@ export interface NotebookBoxProps {
   open: boolean;
   onClose: () => void;
   notebook: Notebook;
-  /** The pages in notebook order, the open one, and the sides, for the map. */
+  /** The pages in position order, and the open one. */
   pages: readonly Page[];
   index: number;
-  sides: readonly Side[];
-  thumbnails: Record<string, string>;
-  /** The map: a square opens a page, a tab opens a section; the caller closes the box. */
-  onSelectPage: (index: number) => void;
-  onOpenSection: (sectionId: string) => void;
-  /** Section edits apply at once. */
-  onAddSection: (input: { name: string; color: string }) => void;
+  /** Section edits apply at once; the cuts go through the store's rules (the caller reports a refusal). */
+  onCut: (start: number, input: { name: string; color: string }) => void;
   onUpdateSection: (sectionId: string, patch: Partial<Pick<Section, "name" | "color">>) => void;
-  /** Swaps the section with its neighbour above (-1) or below (1). */
-  onMoveSection: (sectionId: string, direction: -1 | 1) => void;
-  /** Deletes a section, moving its pages to a neighbour: the caller asks first. */
-  onDeleteSection: (sectionId: string) => void;
+  /** Moves a section's cut to a sheet boundary between its neighbours. */
+  onMoveCut: (sectionId: string, start: number) => void;
+  /** Removes a cut, merging the section into the one before: the caller asks first. */
+  onRemoveCut: (sectionId: string) => void;
   /** This page: the open page and what can be set on it. */
   page: Page;
-  onSectionChange: (sectionId: string) => void;
-  /** "New section…" was picked: the caller asks for a name and moves the page there. */
-  onNewSection: () => void;
+  /** Empties the page's writing and drawing: the caller asks first. */
+  onClearPage: () => void;
   /** Lined pages: two columns or one; null on zine pages. */
   twoColumns: boolean | null;
   onTwoColumnsChange: (enabled: boolean) => void;
@@ -61,6 +53,8 @@ export interface NotebookBoxProps {
   onPaddingChange: (padding: number) => void;
   /** Notebook settings apply as they are made. */
   onUpdateSettings: (patch: Partial<NotebookSettings>) => void;
+  /** The page count: grows by whole sheets, or shrinks (the store refuses over writing; the caller reports). */
+  onResize: (size: number) => void;
   /** The app appearance, which is not a notebook setting but is chosen here too. */
   appearance: Appearance;
   onAppearanceChange: (appearance: Appearance) => void;
@@ -107,17 +101,12 @@ export function NotebookBox({
   notebook,
   pages,
   index,
-  sides,
-  thumbnails,
-  onSelectPage,
-  onOpenSection,
-  onAddSection,
+  onCut,
   onUpdateSection,
-  onMoveSection,
-  onDeleteSection,
+  onMoveCut,
+  onRemoveCut,
   page,
-  onSectionChange,
-  onNewSection,
+  onClearPage,
   twoColumns,
   onTwoColumnsChange,
   showKind,
@@ -125,6 +114,7 @@ export function NotebookBox({
   onKindChange,
   onPaddingChange,
   onUpdateSettings,
+  onResize,
   appearance,
   onAppearanceChange,
   storage,
@@ -140,6 +130,9 @@ export function NotebookBox({
   const shownName = name.trim() || notebook.name;
   const zine = page.zine;
   const width = pageMm(notebook.pageSize, notebook.orientation).width;
+  /** A new section takes the last section's last sheet, which must not be its only one. */
+  const lastRange = sectionRange(notebook.sections, notebook.size, notebook.sections.length - 1);
+  const canAddSection = lastRange.end - lastRange.start >= 2 * SHEET;
 
   // Native dialog: showModal traps focus and closes on Escape. The fields are reset from
   // the notebook each time the box opens, at the top, on the map.
@@ -201,111 +194,115 @@ export function NotebookBox({
         </button>
       </div>
       <fieldset className="settings__group">
-        <legend>Map</legend>
-        <PageRail
-          sections={notebook.sections}
-          pages={pages}
-          index={index}
-          sides={sides}
-          onSelect={onSelectPage}
-          onOpenSection={onOpenSection}
-          thumbnails={thumbnails}
-        />
-      </fieldset>
-      <fieldset className="settings__group">
         <legend>Sections</legend>
         <ul className="settings__sections">
-          {notebook.sections.map((section, i) => (
-            <li key={section.id} className="settings__section">
-              <input
-                type="text"
-                value={section.name}
-                aria-label="Section name"
-                onChange={(event) => onUpdateSection(section.id, { name: event.target.value })}
-              />
-              <span className="settings__swatches" role="radiogroup" aria-label="Section colour">
-                {SECTION_COLORS.map((choice) => (
-                  <button
-                    key={choice.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={choice.value === section.color}
-                    aria-label={choice.name}
-                    className="settings__swatch settings__swatch--small"
-                    style={{ background: choice.value }}
-                    onClick={() => onUpdateSection(section.id, { color: choice.value })}
+          {notebook.sections.map((section, i) => {
+            const range = sectionRange(notebook.sections, notebook.size, i);
+            const before = notebook.sections[i - 1]?.start ?? -SHEET;
+            const after = notebook.sections[i + 1]?.start ?? notebook.size;
+            return (
+              <li key={section.id} className="settings__section">
+                <input
+                  type="text"
+                  value={section.name}
+                  aria-label="Section name"
+                  onChange={(event) => onUpdateSection(section.id, { name: event.target.value })}
+                />
+                <span className="settings__swatches" role="radiogroup" aria-label="Section colour">
+                  {SECTION_COLORS.map((choice) => (
+                    <button
+                      key={choice.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={choice.value === section.color}
+                      aria-label={choice.name}
+                      className="settings__swatch settings__swatch--small"
+                      style={{ background: choice.value }}
+                      onClick={() => onUpdateSection(section.id, { color: choice.value })}
+                    />
+                  ))}
+                </span>
+                <label className="settings__unit settings__start">
+                  <span>from</span>
+                  <input
+                    type="number"
+                    aria-label={`${section.name} starts at page`}
+                    title={
+                      i === 0
+                        ? "The first section starts at page 1"
+                        : `Starts at page: a sheet boundary between ${before + SHEET + 1} and ${after - SHEET + 1}`
+                    }
+                    min={before + SHEET + 1}
+                    max={after - SHEET + 1}
+                    step={SHEET}
+                    value={section.start + 1}
+                    disabled={i === 0}
+                    className="settings__number"
+                    onChange={(event) => {
+                      const start = Number(event.target.value) - 1;
+                      if (
+                        Number.isInteger(start) &&
+                        start % SHEET === 0 &&
+                        start > before &&
+                        start < after
+                      ) {
+                        onMoveCut(section.id, start);
+                      }
+                    }}
                   />
-                ))}
-              </span>
-              <button
-                type="button"
-                className="settings__section-move"
-                aria-label={`Move ${section.name} up`}
-                disabled={i === 0}
-                onClick={() => onMoveSection(section.id, -1)}
-              >
-                ↑
-              </button>
-              <button
-                type="button"
-                className="settings__section-move"
-                aria-label={`Move ${section.name} down`}
-                disabled={i === notebook.sections.length - 1}
-                onClick={() => onMoveSection(section.id, 1)}
-              >
-                ↓
-              </button>
-              <button
-                type="button"
-                className="settings__section-delete"
-                aria-label={`Delete section ${section.name}`}
-                disabled={notebook.sections.length === 1}
-                title={
-                  notebook.sections.length === 1
-                    ? "The last section cannot be deleted"
-                    : "Its pages move to the section next to it"
-                }
-                onClick={() => onDeleteSection(section.id)}
-              >
-                Delete
-              </button>
-            </li>
-          ))}
+                  <span className="settings__pages">
+                    {range.end - range.start} {range.end - range.start === 1 ? "page" : "pages"}
+                  </span>
+                </label>
+                <button
+                  type="button"
+                  className="settings__section-delete"
+                  aria-label={`Delete section ${section.name}`}
+                  disabled={i === 0}
+                  title={
+                    i === 0
+                      ? "The first section cannot be deleted"
+                      : "Its pages merge into the section before it"
+                  }
+                  onClick={() => onRemoveCut(section.id)}
+                >
+                  Delete
+                </button>
+              </li>
+            );
+          })}
         </ul>
         <button
           type="button"
-          className="settings__add-section"
+          className={`settings__add-section${canAddSection ? "" : " is-off"}`}
+          aria-disabled={!canAddSection || undefined}
+          title={
+            canAddSection
+              ? undefined
+              : "The last section has one sheet; cut a longer one in the grid"
+          }
           onClick={() =>
-            onAddSection({ name: "New section", color: nextSectionColor(notebook.sections) })
+            canAddSection &&
+            onCut(notebook.size - SHEET, {
+              name: "Section",
+              color: nextSectionColor(notebook.sections),
+            })
           }
         >
           Add section
         </button>
         <p className="settings__note">
-          The notebook's divisions, in order. Every page is in one; the order sets the page order
-          and the numbering.
+          Sections are cuts on sheet boundaries (page 1, 5, 9, …), each at least a sheet of four
+          pages; a new one takes the last section's last sheet. The grid view (⌥M) cuts them where
+          you see them.
         </p>
       </fieldset>
       <fieldset className="settings__group">
         <legend>This page</legend>
-        <label className="settings__field">
-          <span>Section</span>
-          <select
-            value={page.sectionId}
-            onChange={(event) => {
-              const value = event.target.value;
-              if (value === NEW_SECTION_VALUE) onNewSection();
-              else onSectionChange(value);
-            }}
-          >
-            {notebook.sections.map((section) => (
-              <option key={section.id} value={section.id}>
-                {section.name}
-              </option>
-            ))}
-            <option value={NEW_SECTION_VALUE}>New section…</option>
-          </select>
-        </label>
+        <p className="settings__note settings__note--first">
+          Page {index + 1} of {pages.length}, in {sectionOf(notebook.sections, page.position).name},
+          created {formatCreated(page.createdAt)}.
+        </p>
         {twoColumns !== null && (
           <label className="settings__check">
             <input
@@ -355,8 +352,12 @@ export function NotebookBox({
             </span>
           </label>
         )}
+        <button type="button" className="settings__section-delete" onClick={onClearPage}>
+          Clear page…
+        </button>
         <p className="settings__note">
-          Page {index + 1} of {pages.length}, created {formatCreated(page.createdAt)}.
+          Clearing empties the page's writing and drawing; the page keeps its place. A notebook has
+          its pages: none is added or deleted.
         </p>
       </fieldset>
       <fieldset className="settings__group">
@@ -453,6 +454,31 @@ export function NotebookBox({
               </option>
             ))}
           </select>
+        </label>
+        <label className="settings__field">
+          <span>Pages</span>
+          <span className="settings__unit">
+            <input
+              type="number"
+              min={SHEET}
+              step={SHEET}
+              value={notebook.size}
+              className="settings__number"
+              title="Whole sheets of four: grows with blank pages; shrinks only over blank pages"
+              onChange={(event) => {
+                const size = Number(event.target.value);
+                if (
+                  Number.isInteger(size) &&
+                  size > 0 &&
+                  size % SHEET === 0 &&
+                  size !== notebook.size
+                ) {
+                  onResize(size);
+                }
+              }}
+            />
+            pages
+          </span>
         </label>
         <label className="settings__field">
           <span>Theme</span>

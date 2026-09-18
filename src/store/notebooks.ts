@@ -2,16 +2,27 @@ import Dexie from "dexie";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData, BinaryFiles } from "@excalidraw/excalidraw/types";
 import { DEFAULT_COVER, type Cover } from "../notebook/cover";
-import { DEFAULT_SECTION_NAME, pagesInOrder } from "../notebook/sections";
-import { isBlankDocument } from "../page/document";
+import {
+  DEFAULT_SECTION_NAME,
+  cut,
+  moveCut as moveCutOf,
+  removeCut as removeCutOf,
+  sectionRange,
+  validateSections,
+} from "../notebook/sections";
 import type { Orientation, PageSize } from "../page/paper";
-import { emptyZine, isZineEmpty, type Zine } from "../page/zine";
+import { emptyZine, type Zine } from "../page/zine";
 import { DEFAULT_THEME_ID, getTheme } from "../theme/themes";
 import type { TypestillDb } from "./db";
 import {
   DEFAULT_NOTEBOOK_DEFAULTS,
+  DEFAULT_NOTEBOOK_SIZE,
+  SHEET,
+  blankPage,
   columnsForDivider,
   emptyColumns,
+  isPageBlank,
+  isPageEmpty,
   newId,
   pageFileIds,
   referencedFileIds,
@@ -24,6 +35,9 @@ import {
   type PageKind,
   type Section,
 } from "./model";
+
+// The emptiness predicates live with the stored shape, so the converter can share them.
+export { isPageBlank, isPageEmpty } from "./model";
 
 export class NotebookExistsError extends Error {
   constructor(public readonly notebookId: string) {
@@ -48,48 +62,37 @@ export interface CreateNotebookInput {
   pageSize?: PageSize;
   orientation?: Orientation;
   defaults?: Partial<NotebookDefaults>;
+  /** Pages, a positive multiple of SHEET; DEFAULT_NOTEBOOK_SIZE unless given. */
+  size?: number;
 }
 
-function buildPage(
-  notebook: Notebook,
-  createdAt: number,
-  kind: PageKind,
-  divider: number | null,
-  sectionId: string,
-): Page {
-  const page: Page = {
-    id: newId(),
-    notebookId: notebook.id,
-    createdAt,
-    kind,
-    sectionId,
-    showPageNumber: notebook.defaults.showPageNumber,
-    margin: notebook.defaults.margin,
-    columns: kind === "lined" ? emptyColumns(divider) : [],
-    divider: kind === "lined" ? divider : null,
-    drawing: [],
-    drawingLayer: "over",
-    canvasView: null,
-  };
-  if (kind === "zine") page.zine = emptyZine(getTheme(notebook.themeId).zine);
-  return page;
-}
-
-/** A page with nothing written or placed on it. Only such a page can change kind. */
-export function isPageEmpty(page: Page): boolean {
-  if (page.kind === "zine") return !page.zine || isZineEmpty(page.zine);
-  return page.columns.every((column) => isBlankDocument(column.doc));
+function isSheetCount(size: number): boolean {
+  return Number.isInteger(size) && size > 0 && size % SHEET === 0;
 }
 
 function emptyCanvas(notebookId: string): Canvas {
   return { notebookId, gridEnabled: true, elements: [] };
 }
 
-/** Pages of a notebook in creation order, via the [notebookId+createdAt] index. */
+/** Pages of a notebook in position order, via the [notebookId+position] index. */
 function pagesOf(db: TypestillDb, notebookId: string) {
   return db.pages
-    .where("[notebookId+createdAt]")
+    .where("[notebookId+position]")
     .between([notebookId, Dexie.minKey], [notebookId, Dexie.maxKey]);
+}
+
+/**
+ * Blank lined pages for the slots `from` to `to` (exclusive), created after `after`:
+ * createdAt stays strictly increasing over the notebook even when many pages are made
+ * within the same millisecond.
+ */
+function blankPages(notebook: Notebook, from: number, to: number, after: number): Page[] {
+  const start = Math.max(Date.now(), after + 1);
+  const pages: Page[] = [];
+  for (let position = from; position < to; position++) {
+    pages.push(blankPage(notebook, position, start + position - from));
+  }
+  return pages;
 }
 
 async function removeNotebookRecords(db: TypestillDb, id: string): Promise<void> {
@@ -104,13 +107,16 @@ async function removeNotebookRecords(db: TypestillDb, id: string): Promise<void>
 // Notebooks
 
 /**
- * Creates a notebook with one section, Notes, in the cover's colour, one empty page in it
- * and an empty canvas.
+ * Creates a notebook whole: one section, Notes, in the cover's colour, every one of its
+ * `size` blank pages in position order (opened at the first) and an empty canvas, in one
+ * transaction. Throws for a size that is not a positive multiple of SHEET.
  */
 export async function createNotebook(
   db: TypestillDb,
   input: CreateNotebookInput,
 ): Promise<{ notebook: Notebook; firstPage: Page }> {
+  const size = input.size ?? DEFAULT_NOTEBOOK_SIZE;
+  if (!isSheetCount(size)) throw new Error(`A notebook has a multiple of ${SHEET} pages`);
   const now = Date.now();
   const themeId = input.themeId ?? DEFAULT_THEME_ID;
   const notebook: Notebook = {
@@ -128,20 +134,23 @@ export async function createNotebook(
       margin: getTheme(themeId).lined.defaultMarginMm,
       ...input.defaults,
     },
+    size,
     sections: [],
   };
   const notes: Section = {
     id: newId(),
     name: DEFAULT_SECTION_NAME,
     color: notebook.cover.color,
+    start: 0,
     lastPageId: null,
   };
   notebook.sections = [notes];
-  const firstPage = buildPage(notebook, now, "lined", notebook.defaults.divider, notes.id);
+  const pages = blankPages(notebook, 0, size, now - 1);
+  const firstPage = pages[0];
   notebook.lastPageId = firstPage.id;
   await db.transaction("rw", [db.notebooks, db.pages, db.canvases], async () => {
     await db.notebooks.add(notebook);
-    await db.pages.add(firstPage);
+    await db.pages.bulkAdd(pages);
     await db.canvases.add(emptyCanvas(notebook.id));
   });
   return { notebook, firstPage };
@@ -192,12 +201,12 @@ export async function updateNotebookSettings(
 }
 
 // ---------------------------------------------------------------------------
-// Sections: the notebook's divisions, in order; every page is in one.
+// Sections: cuts at sheet boundaries, in start order; the first is at 0 and stays.
 
-export class LastSectionError extends Error {
+export class FirstSectionError extends Error {
   constructor(public readonly sectionId: string) {
-    super("A notebook keeps at least one section");
-    this.name = "LastSectionError";
+    super("The first section cannot move or be removed");
+    this.name = "FirstSectionError";
   }
 }
 
@@ -207,23 +216,71 @@ async function notebookOf(db: TypestillDb, notebookId: string): Promise<Notebook
   return notebook;
 }
 
-/** Adds a section at the end and returns it. */
-export async function addSection(
+function sectionIndexIn(notebook: Notebook, sectionId: string): number {
+  const index = notebook.sections.findIndex((section) => section.id === sectionId);
+  if (index < 0) throw new Error(`Section ${sectionId} not found`);
+  return index;
+}
+
+/**
+ * Cuts a new section at `start` (a multiple of SHEET, not 0, below the size and not
+ * already a start) and returns it. The pages from there to the next cut are its.
+ */
+export async function cutSection(
   db: TypestillDb,
   notebookId: string,
+  start: number,
   input: { name: string; color: string },
 ): Promise<Section> {
-  const section: Section = {
-    id: newId(),
-    name: input.name.trim(),
-    color: input.color,
-    lastPageId: null,
-  };
+  return db.transaction("rw", db.notebooks, async () => {
+    const notebook = await notebookOf(db, notebookId);
+    const sections = cut(notebook.sections, start, input.name.trim(), input.color);
+    validateSections(sections, notebook.size);
+    await db.notebooks.update(notebookId, { sections });
+    return sections.find((section) => section.start === start)!;
+  });
+}
+
+/**
+ * Moves a section's cut to `start`, between its neighbours' cuts; the pages between the
+ * old and the new start change section, nothing else. Throws FirstSectionError for the
+ * first section.
+ */
+export async function moveCut(
+  db: TypestillDb,
+  notebookId: string,
+  sectionId: string,
+  start: number,
+): Promise<void> {
   await db.transaction("rw", db.notebooks, async () => {
     const notebook = await notebookOf(db, notebookId);
-    await db.notebooks.update(notebookId, { sections: [...notebook.sections, section] });
+    const index = sectionIndexIn(notebook, sectionId);
+    if (index === 0) throw new FirstSectionError(sectionId);
+    const sections = moveCutOf(notebook.sections, index, start);
+    validateSections(sections, notebook.size);
+    await db.notebooks.update(notebookId, { sections });
   });
-  return section;
+}
+
+/**
+ * Removes a section's cut: its pages merge into the section before it. Returns that
+ * section and how many pages merged. Throws FirstSectionError for the first section,
+ * which has nothing before it.
+ */
+export async function removeCut(
+  db: TypestillDb,
+  notebookId: string,
+  sectionId: string,
+): Promise<{ mergedInto: Section; count: number }> {
+  return db.transaction("rw", db.notebooks, async () => {
+    const notebook = await notebookOf(db, notebookId);
+    const index = sectionIndexIn(notebook, sectionId);
+    if (index === 0) throw new FirstSectionError(sectionId);
+    const { start, end } = sectionRange(notebook.sections, notebook.size, index);
+    const sections = removeCutOf(notebook.sections, index);
+    await db.notebooks.update(notebookId, { sections });
+    return { mergedInto: sections[index - 1], count: end - start };
+  });
 }
 
 /** Renames or recolours a section. */
@@ -242,53 +299,7 @@ export async function updateSection(
   });
 }
 
-/** Swaps a section with the one before it (-1) or after it (1). Nothing moves at the ends. */
-export async function moveSection(
-  db: TypestillDb,
-  notebookId: string,
-  sectionId: string,
-  direction: -1 | 1,
-): Promise<void> {
-  await db.transaction("rw", db.notebooks, async () => {
-    const notebook = await notebookOf(db, notebookId);
-    const sections = [...notebook.sections];
-    const index = sections.findIndex((section) => section.id === sectionId);
-    const other = index + direction;
-    if (index < 0 || other < 0 || other >= sections.length) return;
-    [sections[index], sections[other]] = [sections[other], sections[index]];
-    await db.notebooks.update(notebookId, { sections });
-  });
-}
-
-/**
- * Removes a section, moving its pages to the section before it, or after it for the
- * first. Returns that section and how many pages moved. Throws LastSectionError for the
- * only section: a notebook keeps at least one.
- */
-export async function deleteSection(
-  db: TypestillDb,
-  notebookId: string,
-  sectionId: string,
-): Promise<{ movedTo: Section; count: number }> {
-  return db.transaction("rw", [db.notebooks, db.pages], async () => {
-    const notebook = await notebookOf(db, notebookId);
-    const index = notebook.sections.findIndex((section) => section.id === sectionId);
-    if (index < 0) throw new Error(`Section ${sectionId} not found`);
-    if (notebook.sections.length === 1) throw new LastSectionError(sectionId);
-    const movedTo = notebook.sections[index > 0 ? index - 1 : 1];
-    await db.notebooks.update(notebookId, {
-      sections: notebook.sections.filter((section) => section.id !== sectionId),
-    });
-    const count = await db.pages
-      .where("notebookId")
-      .equals(notebookId)
-      .and((page) => page.sectionId === sectionId)
-      .modify({ sectionId: movedTo.id });
-    return { movedTo, count };
-  });
-}
-
-/** Records the page a section was left at, so its tab returns there. */
+/** Records the page a section was left at, so its name in the grid returns there. */
 export async function setSectionLastPage(
   db: TypestillDb,
   notebookId: string,
@@ -304,6 +315,89 @@ export async function setSectionLastPage(
   });
 }
 
+// ---------------------------------------------------------------------------
+// Size: whole sheets, grown freely and shrunk only over blank pages.
+
+export class NotebookNotBlankError extends Error {
+  constructor(public readonly pageNumber: number) {
+    super(`Page ${pageNumber} has something on it`);
+    this.name = "NotebookNotBlankError";
+  }
+}
+
+export class SectionPastEndError extends Error {
+  constructor(public readonly section: Section) {
+    super(`The section ${section.name} starts at page ${section.start + 1}, past the end`);
+    this.name = "SectionPastEndError";
+  }
+}
+
+/**
+ * Grows the notebook to `size` pages, a multiple of SHEET above the current size, by
+ * appending blank lined pages to the last section, in one transaction.
+ */
+export async function growNotebook(
+  db: TypestillDb,
+  notebookId: string,
+  size: number,
+): Promise<void> {
+  await db.transaction("rw", [db.notebooks, db.pages], async () => {
+    const notebook = await notebookOf(db, notebookId);
+    if (!isSheetCount(size) || size <= notebook.size) {
+      throw new Error(`A notebook grows to a larger multiple of ${SHEET} pages, not ${size}`);
+    }
+    const last = await pagesOf(db, notebookId).last();
+    await db.pages.bulkAdd(blankPages(notebook, notebook.size, size, last?.createdAt ?? 0));
+    await db.notebooks.update(notebookId, { size });
+  });
+}
+
+/**
+ * Shrinks the notebook to `size` pages, a positive multiple of SHEET below the current
+ * size, dropping the pages past it with their thumbnails, in one transaction. Refuses
+ * with NotebookNotBlankError, naming the first page that has something on it, when any
+ * page to drop is not blank, and with SectionPastEndError when a section would start
+ * past the end. A remembered page that goes is replaced by the new last page for the
+ * notebook and forgotten by a section.
+ */
+export async function shrinkNotebook(
+  db: TypestillDb,
+  notebookId: string,
+  size: number,
+): Promise<void> {
+  await db.transaction("rw", [db.notebooks, db.pages, db.thumbnails], async () => {
+    const notebook = await notebookOf(db, notebookId);
+    if (!isSheetCount(size) || size >= notebook.size) {
+      throw new Error(`A notebook shrinks to a smaller multiple of ${SHEET} pages, not ${size}`);
+    }
+    const dropped = await db.pages
+      .where("[notebookId+position]")
+      .between([notebookId, size], [notebookId, Dexie.maxKey])
+      .toArray();
+    const written = dropped.find((page) => !isPageBlank(page));
+    if (written) throw new NotebookNotBlankError(written.position + 1);
+    const past = notebook.sections.find((section) => section.start >= size);
+    if (past) throw new SectionPastEndError(past);
+    const ids = dropped.map((page) => page.id);
+    await db.pages.bulkDelete(ids);
+    await db.thumbnails.bulkDelete(ids);
+    const gone = new Set(ids);
+    const patch: Partial<Notebook> = { size };
+    if (notebook.lastPageId !== null && gone.has(notebook.lastPageId)) {
+      const last = await pagesOf(db, notebookId).last();
+      patch.lastPageId = last?.id ?? null;
+    }
+    if (notebook.sections.some((section) => section.lastPageId && gone.has(section.lastPageId))) {
+      patch.sections = notebook.sections.map((section) =>
+        section.lastPageId && gone.has(section.lastPageId)
+          ? { ...section, lastPageId: null }
+          : section,
+      );
+    }
+    await db.notebooks.update(notebookId, patch);
+  });
+}
+
 /** Deletes the notebook with its pages, canvas, files and thumbnails. */
 export async function deleteNotebook(db: TypestillDb, id: string): Promise<void> {
   await db.transaction("rw", [db.notebooks, db.pages, db.canvases, db.files, db.thumbnails], () =>
@@ -315,8 +409,8 @@ export async function deleteNotebook(db: TypestillDb, id: string): Promise<void>
 // Pages
 
 /**
- * A notebook's pages in creation order. Notebook order puts the sections first: callers
- * that walk pages sort with pagesInOrder (src/notebook/sections.ts).
+ * A notebook's pages in position order: the page order, every slot of the notebook, and
+ * what everything walks (flipping, numbering, the grid, search, the PDF).
  */
 export function listPages(db: TypestillDb, notebookId: string): Promise<Page[]> {
   return pagesOf(db, notebookId).toArray();
@@ -324,34 +418,6 @@ export function listPages(db: TypestillDb, notebookId: string): Promise<Page[]> 
 
 export function getPage(db: TypestillDb, id: string): Promise<Page | undefined> {
   return db.pages.get(id);
-}
-
-/**
- * Adds a page, lined unless a kind is given, at the end of the given section (which must
- * exist), else of the notebook's first section. Pages never reorder by hand, so createdAt
- * is the order within a section; it is kept strictly increasing over the whole notebook
- * even when two pages are created within the same millisecond. The divider is inherited
- * from the page the user was on when given, else from the notebook defaults.
- */
-export async function createPage(
-  db: TypestillDb,
-  notebookId: string,
-  options: { kind?: PageKind; divider?: number | null; sectionId?: string } = {},
-): Promise<Page> {
-  return db.transaction("rw", [db.notebooks, db.pages], async () => {
-    const notebook = await db.notebooks.get(notebookId);
-    if (!notebook) throw new Error(`Notebook ${notebookId} not found`);
-    const sectionId = options.sectionId ?? notebook.sections[0].id;
-    if (!notebook.sections.some((section) => section.id === sectionId)) {
-      throw new Error(`Section ${sectionId} not found`);
-    }
-    const last = await pagesOf(db, notebookId).last();
-    const createdAt = Math.max(Date.now(), (last?.createdAt ?? 0) + 1);
-    const divider = options.divider === undefined ? notebook.defaults.divider : options.divider;
-    const page = buildPage(notebook, createdAt, options.kind ?? "lined", divider, sectionId);
-    await db.pages.add(page);
-    return page;
-  });
 }
 
 /**
@@ -367,13 +433,7 @@ export async function setPageKind(db: TypestillDb, id: string, kind: PageKind): 
     if (!isPageEmpty(page)) throw new Error("Only an empty page can change kind");
     const notebook = await db.notebooks.get(page.notebookId);
     if (!notebook) throw new Error(`Notebook ${page.notebookId} not found`);
-    const fresh = buildPage(
-      notebook,
-      page.createdAt,
-      kind,
-      notebook.defaults.divider,
-      page.sectionId,
-    );
+    const fresh = blankPage(notebook, page.position, page.createdAt, kind);
     const next: Page = {
       ...page,
       kind,
@@ -387,39 +447,75 @@ export async function setPageKind(db: TypestillDb, id: string, kind: PageKind): 
   });
 }
 
+/**
+ * Empties a page in place and returns it as stored: a lined page's columns, keeping the
+ * divider and margin; a zine page's rows, keeping the padding; the drawing; the fill.
+ * The slot stays. Images the page used stay in the notebook's files; the media pool
+ * owns their deletion.
+ */
+export async function clearPage(db: TypestillDb, id: string): Promise<Page> {
+  return db.transaction("rw", [db.notebooks, db.pages], async () => {
+    const page = await db.pages.get(id);
+    if (!page) throw new Error(`Page ${id} not found`);
+    const next: Page = { ...page, drawing: [], fill: 0 };
+    if (page.kind === "zine") {
+      const notebook = await notebookOf(db, page.notebookId);
+      next.zine = { ...emptyZine(getTheme(notebook.themeId).zine), ...page.zine, rows: [] };
+    } else {
+      next.columns = emptyColumns(page.divider);
+    }
+    await db.pages.put(next);
+    return next;
+  });
+}
+
 export async function updatePage(
   db: TypestillDb,
   id: string,
-  patch: Partial<
-    Pick<Page, "sectionId" | "showPageNumber" | "margin" | "drawingLayer" | "canvasView">
-  >,
+  patch: Partial<Pick<Page, "showPageNumber" | "margin" | "drawingLayer" | "canvasView" | "fill">>,
 ): Promise<void> {
   await db.pages.update(id, patch);
 }
 
-/** Saves the page's text, one column at a time. */
+/** The fill alongside a save, when the page measured one. */
+function withFill<T extends object>(
+  patch: T,
+  fill: number | undefined,
+): T | (T & { fill: number }) {
+  return fill === undefined ? patch : { ...patch, fill };
+}
+
+/** Saves the page's text, one column at a time, and its fill when measured. */
 export async function savePageText(
   db: TypestillDb,
   id: string,
   columns: readonly Column[],
+  fill?: number,
 ): Promise<void> {
-  await db.pages.update(id, { columns: [...columns] });
+  await db.pages.update(id, withFill({ columns: [...columns] }, fill));
 }
 
-/** Saves a zine page's media block and text. */
-export async function savePageZine(db: TypestillDb, id: string, zine: Zine): Promise<void> {
-  await db.pages.update(id, { zine });
+/** Saves a zine page's media block and text, and its fill when measured. */
+export async function savePageZine(
+  db: TypestillDb,
+  id: string,
+  zine: Zine,
+  fill?: number,
+): Promise<void> {
+  await db.pages.update(id, withFill({ zine }, fill));
 }
 
 /**
- * Saves the page's drawing. Deleted elements are dropped, and any file an image element
- * references is stored with the notebook so it survives a reload, like the canvas's.
+ * Saves the page's drawing, and its fill when measured. Deleted elements are dropped,
+ * and any file an image element references is stored with the notebook so it survives
+ * a reload, like the canvas's.
  */
 export async function savePageDrawing(
   db: TypestillDb,
   id: string,
   elements: readonly ExcalidrawElement[],
   files: BinaryFiles,
+  fill?: number,
 ): Promise<void> {
   const live = elements.filter((element) => !element.isDeleted);
   await db.transaction("rw", [db.pages, db.files], async () => {
@@ -434,7 +530,7 @@ export async function savePageDrawing(
     const missing = referencedFileIds(live)
       .filter((fileId) => !known.has(fileId) && files[fileId])
       .map((fileId) => ({ notebookId, id: fileId, data: files[fileId] }));
-    await db.pages.update(id, { drawing: live });
+    await db.pages.update(id, withFill({ drawing: live }, fill));
     if (missing.length > 0) await db.files.bulkAdd(missing);
   });
 }
@@ -452,61 +548,6 @@ export async function setPageDivider(
     const page = await db.pages.get(id);
     if (!page) throw new Error(`Page ${id} not found`);
     await db.pages.update(id, { divider, columns: columnsForDivider(page.columns, divider) });
-  });
-}
-
-/**
- * The page to open once the page at `index` of `count` is gone: the previous one if there
- * is one, else the next. Null when it is the only page. The index is into the list before
- * the deletion.
- */
-export function neighbourIndex(index: number, count: number): number | null {
-  if (index > 0) return index - 1;
-  return count > 1 ? 1 : null;
-}
-
-/**
- * Deletes a page and its thumbnail, and returns the page to open next: the previous page
- * in notebook order, else the next. A notebook keeps at least one page, so deleting the
- * only page replaces it with a fresh lined page built from the notebook defaults, in the
- * same section, which is then returned. If the deleted page was the notebook's remembered
- * page, the returned page takes its place; a section that remembered it forgets it.
- * Images a zine page used stay in the notebook's files; the media pool owns their
- * deletion.
- */
-export async function deletePage(db: TypestillDb, id: string): Promise<Page> {
-  return db.transaction("rw", [db.notebooks, db.pages, db.thumbnails], async () => {
-    const page = await db.pages.get(id);
-    if (!page) throw new Error(`Page ${id} not found`);
-    const notebook = await db.notebooks.get(page.notebookId);
-    if (!notebook) throw new Error(`Notebook ${page.notebookId} not found`);
-    const pages = pagesInOrder(notebook.sections, await listPages(db, page.notebookId));
-    const index = pages.findIndex((p) => p.id === id);
-    const neighbour = neighbourIndex(index, pages.length);
-    await db.pages.delete(id);
-    await db.thumbnails.delete(id);
-    let opened: Page;
-    if (neighbour === null) {
-      opened = buildPage(
-        notebook,
-        Math.max(Date.now(), page.createdAt + 1),
-        "lined",
-        notebook.defaults.divider,
-        page.sectionId,
-      );
-      await db.pages.add(opened);
-    } else {
-      opened = pages[neighbour];
-    }
-    const patch: Partial<Notebook> = {};
-    if (notebook.lastPageId === id) patch.lastPageId = opened.id;
-    if (notebook.sections.some((section) => section.lastPageId === id)) {
-      patch.sections = notebook.sections.map((section) =>
-        section.lastPageId === id ? { ...section, lastPageId: null } : section,
-      );
-    }
-    if (Object.keys(patch).length > 0) await db.notebooks.update(notebook.id, patch);
-    return opened;
   });
 }
 

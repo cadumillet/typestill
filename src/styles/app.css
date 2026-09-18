@@ -225,67 +225,19 @@ button[aria-pressed="true"] {
   opacity: 0.55;
 }
 
-/* A side of a spread that is not a page: the inside of a cover (a plain surface in the
-   chrome's colours, white in the light appearance and dark grey in the dark one), a
-   divider's front (a slab in the section's colour with its name), a divider's back
-   (paper with a tab in the section's colour along its outer edge, the name on it) or the
-   blank back of a section's last leaf (empty paper). Page-sized, nothing to click; the
-   outer corners round like a page's. */
+/* The inside of a cover: an empty side of a spread, a plain page-sized surface in the
+   chrome's colours (white in the light appearance, dark grey in the dark one), with
+   nothing on it and nothing to click; the outer corners round like a page's. */
 .desk__slab {
-  position: relative;
   flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   box-sizing: border-box;
-  overflow: hidden;
   pointer-events: none;
   user-select: none;
-}
-
-.desk__slab--paper {
-  border: 1px solid #e6e4de;
-}
-
-/* The tab on a divider's back, along the left edge (a divider's back is always a
-   left-hand side), the name reading top to bottom in the cover's white lettering. */
-.desk__slab__tab {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  box-sizing: border-box;
-  width: 7%;
-  min-width: 28px;
-  padding: 18px 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  writing-mode: vertical-rl;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: #fff;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
 }
 
 .desk__slab--plain {
   background: var(--surface);
   border: 1px solid var(--line);
-}
-
-/* The section's name on the front of its divider, in white like the cover's lettering. */
-.desk__slab__name {
-  max-width: 80%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: #fff;
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
 }
 
 .desk__slab--left {

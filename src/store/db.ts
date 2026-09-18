@@ -1,10 +1,23 @@
 import Dexie, { type EntityTable, type Table } from "dexie";
 import { DEFAULT_COVER, type Cover } from "../notebook/cover";
-import { sectionsFromTags, type LegacyTag } from "../notebook/sections";
+import {
+  sectionsFromTags,
+  slotsFromSections,
+  type LegacyPage,
+  type LegacySection,
+  type LegacyTag,
+} from "../notebook/sections";
 import { columnFromText } from "../page/document";
 import { convertLegacyZine, isLegacyZine } from "../page/zineLegacy";
 import { DEFAULT_THEME_ID } from "../theme/themes";
-import type { Canvas, Notebook, NotebookFile, Page, Section, Thumbnail } from "./model";
+import {
+  DEFAULT_NOTEBOOK_DEFAULTS,
+  type Canvas,
+  type Notebook,
+  type NotebookFile,
+  type Page,
+  type Thumbnail,
+} from "./model";
 
 export class TypestillDb extends Dexie {
   notebooks!: EntityTable<Notebook, "id">;
@@ -117,7 +130,12 @@ export class TypestillDb extends Dexie {
           .table("notebooks")
           .toCollection()
           .modify(
-            (notebook: { id: string; cover?: Cover; tags?: LegacyTag[]; sections?: Section[] }) => {
+            (notebook: {
+              id: string;
+              cover?: Cover;
+              tags?: LegacyTag[];
+              sections?: LegacySection[];
+            }) => {
               const converted = sectionsFromTags({
                 cover: notebook.cover ?? DEFAULT_COVER,
                 tags: notebook.tags ?? [],
@@ -136,6 +154,47 @@ export class TypestillDb extends Dexie {
             page.sectionId = convert(page);
             delete page.tagId;
           });
+      });
+    // Version 11: a notebook of fixed size (backup version 10). The notebook gets its
+    // `size` and each section its `start`; pages become slots with a `position` and a
+    // `fill` in place of their `sectionId`, ordered by the new [notebookId+position]
+    // index. Each notebook is converted whole by slotsFromSections: its pages keep their
+    // order and section, each section is padded to whole sheets with blank pages, and the
+    // slots up to the size are blank pages too. A page whose notebook is gone is left
+    // alone, as in version 10.
+    this.version(11)
+      .stores({
+        ...stores,
+        pages: "id, notebookId, [notebookId+createdAt], [notebookId+position]",
+        thumbnails: "pageId, notebookId",
+      })
+      .upgrade(async (tx) => {
+        const notebooks: (Pick<Notebook, "id"> &
+          Partial<Pick<Notebook, "defaults" | "themeId">> & { sections: LegacySection[] })[] =
+          await tx.table("notebooks").toArray();
+        for (const notebook of notebooks) {
+          const pages: LegacyPage[] = await tx
+            .table("pages")
+            .where("notebookId")
+            .equals(notebook.id)
+            .toArray();
+          // The blank pages are built from the defaults, filled in for a notebook that
+          // predates them.
+          const converted = slotsFromSections(
+            {
+              ...notebook,
+              defaults: { ...DEFAULT_NOTEBOOK_DEFAULTS, ...notebook.defaults },
+              themeId: notebook.themeId ?? DEFAULT_THEME_ID,
+            },
+            pages,
+          );
+          await tx
+            .table("notebooks")
+            .update(notebook.id, { size: converted.size, sections: converted.sections });
+          // A put replaces each existing page whole, so its sectionId goes with it, and
+          // adds the blank ones.
+          await tx.table("pages").bulkPut(converted.pages);
+        }
       });
   }
 }

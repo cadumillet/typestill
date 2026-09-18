@@ -1,8 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { isMac, keyLabel } from "./keys";
 
-export type ShortcutAction =
-  "previousPage" | "nextPage" | "newLinedPage" | "newZinePage" | "drawingMode" | "notebookBox";
+export type ShortcutAction = "previousPage" | "nextPage" | "drawingMode" | "gridView";
 
 /** The parts of a KeyboardEvent the shortcuts look at. */
 export interface ShortcutKey {
@@ -51,9 +50,7 @@ interface Binding {
 const BINDINGS: Binding[] = [
   { action: "previousPage", code: "ArrowUp", alt: true, shift: false, label: "↑", repeats: true },
   { action: "nextPage", code: "ArrowDown", alt: true, shift: false, label: "↓", repeats: true },
-  { action: "newLinedPage", code: "KeyN", alt: true, shift: false, label: "N", repeats: false },
-  { action: "newZinePage", code: "KeyN", alt: true, shift: true, label: "N", repeats: false },
-  { action: "notebookBox", code: "KeyM", alt: true, shift: false, label: "M", repeats: false },
+  { action: "gridView", code: "KeyM", alt: true, shift: false, label: "M", repeats: false },
   {
     action: "drawingMode",
     code: "Tab",
@@ -79,7 +76,7 @@ export function shortcutFor(event: ShortcutKey, context: FocusContext): Shortcut
   return binding?.action ?? null;
 }
 
-/** Whether holding the key repeats the action. Page flips do; creating pages does not. */
+/** Whether holding the key repeats the action. Page flips do; the toggles do not. */
 export function shortcutRepeats(action: ShortcutAction): boolean {
   return BINDINGS.some((b) => b.action === action && b.repeats);
 }

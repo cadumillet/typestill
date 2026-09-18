@@ -172,3 +172,18 @@ export const Columns = () => (
     <rect x="10" y="3.5" width="5" height="11" rx="1" />
   </svg>
 );
+
+export const Plus = () => (
+  <svg {...base}>
+    <path d="M9 4v10M4 9h10" />
+  </svg>
+);
+
+export const Grid = () => (
+  <svg {...base}>
+    <rect x="3" y="3" width="4.5" height="4.5" rx="1" />
+    <rect x="10.5" y="3" width="4.5" height="4.5" rx="1" />
+    <rect x="3" y="10.5" width="4.5" height="4.5" rx="1" />
+    <rect x="10.5" y="10.5" width="4.5" height="4.5" rx="1" />
+  </svg>
+);

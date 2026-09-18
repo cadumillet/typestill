@@ -1,16 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { section } from "../store/fixtures";
+import { columnFromText } from "../page/document";
+import { element, linedPage, section } from "../store/fixtures";
+import { SHEET } from "../store/model";
 import {
   DEFAULT_SECTION_NAME,
   SECTION_COLORS,
+  cut,
+  moveCut,
   nextSectionColor,
-  pagesInOrder,
+  padToSheet,
+  removeCut,
+  sectionIndexOf,
   sectionOf,
-  sectionRuns,
+  sectionRange,
   sectionsFromTags,
+  sizeFor,
+  slotsFromSections,
+  validateSections,
+  type LegacyPage,
+  type LegacySection,
 } from "./sections";
 
-const page = (id: string, sectionId: string, createdAt: number) => ({ id, sectionId, createdAt });
+/** Cuts at 0, 8 and 20. */
+const cuts = [section("a"), section("b", { start: 8 }), section("c", { start: 20 })];
 
 describe("sections", () => {
   it("hands out palette colours, least used first", () => {
@@ -25,41 +37,258 @@ describe("sections", () => {
     );
   });
 
-  it("looks a page's section up", () => {
-    const sections = [section("a", { color: "#111" }), section("b", { color: "#222" })];
-    expect(sectionOf({ sectionId: "b" }, sections)?.color).toBe("#222");
-    expect(sectionOf({ sectionId: "gone" }, sections)).toBeUndefined();
+  it("finds the section a position is in: the last cut at or below it", () => {
+    expect([0, 7, 8, 19, 20, 63].map((position) => sectionIndexOf(cuts, position))).toEqual([
+      0, 0, 1, 1, 2, 2,
+    ]);
+    expect(sectionOf(cuts, 12).id).toBe("b");
+    expect(sectionOf(cuts, 0).id).toBe("a");
+    // Nothing lies before the first cut, but a stray position still has a section.
+    expect(sectionIndexOf(cuts, -1)).toBe(0);
+    expect(sectionIndexOf([section("only")], 50)).toBe(0);
   });
 
-  it("orders pages by section, then by creation, unknown sections last", () => {
-    const sections = [section("b"), section("a")];
-    const pages = [
-      page("p1", "a", 1),
-      page("p2", "b", 2),
-      page("p3", "lost", 3),
-      page("p4", "a", 4),
-      page("p5", "b", 5),
-      page("p6", "lost", 0),
-    ];
-    const ordered = pagesInOrder(sections, pages);
-    expect(ordered.map((p) => p.id)).toEqual(["p2", "p5", "p1", "p4", "p6", "p3"]);
+  it("gives each section's range, the last one running to the size", () => {
+    expect(sectionRange(cuts, 64, 0)).toEqual({ start: 0, end: 8 });
+    expect(sectionRange(cuts, 64, 1)).toEqual({ start: 8, end: 20 });
+    expect(sectionRange(cuts, 64, 2)).toEqual({ start: 20, end: 64 });
+  });
+
+  it("validates the cuts against the size, naming the rule broken", () => {
+    expect(() => validateSections(cuts, 64)).not.toThrow();
+    expect(() => validateSections(cuts, 24)).not.toThrow();
+    expect(() => validateSections(cuts, 0)).toThrow(/positive multiple of 4/);
+    expect(() => validateSections(cuts, 66)).toThrow(/positive multiple of 4/);
+    expect(() => validateSections([], 64)).toThrow(/at least one section/);
+    expect(() => validateSections([section("a", { start: 4 })], 64)).toThrow(/start at 0/);
+    expect(() => validateSections([section("a"), section("b", { start: 6 })], 64)).toThrow(
+      /multiple of 4/,
+    );
+    expect(() =>
+      validateSections([section("a"), section("b", { start: 8 }), section("c", { start: 8 })], 64),
+    ).toThrow(/strictly increasing/);
+    expect(() =>
+      validateSections([section("a"), section("b", { start: 8 }), section("c", { start: 4 })], 64),
+    ).toThrow(/strictly increasing/);
+    expect(() => validateSections(cuts, 20)).toThrow(/past the end/);
+  });
+
+  it("cuts a new section at a sheet boundary, keeping start order", () => {
+    const next = cut(cuts, 12, "New", "#111");
+    expect(next.map((s) => s.start)).toEqual([0, 8, 12, 20]);
+    const made = next[2];
+    expect(made).toEqual({ id: made.id, name: "New", color: "#111", start: 12, lastPageId: null });
+    expect(made.id).not.toBe("");
+    expect(cut(cuts, 40, "End", "#222").map((s) => s.start)).toEqual([0, 8, 20, 40]);
     // The input is left alone.
-    expect(pages.map((p) => p.id)).toEqual(["p1", "p2", "p3", "p4", "p5", "p6"]);
+    expect(cuts.map((s) => s.start)).toEqual([0, 8, 20]);
+    expect(() => cut(cuts, 0, "x", "#111")).toThrow(/first section/);
+    expect(() => cut(cuts, 10, "x", "#111")).toThrow(/multiple of 4/);
+    expect(() => cut(cuts, 8, "x", "#111")).toThrow(/already starts at 8/);
   });
 
-  it("cuts the ordered pages into one run per section, empty sections included", () => {
-    const sections = [section("a"), section("empty"), section("b")];
-    const ordered = [page("p1", "a", 1), page("p2", "a", 2), page("p3", "b", 3)];
-    expect(sectionRuns(sections, ordered)).toEqual([
-      { section: sections[0], start: 0, pages: [ordered[0], ordered[1]] },
-      { section: sections[1], start: 2, pages: [] },
-      { section: sections[2], start: 2, pages: [ordered[2]] },
-    ]);
-    expect(sectionRuns([section("a")], [])).toEqual([
-      { section: section("a"), start: 0, pages: [] },
-    ]);
+  it("moves a cut between its neighbours by whole sheets", () => {
+    expect(moveCut(cuts, 1, 4).map((s) => s.start)).toEqual([0, 4, 20]);
+    expect(moveCut(cuts, 1, 16).map((s) => s.start)).toEqual([0, 16, 20]);
+    expect(moveCut(cuts, 2, 60).map((s) => s.start)).toEqual([0, 8, 60]);
+    expect(moveCut(cuts, 1, 4)[1]).toEqual({ ...cuts[1], start: 4 });
+    expect(cuts.map((s) => s.start)).toEqual([0, 8, 20]);
+    expect(() => moveCut(cuts, 0, 4)).toThrow(/first section/);
+    expect(() => moveCut(cuts, 3, 4)).toThrow(/No section/);
+    expect(() => moveCut(cuts, 1, 6)).toThrow(/multiple of 4/);
+    expect(() => moveCut(cuts, 1, 0)).toThrow(/cross/);
+    expect(() => moveCut(cuts, 1, 20)).toThrow(/cross/);
+    expect(() => moveCut(cuts, 1, 24)).toThrow(/cross/);
+    expect(() => moveCut(cuts, 2, 8)).toThrow(/cross/);
   });
 
+  it("removes a cut, its pages falling to the section before", () => {
+    const next = removeCut(cuts, 1);
+    expect(next.map((s) => s.id)).toEqual(["a", "c"]);
+    expect(sectionRange(next, 64, 0)).toEqual({ start: 0, end: 20 });
+    expect(removeCut(cuts, 2).map((s) => s.id)).toEqual(["a", "b"]);
+    expect(cuts).toHaveLength(3);
+    expect(() => removeCut(cuts, 0)).toThrow(/first section/);
+    expect(() => removeCut(cuts, 3)).toThrow(/No section/);
+  });
+
+  it("rounds up to whole sheets and picks the size for a page count", () => {
+    expect([0, 1, 4, 5, 8].map(padToSheet)).toEqual([0, 4, 4, 8, 8]);
+    expect([63, 64, 65, 96, 192, 193, 200].map(sizeFor)).toEqual([64, 64, 96, 96, 192, 196, 200]);
+    expect(SHEET).toBe(4);
+  });
+});
+
+describe("slots from sections", () => {
+  const notebook = {
+    id: "nb",
+    defaults: { showPageNumber: false, margin: 25, divider: 70 },
+    themeId: "ruled",
+  };
+  /** A lined page as version 9 held it, matching `linedPage` but for its section. */
+  const legacy = (id: string, sectionId: string, createdAt: number, text = ""): LegacyPage => ({
+    id,
+    notebookId: "nb",
+    createdAt,
+    kind: "lined",
+    sectionId,
+    showPageNumber: true,
+    margin: 20,
+    columns: [columnFromText(text)],
+    divider: null,
+    drawing: [],
+    drawingLayer: "over",
+    canvasView: null,
+  });
+  const sections: LegacySection[] = [
+    { id: "s1", name: "Notes", color: "#111", lastPageId: "p3" },
+    { id: "s2", name: "Work", color: "#222", lastPageId: "gone" },
+  ];
+
+  it("pads each section's run to whole sheets, in Phase 7 order, and picks the size", () => {
+    // Creation order mixes the sections; s1 has 3 pages, s2 has 6.
+    const pages = [
+      legacy("p1", "s1", 1, "one"),
+      legacy("q1", "s2", 2),
+      legacy("p2", "s1", 3),
+      legacy("q2", "s2", 4, "two"),
+      legacy("q3", "s2", 5),
+      legacy("p3", "s1", 6),
+      legacy("q4", "s2", 7),
+      legacy("q5", "s2", 8),
+      legacy("q6", "s2", 9),
+    ];
+    const result = slotsFromSections({ ...notebook, sections }, pages, 1000);
+    expect(result.size).toBe(64);
+    expect(result.pages).toHaveLength(64);
+    expect(result.pages.map((page) => page.position)).toEqual([...Array(64).keys()]);
+    expect(result.pages.slice(0, 12).map((page) => page.id.length > 2 || page.id)).toEqual([
+      "p1",
+      "p2",
+      "p3",
+      true,
+      "q1",
+      "q2",
+      "q3",
+      "q4",
+      "q5",
+      "q6",
+      true,
+      true,
+    ]);
+    expect(result.sections).toEqual([
+      { ...sections[0], start: 0 },
+      { ...sections[1], start: 4, lastPageId: null },
+    ]);
+    // Every page keeps what it had, less its section, and is shaded by what it holds.
+    expect(result.pages[0]).toEqual(
+      linedPage("p1", 0, { createdAt: 1, columns: [columnFromText("one")], fill: 0.5 }),
+    );
+    expect(result.pages[1]).toEqual(linedPage("p2", 1, { createdAt: 3 }));
+    expect(result.pages.some((page) => "sectionId" in page)).toBe(false);
+    expect(result.pages.map((page) => page.fill).slice(0, 12)).toEqual([
+      0.5, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0, 0,
+    ]);
+    // The padding is blank lined pages from the defaults, made after every page and now.
+    const blank = result.pages[3];
+    expect(blank).toEqual({
+      id: blank.id,
+      notebookId: "nb",
+      createdAt: 1000,
+      position: 3,
+      kind: "lined",
+      fill: 0,
+      showPageNumber: false,
+      margin: 25,
+      columns: [columnFromText(""), columnFromText("")],
+      divider: 70,
+      drawing: [],
+      drawingLayer: "over",
+      canvasView: null,
+    });
+    expect(result.pages[10].createdAt).toBe(1001);
+    expect(result.pages[63].createdAt).toBe(1000 + 64 - 9 - 1);
+    for (let i = 1; i < 64; i++) {
+      if (result.pages[i].createdAt <= 9) continue;
+      expect(result.pages[i].createdAt).toBeGreaterThan(result.pages[i - 1].createdAt);
+    }
+    // The tail belongs to the last section.
+    expect(sectionRange(result.sections, result.size, 1)).toEqual({ start: 4, end: 64 });
+  });
+
+  it("makes the blank pages after the last page when that is later than now", () => {
+    const result = slotsFromSections({ ...notebook, sections }, [legacy("p1", "s1", 5000)], 10);
+    expect(result.pages.slice(1, 4).map((page) => page.createdAt)).toEqual([5001, 5002, 5003]);
+  });
+
+  it("gives an empty section one blank sheet, so it still exists", () => {
+    const result = slotsFromSections(
+      {
+        ...notebook,
+        sections: [...sections, { id: "s3", name: "Later", color: "#333", lastPageId: null }],
+      },
+      [legacy("q1", "s2", 1, "x")],
+      100,
+    );
+    expect(result.sections.map((s) => s.start)).toEqual([0, 4, 8]);
+    expect(result.pages[4].id).toBe("q1");
+    expect(result.pages.slice(0, 4).every((page) => page.fill === 0)).toBe(true);
+    expect(result.size).toBe(64);
+  });
+
+  it("shades a page by the store's notion of blank: writing, images or a drawing", () => {
+    const drawn: LegacyPage = { ...legacy("d", "s1", 1), drawing: [element("e")] };
+    const erased: LegacyPage = {
+      ...legacy("e", "s1", 2),
+      drawing: [element("e", { isDeleted: true })],
+    };
+    const zine: LegacyPage = {
+      ...legacy("z", "s1", 3),
+      kind: "zine",
+      columns: [],
+      zine: {
+        padding: 0,
+        rows: [{ blocks: [{ kind: "image", image: { fileId: "f", fit: "cover" } }] }],
+      },
+    };
+    const emptyZine: LegacyPage = {
+      ...legacy("y", "s1", 4),
+      kind: "zine",
+      columns: [],
+      zine: { padding: 0, rows: [] },
+    };
+    const result = slotsFromSections({ ...notebook, sections }, [drawn, erased, zine, emptyZine]);
+    expect(result.pages.slice(0, 4).map((page) => page.fill)).toEqual([0.5, 0, 0.5, 0]);
+  });
+
+  it("keeps a page naming an unknown section at the end of the last one", () => {
+    const result = slotsFromSections(
+      { ...notebook, sections },
+      [legacy("lost", "s9", 1, "x"), legacy("q1", "s2", 2), legacy("p1", "s1", 3)],
+      100,
+    );
+    expect(result.pages.slice(0, 8).map((page) => page.id.length > 4 || page.id)).toEqual([
+      "p1",
+      true,
+      true,
+      true,
+      "q1",
+      "lost",
+      true,
+      true,
+    ]);
+    expect(result.pages).toHaveLength(64);
+  });
+
+  it("grows past the largest size by whole sheets", () => {
+    const pages = Array.from({ length: 193 }, (_, i) => legacy(`p${i}`, "s1", i + 1));
+    const result = slotsFromSections({ ...notebook, sections: [sections[0]] }, pages, 1000);
+    expect(result.size).toBe(196);
+    expect(result.pages).toHaveLength(196);
+  });
+});
+
+describe("sections from tags", () => {
   it("turns tags into sections: Notes in the cover colour first, then the tags as they were", () => {
     const tags = [
       { id: "t1", name: "Ideas", color: "#b8342c" },

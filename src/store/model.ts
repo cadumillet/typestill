@@ -1,14 +1,22 @@
-// Stored shapes. Mirrors the data model in PLAN.md: notebook metadata with its sections,
-// pages (each in a section, with its own drawing), one canvas per notebook, and the image
-// files the pages and the canvas reference. They are separate records so autosave writes
-// only what changed.
+// Stored shapes. Mirrors the data model in PLAN.md: notebook metadata with its size and
+// its sections (cuts on sheet boundaries), pages as slots (one per position, each with
+// its own drawing and its fill), one canvas per notebook, and the image files the pages
+// and the canvas reference. They are separate records so autosave writes only what
+// changed.
 
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData } from "@excalidraw/excalidraw/types";
 import type { Cover } from "../notebook/cover";
-import { columnFromDocument, columnFromText, joinDocuments, type Column } from "../page/document";
+import {
+  columnFromDocument,
+  columnFromText,
+  isBlankDocument,
+  joinDocuments,
+  type Column,
+} from "../page/document";
 import { DEFAULT_MARGIN_MM, type Orientation, type PageSize } from "../page/paper";
-import { zineFileIds, type Zine } from "../page/zine";
+import { emptyZine, isZineEmpty, zineFileIds, type Zine } from "../page/zine";
+import { getTheme } from "../theme/themes";
 
 export type { Cover } from "../notebook/cover";
 export type { Column } from "../page/document";
@@ -17,13 +25,24 @@ export type { Zine } from "../page/zine";
 /** Lined pages hold writing; zine pages hold images. */
 export type PageKind = "lined" | "zine";
 
-/** A division of the notebook, as a tabbed divider makes one. Every page is in one. */
+/** A folded sheet is four pages: the notebook's size and every cut are multiples of it. */
+export const SHEET = 4;
+/** The sizes a notebook is made at, in pages. It can grow past them by whole sheets. */
+export const NOTEBOOK_SIZES = [64, 96, 128, 192] as const;
+export const DEFAULT_NOTEBOOK_SIZE = 96;
+
+/**
+ * A division of the notebook, as a tabbed divider makes one: a cut at a sheet boundary
+ * that runs to the next cut or the end. A page's section follows from the cuts.
+ */
 export interface Section {
   id: string;
   name: string;
   /** From the cover palette. */
   color: string;
-  /** Where the section was left: its tab returns there. Null until it is visited. */
+  /** The 0-based position of its first page, a multiple of SHEET; the first section's is 0. */
+  start: number;
+  /** Where the section was left: its name in the grid returns there. Null until it is visited. */
   lastPageId: string | null;
 }
 
@@ -50,7 +69,9 @@ export interface Notebook {
   pageSize: PageSize;
   orientation: Orientation;
   defaults: NotebookDefaults;
-  /** In order; at least one. */
+  /** Pages, a multiple of SHEET: one of NOTEBOOK_SIZES when made, more by whole sheets. */
+  size: number;
+  /** In order of start; at least one, the first starting at 0. */
   sections: Section[];
 }
 
@@ -64,15 +85,20 @@ export interface CanvasView {
   zoom: number;
 }
 
-/** A page: lined, with one or two columns of text, or zine, with a media block. */
+/**
+ * A page: lined, with one or two columns of text, or zine, with a media block. Every
+ * page is a slot the notebook has from the start; it is cleared, never deleted.
+ */
 export interface Page {
   id: string;
   notebookId: string;
-  /** The order within the section. Strictly increasing within a notebook. */
+  /** When the slot was made. Strictly increasing within a notebook. */
   createdAt: number;
+  /** The 0-based slot in the notebook: the page order, and the page number less one. */
+  position: number;
   kind: PageKind;
-  /** Every page is in a section; pages order by section order, then createdAt. */
-  sectionId: string;
+  /** How full the page is, 0 to 1, updated on save: the shade of its square in the grid. */
+  fill: number;
   showPageNumber: boolean;
   /** Margin line offset in mm from the left edge. */
   margin: number;
@@ -130,6 +156,48 @@ export const DEFAULT_NOTEBOOK_DEFAULTS: NotebookDefaults = {
 
 export function newId(): string {
   return crypto.randomUUID();
+}
+
+/**
+ * A blank page at `position` from the notebook's defaults: lined with the default
+ * divider unless told otherwise, zine with the theme's padding. What a new notebook is
+ * filled with, what growing appends, and what the converter pads a section with.
+ */
+export function blankPage(
+  notebook: Pick<Notebook, "id" | "defaults" | "themeId">,
+  position: number,
+  createdAt: number,
+  kind: PageKind = "lined",
+  divider: number | null = notebook.defaults.divider,
+): Page {
+  const page: Page = {
+    id: newId(),
+    notebookId: notebook.id,
+    createdAt,
+    position,
+    kind,
+    fill: 0,
+    showPageNumber: notebook.defaults.showPageNumber,
+    margin: notebook.defaults.margin,
+    columns: kind === "lined" ? emptyColumns(divider) : [],
+    divider: kind === "lined" ? divider : null,
+    drawing: [],
+    drawingLayer: "over",
+    canvasView: null,
+  };
+  if (kind === "zine") page.zine = emptyZine(getTheme(notebook.themeId).zine);
+  return page;
+}
+
+/** A page with nothing written or placed on it. Only such a page can change kind. */
+export function isPageEmpty(page: Pick<Page, "kind" | "columns" | "zine">): boolean {
+  if (page.kind === "zine") return !page.zine || isZineEmpty(page.zine);
+  return page.columns.every((column) => isBlankDocument(column.doc));
+}
+
+/** An empty page with nothing drawn on it either: what shrinking drops and the converter shades 0. */
+export function isPageBlank(page: Pick<Page, "kind" | "columns" | "zine" | "drawing">): boolean {
+  return isPageEmpty(page) && !page.drawing.some((element) => !element.isDeleted);
 }
 
 /** Empty columns for a divider setting: one without a divider, two with. */

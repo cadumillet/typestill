@@ -1,6 +1,13 @@
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFiles } from "@excalidraw/excalidraw/types";
-import { useCallback, useRef, useState, type CSSProperties, type PointerEvent } from "react";
+import {
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent,
+} from "react";
 import { Column } from "./Column";
 import { columnFromText, type Column as ColumnValue } from "./document";
 import { useBaseline } from "../theme/baseline";
@@ -54,6 +61,12 @@ export interface TextPageProps {
   onChange?: (columns: ColumnValue[]) => void;
   /** The divider was dragged to a new offset (already snapped), in mm. */
   onDividerChange?: (divider: number) => void;
+  /**
+   * How full the page is, 0 to 1: the lines the text takes over the lines available,
+   * summed over the columns (a blank column takes none), reported on mount and on every
+   * change so the session can save it with the text.
+   */
+  onFill?: (fill: number) => void;
 }
 
 const NO_ELEMENTS: readonly ExcalidrawElement[] = [];
@@ -83,6 +96,7 @@ export function TextPage({
   drawingMode = null,
   onChange,
   onDividerChange,
+  onFill,
 }: TextPageProps) {
   const mm = pageMm(size, orientation);
   const px = (value: number) => mmToCssPx(value, zoom);
@@ -95,6 +109,12 @@ export function TextPage({
   const page = useRef<HTMLDivElement>(null);
   const bar = useFormatBar(page);
   const [fullColumns, setFullColumns] = useState<boolean[]>([]);
+  /** Lines each column's text takes, as the columns report them. */
+  const usedLines = useRef<number[]>([]);
+  const fillRef = useRef(onFill);
+  useLayoutEffect(() => {
+    fillRef.current = onFill;
+  });
   /** Where the divider is while it is being dragged, in mm; null otherwise. */
   const [dragDivider, setDragDivider] = useState<number | null>(null);
 
@@ -106,6 +126,15 @@ export function TextPage({
       return next;
     });
   }, []);
+
+  // A column reports its lines on mount and on change; the page sums them over the
+  // lines its columns have.
+  const reportLines = (index: number, used: number) => {
+    if (usedLines.current[index] === used) return;
+    usedLines.current[index] = used;
+    const total = usedLines.current.slice(0, boxes.length).reduce((sum, n) => sum + (n ?? 0), 0);
+    fillRef.current?.(Math.min(1, total / (lines * boxes.length)));
+  };
 
   const style = {
     ...pageLookStyle(theme, lined.font, zoom),
@@ -214,6 +243,7 @@ export function TextPage({
             onChange?.(next);
           }}
           onFull={(full) => setColumnFull(index, full)}
+          onLines={(used) => reportLines(index, used)}
           onSelection={(at) => bar.setColumnSelection(index, at)}
         />
       ))}

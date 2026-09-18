@@ -1,15 +1,36 @@
 // Test helpers. Minimal Excalidraw-shaped elements: the store only reads id, type,
-// version, isDeleted and fileId, and search reads text and originalText. And a section,
-// named after its id.
+// version, isDeleted and fileId, and search reads text and originalText. A section,
+// named after its id, and a lined page in a slot.
 
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData } from "@excalidraw/excalidraw/types";
 import { COVER_COLORS } from "../notebook/cover";
-import type { Section } from "./model";
+import { columnFromText } from "../page/document";
+import type { Page, Section } from "./model";
 
-/** A section named after its id, in the first palette colour, not yet visited. */
+/** A section named after its id, in the first palette colour, starting at 0, not yet visited. */
 export function section(id: string, extra: Partial<Omit<Section, "id">> = {}): Section {
-  return { id, name: id, color: COVER_COLORS[0].value, lastPageId: null, ...extra };
+  return { id, name: id, color: COVER_COLORS[0].value, start: 0, lastPageId: null, ...extra };
+}
+
+/** A lined page at `position` with one column of `text`, empty and unfilled by default. */
+export function linedPage(id: string, position: number, extra: Partial<Page> = {}): Page {
+  return {
+    id,
+    notebookId: "nb",
+    createdAt: position + 1,
+    position,
+    kind: "lined",
+    fill: 0,
+    showPageNumber: true,
+    margin: 20,
+    columns: [columnFromText("")],
+    divider: null,
+    drawing: [],
+    drawingLayer: "over",
+    canvasView: null,
+    ...extra,
+  };
 }
 
 export function element(

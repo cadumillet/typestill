@@ -1,9 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { IconButton } from "../shell/IconButton";
-import { Menu } from "../shell/Menu";
-import { ChevronLeft, ChevronRight, Columns, Images, NewPage, Pencil, Trash } from "../shell/icons";
-import type { PageKind, Section } from "../store/model";
-import { ADD_PAGE_HINT } from "./pageRules";
+import { ChevronLeft, ChevronRight, Columns, Grid, Images, Pencil } from "../shell/icons";
+import type { Section } from "../store/model";
 import "./pagebar.css";
 
 /** The bar's height in px; the desk fits the page above it. */
@@ -18,17 +16,10 @@ export interface PageBarProps {
   onSelect: (index: number) => void;
   previousShortcut?: string;
   nextShortcut?: string;
-  /** The counter opens the notebook box on the map. */
-  onOpenMap: () => void;
-  mapShortcut?: string;
-  /** Whether a page may be added now (the one-page rule); off otherwise, with a hint. */
-  canAdd: boolean;
-  addShortcut?: string;
-  /** Whether zine pages can be made: a lined-or-zine menu, else a plain lined-page button. */
-  zinePages: boolean;
-  onAdd: (kind: PageKind) => void;
-  /** Delete the open page: the caller asks first. */
-  onDelete: () => void;
+  /** The grid view: the counter and the grid button at the left end toggle it. */
+  gridOpen: boolean;
+  gridShortcut?: string;
+  onToggleGrid: () => void;
   /** The layout toggle, on lined pages: whether the page has two columns; null hides it. */
   twoColumns: boolean | null;
   onTwoColumnsChange: (enabled: boolean) => void;
@@ -47,12 +38,12 @@ export interface PageBarProps {
 
 /**
  * The bar under the page or spread, as wide as it. In its middle, centred on the page:
- * previous, the counter (the section's dot and "n / N", a button that opens the notebook
- * box on the map), next. At its left end: new page (lined, or lined or zine behind the
- * flag) and delete page. At its right end: the layout toggle (two columns, on lined
- * pages), the pencil that switches drawing mode with the drawing tools while it is on,
- * and on zine pages the media pool toggle. Its popovers and tooltips open upwards, over
- * the page, since the bar sits at the bottom of the desk.
+ * previous, the counter (the section's dot and "n / N", a button that toggles the grid
+ * view), next. At its left end: the grid view button. At its right end: the layout
+ * toggle (two columns, on lined pages), the pencil that switches drawing mode with the
+ * drawing tools while it is on, and on zine pages the media pool toggle. There is no new
+ * page and no delete page: the notebook has its pages. Its popovers and tooltips open
+ * upwards, over the page, since the bar sits at the bottom of the desk.
  */
 export function PageBar({
   index,
@@ -61,13 +52,9 @@ export function PageBar({
   onSelect,
   previousShortcut,
   nextShortcut,
-  onOpenMap,
-  mapShortcut,
-  canAdd,
-  addShortcut,
-  zinePages,
-  onAdd,
-  onDelete,
+  gridOpen,
+  gridShortcut,
+  onToggleGrid,
   twoColumns,
   onTwoColumnsChange,
   drawing,
@@ -81,32 +68,13 @@ export function PageBar({
   return (
     <nav className="page-bar" aria-label="Page controls" style={{ height: PAGE_BAR_HEIGHT }}>
       <div className="page-bar__group page-bar__group--start">
-        {zinePages ? (
-          <Menu
-            label="New page"
-            shortcut={addShortcut}
-            align="left"
-            off={!canAdd}
-            offReason={ADD_PAGE_HINT}
-            items={[
-              { label: "Lined page", onSelect: () => onAdd("lined") },
-              { label: "Zine page", onSelect: () => onAdd("zine") },
-            ]}
-          >
-            <NewPage />
-          </Menu>
-        ) : (
-          <IconButton
-            label={canAdd ? "New page" : `New page (${ADD_PAGE_HINT})`}
-            shortcut={canAdd ? addShortcut : undefined}
-            off={!canAdd}
-            onClick={() => onAdd("lined")}
-          >
-            <NewPage />
-          </IconButton>
-        )}
-        <IconButton label="Delete page" onClick={onDelete}>
-          <Trash />
+        <IconButton
+          label={gridOpen ? "Close the grid" : "Grid view"}
+          shortcut={gridShortcut}
+          pressed={gridOpen}
+          onClick={onToggleGrid}
+        >
+          <Grid />
         </IconButton>
       </div>
       <div className="page-bar__group page-bar__group--centre">
@@ -119,10 +87,11 @@ export function PageBar({
           <ChevronLeft />
         </IconButton>
         <IconButton
-          label={section ? `Notebook map (${section.name})` : "Notebook map"}
-          shortcut={mapShortcut}
+          label={section ? `Grid view (${section.name})` : "Grid view"}
+          shortcut={gridShortcut}
           className="page-bar__counter"
-          onClick={onOpenMap}
+          pressed={gridOpen}
+          onClick={onToggleGrid}
         >
           {section && (
             <span

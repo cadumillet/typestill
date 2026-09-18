@@ -35,23 +35,18 @@ describe("shortcutFor", () => {
   it("maps Alt chords to the page actions and Shift+Tab to drawing mode", () => {
     expect(shortcutFor(alt("ArrowUp"), focus())).toBe("previousPage");
     expect(shortcutFor(alt("ArrowDown"), focus())).toBe("nextPage");
-    expect(shortcutFor(alt("KeyN"), focus())).toBe("newLinedPage");
-    expect(shortcutFor(alt("KeyN", { shiftKey: true }), focus())).toBe("newZinePage");
     expect(shortcutFor(shiftTab(), focus())).toBe("drawingMode");
-    expect(shortcutFor(alt("KeyM"), focus())).toBe("notebookBox");
+    expect(shortcutFor(alt("KeyM"), focus())).toBe("gridView");
   });
 
   it("matches letters by physical key, since Option changes the character on a Mac", () => {
-    expect(shortcutFor(alt("KeyN", { key: "Dead" }), focus())).toBe("newLinedPage");
-    expect(shortcutFor(alt("KeyN", { key: "˜", shiftKey: true }), focus())).toBe("newZinePage");
-    expect(shortcutFor(alt("KeyN", { key: "Dead" }), focus({ inEditor: true }))).toBe(
-      "newLinedPage",
-    );
+    expect(shortcutFor(alt("KeyM", { key: "µ" }), focus())).toBe("gridView");
+    expect(shortcutFor(alt("KeyM", { key: "µ" }), focus({ inEditor: true }))).toBe("gridView");
   });
 
   it("works with the caret in the page editor and with nothing focused", () => {
     expect(shortcutFor(alt("ArrowDown"), focus({ inEditor: true }))).toBe("nextPage");
-    expect(shortcutFor(alt("KeyN"), focus({ inEditor: true }))).toBe("newLinedPage");
+    expect(shortcutFor(alt("KeyM"), focus({ inEditor: true }))).toBe("gridView");
     expect(shortcutFor(shiftTab(), focus({ inEditor: true }))).toBe("drawingMode");
   });
 
@@ -63,7 +58,7 @@ describe("shortcutFor", () => {
       focus({ inEditor: true, inDialog: true }),
     ]) {
       expect(shortcutFor(alt("ArrowDown"), context)).toBeNull();
-      expect(shortcutFor(alt("KeyN"), context)).toBeNull();
+      expect(shortcutFor(alt("KeyM"), context)).toBeNull();
       expect(shortcutFor(shiftTab(), context)).toBeNull();
     }
   });
@@ -84,7 +79,8 @@ describe("shortcutFor", () => {
   it("ignores Alt chords that carry Cmd or Ctrl, or an unbound key", () => {
     expect(shortcutFor(alt("ArrowDown", { metaKey: true }), focus())).toBeNull();
     expect(shortcutFor(alt("ArrowLeft", { metaKey: true }), focus())).toBeNull();
-    expect(shortcutFor(alt("KeyN", { ctrlKey: true }), focus())).toBeNull();
+    expect(shortcutFor(alt("KeyM", { ctrlKey: true }), focus())).toBeNull();
+    expect(shortcutFor(alt("KeyN"), focus())).toBeNull();
     expect(shortcutFor(alt("ArrowLeft"), focus())).toBeNull();
     expect(shortcutFor(alt("ArrowRight"), focus())).toBeNull();
     expect(shortcutFor(alt("ArrowUp", { shiftKey: true }), focus())).toBeNull();
@@ -97,11 +93,10 @@ describe("shortcutFor", () => {
 });
 
 describe("shortcutRepeats", () => {
-  it("lets a held key flip pages but not create them", () => {
+  it("lets a held key flip pages but not toggle the views", () => {
     expect(shortcutRepeats("previousPage")).toBe(true);
     expect(shortcutRepeats("nextPage")).toBe(true);
-    expect(shortcutRepeats("newLinedPage")).toBe(false);
-    expect(shortcutRepeats("newZinePage")).toBe(false);
+    expect(shortcutRepeats("gridView")).toBe(false);
     expect(shortcutRepeats("drawingMode")).toBe(false);
   });
 });
@@ -110,12 +105,10 @@ describe("shortcut labels", () => {
   it("shows Mac glyphs and Alt+ words elsewhere", () => {
     expect(shortcutLabel("previousPage", true)).toBe("⌥↑");
     expect(shortcutLabel("nextPage", true)).toBe("⌥↓");
-    expect(shortcutLabel("newLinedPage", true)).toBe("⌥N");
-    expect(shortcutLabel("newZinePage", true)).toBe("⌥⇧N");
     expect(shortcutLabel("drawingMode", true)).toBe("⇧⇥");
-    expect(shortcutLabel("notebookBox", true)).toBe("⌥M");
+    expect(shortcutLabel("gridView", true)).toBe("⌥M");
     expect(shortcutLabel("previousPage", false)).toBe("Alt+↑");
-    expect(shortcutLabel("newZinePage", false)).toBe("Alt+Shift+N");
+    expect(shortcutLabel("gridView", false)).toBe("Alt+M");
     expect(shortcutLabel("drawingMode", false)).toBe("Shift+Tab");
   });
 

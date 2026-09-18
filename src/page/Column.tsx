@@ -10,7 +10,7 @@ import {
   type CSSProperties,
   type Ref,
 } from "react";
-import type { Column as ColumnValue } from "./document";
+import { isBlankDocument, type Column as ColumnValue } from "./document";
 import {
   formatCommand,
   formatState,
@@ -45,6 +45,11 @@ export interface ColumnProps {
   style: CSSProperties;
   onChange: (column: ColumnValue) => void;
   onFull: (full: boolean) => void;
+  /**
+   * The lines the document takes, measured in the mirror, on mount and on every change;
+   * a blank document counts as none rather than the one line its trailing break takes.
+   */
+  onLines?: (lines: number) => void;
   /** Reported while text is selected in the focused column, null otherwise. */
   onSelection: (selection: ColumnSelection | null) => void;
   ref?: Ref<ColumnHandle>;
@@ -68,6 +73,7 @@ export function Column({
   style,
   onChange,
   onFull,
+  onLines,
   onSelection,
   ref,
 }: ColumnProps) {
@@ -75,9 +81,9 @@ export function Column({
   const mirror = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   // The editor is created once; its callbacks read the latest props from here.
-  const props = useRef({ value, readOnly, lines, pitch, onChange, onFull, onSelection });
+  const props = useRef({ value, readOnly, lines, pitch, onChange, onFull, onLines, onSelection });
   useLayoutEffect(() => {
-    props.current = { value, readOnly, lines, pitch, onChange, onFull, onSelection };
+    props.current = { value, readOnly, lines, pitch, onChange, onFull, onLines, onSelection };
   });
   /** The value last reported through onChange. A value prop equal to it needs no reload. */
   const emitted = useRef<ColumnValue | null>(null);
@@ -95,7 +101,11 @@ export function Column({
   }, []);
 
   const reportFull = useCallback(
-    (doc: EditorNode) => props.current.onFull(usedLines(doc) >= props.current.lines),
+    (doc: EditorNode) => {
+      const used = usedLines(doc);
+      props.current.onFull(used >= props.current.lines);
+      props.current.onLines?.(isBlankDocument(columnOf(doc).doc) ? 0 : used);
+    },
     [usedLines],
   );
 
