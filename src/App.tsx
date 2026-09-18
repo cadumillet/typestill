@@ -4,7 +4,7 @@ import { Canvas, type CanvasContent, type CanvasHandle } from "./canvas/Canvas";
 import { MediaPool } from "./notebook/MediaPool";
 import { PAGE_BAR_HEIGHT, PageBar } from "./notebook/PageBar";
 import { PageRail } from "./notebook/PageRail";
-import { NotebookSwitcher } from "./notebook/NotebookSwitcher";
+import { CoverSwatch } from "./notebook/CoverSwatch";
 import { PageSettings } from "./notebook/PageSettings";
 import { SearchBox } from "./notebook/SearchBox";
 import { SettingsDialog } from "./notebook/SettingsDialog";
@@ -372,22 +372,17 @@ export function App() {
       main={
         <>
           <header className="app-header" style={{ paddingRight: barInset }}>
-            <button
-              type="button"
-              className="wordmark wordmark--link"
-              onClick={() => void session.closeNotebook()}
-              title="Back to the shelf"
-            >
-              typestill
-            </button>
+            <span className="wordmark">typestill</span>
             <div className="app-header__actions">
-              <NotebookSwitcher
-                notebooks={session.notebooks}
-                currentId={notebook.id}
-                currentPageCount={pages.length}
-                onOpen={(id) => void session.openNotebook(id)}
-                onShelf={() => void session.closeNotebook()}
-              />
+              <button
+                type="button"
+                className="notebook-button"
+                onClick={openSettings}
+                title="Notebook settings"
+              >
+                <CoverSwatch cover={notebook.cover} name={notebook.name} size={16} />
+                <span className="notebook-button__name">{notebook.name}</span>
+              </button>
               <SearchBox
                 pages={pages}
                 elements={canvasElements}
