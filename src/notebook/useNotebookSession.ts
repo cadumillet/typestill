@@ -1,6 +1,7 @@
 import type { BinaryFileData } from "@excalidraw/excalidraw/types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CanvasContent } from "../canvas/Canvas";
+import type { DrawingContent } from "../page/PageDrawing";
 import { createAutosave, columnsKey, elementsKey, type Autosave } from "../store/autosave";
 import { backupFileName, parseBackup, serializeBackup } from "../store/backup";
 import { isZipBackup, packBackupZip, unpackBackupZip, zipBackupFileName } from "../store/zip";
@@ -15,6 +16,7 @@ import {
   type Canvas,
   type CanvasView,
   type Column,
+  type DrawingLayer,
   type Notebook,
   type Page,
   type PageKind,
@@ -40,6 +42,7 @@ import {
   pruneFiles,
   renameNotebook as renameNotebookRecord,
   saveCanvasContent,
+  savePageDrawing,
   savePageText,
   savePageZine,
   saveThumbnail as saveThumbnailRecord,
@@ -113,7 +116,16 @@ export interface NotebookSession {
   setPageMargin: (margin: number) => Promise<void>;
   /** Stores a fresh thumbnail of the open page. */
   saveThumbnail: (dataURL: string) => void;
-  /** Canvas callbacks carry the loadId of the editor that sent them; stale editors are ignored. */
+  /**
+   * A page's drawing as its editor reports it, tagged with the editor's loadId (stale
+   * editors are ignored) and the page it draws on, since an editor reports its last
+   * state while the page it belonged to is being left. Saved through the page autosave,
+   * keyed by element versions; files new image elements use join the notebook's.
+   */
+  setDrawing: (pageId: string, content: DrawingContent, loadId: number) => void;
+  /** Where the open page's drawing paints in writing mode. */
+  setDrawingLayer: (layer: DrawingLayer) => void;
+  /** Canvas callbacks carry the loadId of the editor that sent them; stale editors are ignored (dormant, section 8). */
   onCanvasChange: (content: CanvasContent, loadId: number) => void;
   onCanvasViewChange: (view: CanvasView, loadId: number) => void;
   onGridChange: (enabled: boolean) => void;
@@ -192,8 +204,8 @@ const viewKey = (view: CanvasView) => `${view.scrollX},${view.scrollY},${view.zo
 const report = (error: unknown) => console.error("typestill: save failed", error);
 
 /**
- * Opens the most recently used notebook and keeps it saved: page text and the canvas
- * drawing are autosaved as they change, and the canvas view is remembered per page.
+ * Opens the most recently used notebook and keeps it saved: page text and page drawings
+ * are autosaved as they change (the dormant canvas and its per-page view likewise).
  * Returns null until storage has been read, a FirstRun while it holds no notebook, the
  * Shelf while none is open, and the session once one is.
  */
@@ -208,7 +220,11 @@ export function useNotebookSession(
   const pageSaver = useRef<Autosave<Column[]> | null>(null);
   const zineSaver = useRef<Autosave<Zine> | null>(null);
   const viewSaver = useRef<Autosave<CanvasView> | null>(null);
+  /** The open page's drawing saver, with the page it belongs to. */
+  const drawingSaver = useRef<{ pageId: string; saver: Autosave<DrawingContent> } | null>(null);
   const canvasSaver = useRef<Autosave<CanvasContent> | null>(null);
+  /** Pages deleted this session: a drawing editor leaving one has nothing to save. */
+  const deletedPages = useRef(new Set<string>());
   /** Latest canvas view seen, written onto the page when it is left. */
   const latestView = useRef<CanvasView | null>(null);
   const loads = useRef(0);
@@ -217,6 +233,7 @@ export function useNotebookSession(
     void pageSaver.current?.flush();
     void zineSaver.current?.flush();
     void viewSaver.current?.flush();
+    void drawingSaver.current?.saver.flush();
     void canvasSaver.current?.flush();
   }, []);
 
@@ -226,6 +243,7 @@ export function useNotebookSession(
       void pageSaver.current?.flush();
       void zineSaver.current?.flush();
       void viewSaver.current?.flush();
+      void drawingSaver.current?.saver.flush();
       pageSaver.current = createAutosave<Column[]>({
         save: (columns) => savePageText(db, page.id, columns),
         key: columnsKey,
@@ -249,6 +267,13 @@ export function useNotebookSession(
       });
       if (page.canvasView) viewSaver.current.markClean(page.canvasView);
       latestView.current = page.canvasView;
+      const saver = createAutosave<DrawingContent>({
+        save: (content) => savePageDrawing(db, page.id, content.elements, content.files),
+        key: (content) => elementsKey(content.elements),
+        onError: report,
+      });
+      saver.markClean({ elements: page.drawing, files: {} });
+      drawingSaver.current = { pageId: page.id, saver };
     },
     [db],
   );
@@ -259,11 +284,13 @@ export function useNotebookSession(
       pageSaver.current?.flush(),
       zineSaver.current?.flush(),
       viewSaver.current?.flush(),
+      drawingSaver.current?.saver.flush(),
       canvasSaver.current?.flush(),
     ]);
     pageSaver.current = null;
     zineSaver.current = null;
     viewSaver.current = null;
+    drawingSaver.current = null;
     canvasSaver.current = null;
   }, []);
 
@@ -393,8 +420,10 @@ export function useNotebookSession(
       pageSaver.current?.flush(),
       zineSaver.current?.flush(),
       viewSaver.current?.flush(),
+      drawingSaver.current?.saver.flush(),
     ]);
     const opened = await deletePageRecord(db, page.id);
+    deletedPages.current.add(page.id);
     setState((current) => {
       if (!current) return current;
       const pages = current.pages.filter((p) => p.id !== page.id);
@@ -518,7 +547,11 @@ export function useNotebookSession(
   const deleteImage = useCallback(
     async (fileId: string) => {
       if (!state) return;
-      await Promise.all([zineSaver.current?.flush(), canvasSaver.current?.flush()]);
+      await Promise.all([
+        zineSaver.current?.flush(),
+        drawingSaver.current?.saver.flush(),
+        canvasSaver.current?.flush(),
+      ]);
       await deleteFile(db, state.notebook.id, fileId);
       setState((current) => {
         if (!current) return current;
@@ -664,6 +697,60 @@ export function useNotebookSession(
     [db, state],
   );
 
+  // The open page's editor saves through its saver; an editor reporting its last state
+  // for a page just left saves straight away, since the savers have moved on. Files the
+  // drawing's new image elements use (pasted images) join the notebook's.
+  const setDrawing = useCallback(
+    (pageId: string, content: DrawingContent, loadId: number) => {
+      if (loadId !== loads.current || deletedPages.current.has(pageId)) return;
+      if (drawingSaver.current?.pageId === pageId) {
+        drawingSaver.current.saver.onChange(content);
+      } else {
+        savePageDrawing(db, pageId, content.elements, content.files).catch(report);
+      }
+      const live = content.elements.filter((element) => !element.isDeleted);
+      setState((current) => {
+        if (!current || current.loadId !== loadId) return current;
+        const at = current.pages.findIndex((page) => page.id === pageId);
+        if (at < 0) return current;
+        const added: Record<string, BinaryFileData> = {};
+        for (const id of referencedFileIds(live)) {
+          if (!current.files[id] && content.files[id]) added[id] = content.files[id];
+        }
+        const changed = elementsKey(current.pages[at].drawing) !== elementsKey(live);
+        if (!changed && Object.keys(added).length === 0) return current;
+        return {
+          ...current,
+          pages: changed
+            ? current.pages.map((page, i) => (i === at ? { ...page, drawing: live } : page))
+            : current.pages,
+          files: Object.keys(added).length > 0 ? { ...current.files, ...added } : current.files,
+        };
+      });
+    },
+    [db],
+  );
+
+  const setDrawingLayer = useCallback(
+    (drawingLayer: DrawingLayer) => {
+      if (!state) return;
+      const page = state.pages[state.index];
+      if (page.drawingLayer === drawingLayer) return;
+      updatePage(db, page.id, { drawingLayer }).catch(report);
+      setState((current) =>
+        current
+          ? {
+              ...current,
+              pages: current.pages.map((p, i) =>
+                i === current.index ? { ...p, drawingLayer } : p,
+              ),
+            }
+          : current,
+      );
+    },
+    [db, state],
+  );
+
   // An editor from a previous load can still fire (for instance on a resize) while it is
   // being replaced; its content must never reach the current notebook.
   const onCanvasChange = useCallback((content: CanvasContent, loadId: number) => {
@@ -771,6 +858,7 @@ export function useNotebookSession(
       pageSaver.current?.flush(),
       zineSaver.current?.flush(),
       viewSaver.current?.flush(),
+      drawingSaver.current?.saver.flush(),
       canvasSaver.current?.flush(),
     ]);
     const doc = await exportNotebook(db, state.notebook.id);
@@ -785,7 +873,11 @@ export function useNotebookSession(
 
   const pruneImages = useCallback(async () => {
     if (!state) return 0;
-    await Promise.all([zineSaver.current?.flush(), canvasSaver.current?.flush()]);
+    await Promise.all([
+      zineSaver.current?.flush(),
+      drawingSaver.current?.saver.flush(),
+      canvasSaver.current?.flush(),
+    ]);
     const removed = await pruneFiles(db, state.notebook.id);
     if (removed > 0) {
       const files = await loadNotebookFiles(db, state.notebook.id);
@@ -864,6 +956,8 @@ export function useNotebookSession(
     setPageMarks,
     setPageMargin,
     saveThumbnail,
+    setDrawing,
+    setDrawingLayer,
     onCanvasChange,
     onCanvasViewChange,
     onGridChange,

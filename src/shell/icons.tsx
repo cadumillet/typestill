@@ -157,3 +157,11 @@ export const Search = () => (
     <path d="M11.5 11.5l4 4" />
   </svg>
 );
+
+export const Sliders = () => (
+  <svg {...base}>
+    <path d="M3 5.5h12M3 12.5h12" />
+    <circle cx="7" cy="5.5" r="1.75" fill="var(--surface)" />
+    <circle cx="11.5" cy="12.5" r="1.75" fill="var(--surface)" />
+  </svg>
+);

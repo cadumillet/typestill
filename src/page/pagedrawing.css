@@ -1,0 +1,48 @@
+/*
+ * The drawing editor of drawing mode, over the desk, and the overrides for the embedded
+ * Excalidraw. Excalidraw's UIOptions cannot hide individual toolbar tools or the floating
+ * chrome, so it is done here; keyboard shortcuts for hidden tools still work, and
+ * PageDrawing resets the hand tool and the grid.
+ */
+
+.page-drawing {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+}
+
+.page-drawing .excalidraw {
+  background: transparent;
+}
+
+/*
+ * Clip every drawing layer to the page box (custom properties set by PageDrawing).
+ * clip-path also limits hit testing, so pointer input on the desk never reaches the
+ * canvas: it lands on Excalidraw's container, where PageDrawing deselects.
+ */
+.page-drawing .excalidraw__canvas {
+  clip-path: inset(
+    var(--page-top) calc(100% - var(--page-left) - var(--page-width))
+      calc(100% - var(--page-top) - var(--page-height)) var(--page-left)
+  );
+}
+
+/* Tools that don't belong on a page: selection, pen, line, arrow, rectangle, ellipse, text
+   and the eraser stay. Image stays enabled (paste needs it), only its button goes. */
+.page-drawing .ToolIcon:has(input[data-testid="toolbar-hand"]),
+.page-drawing .ToolIcon:has(input[data-testid="toolbar-lock"]),
+.page-drawing .ToolIcon:has(input[data-testid="toolbar-diamond"]),
+.page-drawing .ToolIcon:has(input[data-testid="toolbar-image"]),
+.page-drawing .App-toolbar__extra-tools-trigger,
+.page-drawing .App-toolbar__divider,
+/* Main menu (scene files, theme, background): nothing in it applies. */
+.page-drawing .main-menu-trigger,
+/* Library sidebar. */
+.page-drawing .default-sidebar-trigger,
+/* Zoom is locked, so zoom controls make no sense. */
+.page-drawing .zoom-actions,
+.page-drawing .help-icon,
+/* Tool hints ("hold spacebar to pan", etc.) describe behaviour the shell disables. */
+.page-drawing .HintViewer {
+  display: none !important;
+}

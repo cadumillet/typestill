@@ -1,8 +1,14 @@
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import type { BinaryFiles } from "@excalidraw/excalidraw/types";
 import { useCallback, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { Column } from "./Column";
 import { columnFromText, type Column as ColumnValue } from "./document";
 import { useBaseline } from "../theme/baseline";
 import type { Theme } from "../theme/theme";
+import { isDarkTheme } from "../theme/themes";
+import type { DrawingLayer } from "../store/model";
+import { DrawingStill } from "./DrawingStill";
+import { drawingModeStyle, type DrawingAids } from "./drawingMode";
 import { FormatBar } from "./FormatBar";
 import { PageMarks } from "./PageMarks";
 import {
@@ -40,10 +46,23 @@ export interface TextPageProps {
   number?: number | null;
   /** The page's side, which rounds its outer corners; none for a rectangular render. */
   side?: PageSide;
+  /** The page's drawing, shown as a still over or under the text; empty for none. */
+  drawing?: readonly ExcalidrawElement[];
+  drawingLayer?: DrawingLayer;
+  /** The notebook's files, for the images the drawing uses. */
+  files?: BinaryFiles;
+  /**
+   * Drawing mode, with its viewing aids: the page is locked, its text and rules take the
+   * aids' opacity, and no still is shown (the live editor is over the page).
+   */
+  drawingMode?: DrawingAids | null;
   onChange?: (columns: ColumnValue[]) => void;
   /** The divider was dragged to a new offset (already snapped), in mm. */
   onDividerChange?: (divider: number) => void;
 }
+
+const NO_ELEMENTS: readonly ExcalidrawElement[] = [];
+const NO_FILES: BinaryFiles = {};
 
 const EMPTY_COLUMN = columnFromText("");
 
@@ -65,6 +84,10 @@ export function TextPage({
   readOnly = false,
   number = null,
   side,
+  drawing = NO_ELEMENTS,
+  drawingLayer = "over",
+  files = NO_FILES,
+  drawingMode = null,
   onChange,
   onDividerChange,
 }: TextPageProps) {
@@ -100,9 +123,10 @@ export function TextPage({
     "--rules-height": `${(lines - 1) * pitch + 1}px`,
     "--margin-left": `${px(margin)}px`,
     "--font-size": `${fontSize}px`,
+    ...(drawingMode ? drawingModeStyle(drawingMode) : {}),
   } as CSSProperties;
 
-  const locked = preview || readOnly;
+  const locked = preview || readOnly || drawingMode !== null;
   const shownDivider = dragDivider ?? divider;
   const boxes = columnBoxes(mm.width, margin, shownDivider, lined);
 
@@ -137,6 +161,7 @@ export function TextPage({
     theme.page.border ? "has-border" : "",
     preview ? "is-preview" : "",
     side ? `side-${side}` : "",
+    drawingMode ? "is-drawing" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -147,6 +172,18 @@ export function TextPage({
       style={style}
       ref={page}
     >
+      {!drawingMode && (
+        <DrawingStill
+          elements={drawing}
+          files={files}
+          size={size}
+          orientation={orientation}
+          layer={drawingLayer}
+          inverted={isDarkTheme(theme)}
+          width={px(mm.width)}
+          height={px(mm.height)}
+        />
+      )}
       {shownDivider !== null && !locked && (
         <div
           className="text-page__divider-handle"

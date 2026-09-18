@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { IconButton } from "../shell/IconButton";
 import { Menu } from "../shell/Menu";
-import { ChevronLeft, ChevronRight, NewPage, Trash } from "../shell/icons";
+import { ChevronLeft, ChevronRight, Images, NewPage, Pencil, Trash } from "../shell/icons";
 import type { PageKind } from "../store/model";
 import { ADD_PAGE_HINT } from "./pageRules";
 import "./pagebar.css";
@@ -26,14 +26,24 @@ export interface PageBarProps {
   onDelete: () => void;
   /** The page settings popover, between new page and delete. */
   children?: ReactNode;
+  /** Drawing mode: the pencil is pressed while it is on. */
+  drawing: boolean;
+  drawingShortcut?: string;
+  onToggleDrawing: () => void;
+  /** The drawing tools popover, shown next to the pencil in drawing mode. */
+  drawingTools?: ReactNode;
+  /** The media pool toggle, on zine pages only: null hides it. */
+  poolOpen: boolean | null;
+  onTogglePool: () => void;
 }
 
 /**
  * The bar under the page or spread, centred on it like a caption: previous, the page
  * counter, next; then new page (lined or zine, or lined only while zine pages are behind
- * their flag), page settings and delete page. Its
- * popovers and tooltips open upwards, over the page, since the bar sits at the bottom
- * of the desk.
+ * their flag), page settings and delete page; then the pencil that switches drawing
+ * mode, with the drawing tools while it is on, and on zine pages the media pool toggle.
+ * Its popovers and tooltips open upwards, over the page, since the bar sits at the
+ * bottom of the desk.
  */
 export function PageBar({
   index,
@@ -47,6 +57,12 @@ export function PageBar({
   onAdd,
   onDelete,
   children,
+  drawing,
+  drawingShortcut,
+  onToggleDrawing,
+  drawingTools,
+  poolOpen,
+  onTogglePool,
 }: PageBarProps) {
   return (
     <nav className="page-bar" aria-label="Page controls" style={{ height: PAGE_BAR_HEIGHT }}>
@@ -98,6 +114,25 @@ export function PageBar({
       <IconButton label="Delete page" onClick={onDelete}>
         <Trash />
       </IconButton>
+      <span className="page-bar__gap" />
+      <IconButton
+        label={drawing ? "Stop drawing" : "Draw"}
+        shortcut={drawingShortcut}
+        pressed={drawing}
+        onClick={onToggleDrawing}
+      >
+        <Pencil />
+      </IconButton>
+      {drawing && drawingTools}
+      {poolOpen !== null && (
+        <IconButton
+          label={poolOpen ? "Hide media pool" : "Show media pool"}
+          pressed={poolOpen}
+          onClick={onTogglePool}
+        >
+          <Images />
+        </IconButton>
+      )}
     </nav>
   );
 }

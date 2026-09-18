@@ -1,6 +1,6 @@
-// Stored shapes. Mirrors the data model in PLAN.md: notebook metadata, text pages, one
-// canvas per notebook, and the image files the canvas references. They are separate
-// records so autosave writes only what changed.
+// Stored shapes. Mirrors the data model in PLAN.md: notebook metadata, pages (each with
+// its own drawing), one canvas per notebook, and the image files the pages and the
+// canvas reference. They are separate records so autosave writes only what changed.
 
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData } from "@excalidraw/excalidraw/types";
@@ -48,6 +48,9 @@ export interface Notebook {
   tags: Tag[];
 }
 
+/** Where a page's drawing paints in writing mode: over the text, or under it. */
+export type DrawingLayer = "over" | "under";
+
 /** Where a page left the canvas: Excalidraw's scroll offset and zoom. */
 export interface CanvasView {
   scrollX: number;
@@ -72,6 +75,12 @@ export interface Page {
   zine?: Zine;
   /** Divider offset in mm from the left edge, null for one column. */
   divider: number | null;
+  /**
+   * The page's drawing: plain Excalidraw elements in page coordinates (scene (0, 0) is
+   * the page's top-left corner), with deleted ones already dropped. Empty for none.
+   */
+  drawing: ExcalidrawElement[];
+  drawingLayer: DrawingLayer;
   canvasView: CanvasView | null;
 }
 
@@ -83,7 +92,7 @@ export interface Canvas {
   elements: ExcalidrawElement[];
 }
 
-/** An image, used by zine pages or the canvas. File ids are content hashes. */
+/** An image, used by zine pages, page drawings or the canvas. File ids are content hashes. */
 export interface NotebookFile {
   notebookId: string;
   id: string;
@@ -143,11 +152,12 @@ export function referencedFileIds(elements: readonly ExcalidrawElement[]): strin
   return [...ids];
 }
 
-/** File ids the zine pages use, without duplicates. */
+/** File ids the pages use, in zine blocks or in their drawings, without duplicates. */
 export function pageFileIds(pages: readonly Page[]): string[] {
   const ids = new Set<string>();
   for (const page of pages) {
     if (page.zine) for (const id of zineFileIds(page.zine)) ids.add(id);
+    for (const id of referencedFileIds(page.drawing)) ids.add(id);
   }
   return [...ids];
 }

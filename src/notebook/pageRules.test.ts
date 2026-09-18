@@ -15,6 +15,8 @@ const lined = (text: string): Page => ({
   margin: 20,
   columns: [columnFromText(text)],
   divider: null,
+  drawing: [],
+  drawingLayer: "over",
   canvasView: null,
 });
 

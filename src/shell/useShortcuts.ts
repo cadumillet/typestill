@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { isMac, keyLabel } from "./keys";
 
 export type ShortcutAction =
-  "previousPage" | "nextPage" | "newLinedPage" | "newZinePage" | "togglePanel";
+  "previousPage" | "nextPage" | "newLinedPage" | "newZinePage" | "drawingMode";
 
 /** The parts of a KeyboardEvent the shortcuts look at. */
 export interface ShortcutKey {
@@ -48,7 +48,7 @@ const BINDINGS: Binding[] = [
   { action: "nextPage", code: "ArrowDown", shift: false, label: "↓", repeats: true },
   { action: "newLinedPage", code: "KeyN", shift: false, label: "N", repeats: false },
   { action: "newZinePage", code: "KeyN", shift: true, label: "N", repeats: false },
-  { action: "togglePanel", code: "Backslash", shift: false, label: "\\", repeats: false },
+  { action: "drawingMode", code: "KeyD", shift: false, label: "D", repeats: false },
 ];
 
 /**

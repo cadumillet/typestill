@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { emptyZine } from "../page/zine";
-import { fileData } from "../store/fixtures";
+import { fileData, imageElement } from "../store/fixtures";
 import type { Page } from "../store/model";
 import { describeUsage, fileUsage, isUsed, poolEntries, usageBadge } from "./pool";
 
-const page = (id: string, images: (string | null)[] = []): Page => ({
+const page = (id: string, images: (string | null)[] = [], drawn: string[] = []): Page => ({
   id,
   notebookId: "nb",
   createdAt: 1,
@@ -14,6 +14,8 @@ const page = (id: string, images: (string | null)[] = []): Page => ({
   margin: 20,
   columns: [],
   divider: null,
+  drawing: drawn.map((fileId, i) => imageElement(`${id}-${i}`, fileId)),
+  drawingLayer: "over",
   canvasView: null,
   ...(images.length > 0
     ? {
@@ -46,6 +48,17 @@ describe("media pool", () => {
     expect(usage.get("f3")).toEqual({ pages: [4], canvas: true });
     expect(usage.get("f4")).toEqual({ pages: [], canvas: true });
     expect(usage.get("f5")).toBeUndefined();
+  });
+
+  it("counts an image drawn on a page as a use, once per page", () => {
+    const pages = [
+      page("a", [], ["f1"]),
+      page("b", ["f1"], ["f1", "f2"]),
+      page("c", [], ["f2", "f2"]),
+    ];
+    const usage = fileUsage(pages, []);
+    expect(usage.get("f1")).toEqual({ pages: [1, 2], canvas: false });
+    expect(usage.get("f2")).toEqual({ pages: [2, 3], canvas: false });
   });
 
   it("lists the pool newest first with usage, unused files included", () => {

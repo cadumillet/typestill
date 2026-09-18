@@ -65,6 +65,8 @@ function buildPage(
     margin: notebook.defaults.margin,
     columns: kind === "lined" ? emptyColumns(divider) : [],
     divider: kind === "lined" ? divider : null,
+    drawing: [],
+    drawingLayer: "over",
     canvasView: null,
   };
   if (kind === "zine") page.zine = emptyZine(getTheme(notebook.themeId).zine);
@@ -273,7 +275,8 @@ export async function createPage(
 
 /**
  * Changes an empty page's kind. Returns the page as stored. Throws if the page has
- * content, since a kind change would drop it.
+ * content, since a kind change would drop it. The page's drawing is not content of
+ * either kind, so it stays, as do the settings.
  */
 export async function setPageKind(db: TypestillDb, id: string, kind: PageKind): Promise<Page> {
   return db.transaction("rw", [db.notebooks, db.pages], async () => {
@@ -300,7 +303,7 @@ export async function setPageKind(db: TypestillDb, id: string, kind: PageKind): 
 export async function updatePage(
   db: TypestillDb,
   id: string,
-  patch: Partial<Pick<Page, "tagId" | "showPageNumber" | "margin" | "canvasView">>,
+  patch: Partial<Pick<Page, "tagId" | "showPageNumber" | "margin" | "drawingLayer" | "canvasView">>,
 ): Promise<void> {
   await db.pages.update(id, patch);
 }
@@ -317,6 +320,34 @@ export async function savePageText(
 /** Saves a zine page's media block and text. */
 export async function savePageZine(db: TypestillDb, id: string, zine: Zine): Promise<void> {
   await db.pages.update(id, { zine });
+}
+
+/**
+ * Saves the page's drawing. Deleted elements are dropped, and any file an image element
+ * references is stored with the notebook so it survives a reload, like the canvas's.
+ */
+export async function savePageDrawing(
+  db: TypestillDb,
+  id: string,
+  elements: readonly ExcalidrawElement[],
+  files: BinaryFiles,
+): Promise<void> {
+  const live = elements.filter((element) => !element.isDeleted);
+  await db.transaction("rw", [db.pages, db.files], async () => {
+    const page = await db.pages.get(id);
+    if (!page) throw new Error(`Page ${id} not found`);
+    const { notebookId } = page;
+    const known = new Set(
+      (await db.files.where("notebookId").equals(notebookId).primaryKeys()).map(
+        ([, fileId]) => fileId,
+      ),
+    );
+    const missing = referencedFileIds(live)
+      .filter((fileId) => !known.has(fileId) && files[fileId])
+      .map((fileId) => ({ notebookId, id: fileId, data: files[fileId] }));
+    await db.pages.update(id, { drawing: live });
+    if (missing.length > 0) await db.files.bulkAdd(missing);
+  });
 }
 
 /**
@@ -471,7 +502,10 @@ export class FileInUseError extends Error {
   }
 }
 
-/** Deletes an image the notebook no longer uses anywhere. Throws FileInUseError otherwise. */
+/**
+ * Deletes an image the notebook no longer uses anywhere: on zine pages, in page drawings
+ * or on the canvas. Throws FileInUseError otherwise.
+ */
 export async function deleteFile(db: TypestillDb, notebookId: string, id: string): Promise<void> {
   await db.transaction("rw", [db.pages, db.canvases, db.files], async () => {
     if ((await usedFileIds(db, notebookId)).has(id)) throw new FileInUseError(id);
@@ -479,13 +513,13 @@ export async function deleteFile(db: TypestillDb, notebookId: string, id: string
   });
 }
 
-/** File ids in use anywhere in the notebook: on zine pages or on the canvas. */
+/** File ids in use anywhere in the notebook: on zine pages, in page drawings or on the canvas. */
 export async function usedFileIds(db: TypestillDb, notebookId: string): Promise<Set<string>> {
   const [pages, canvas] = await Promise.all([listPages(db, notebookId), getCanvas(db, notebookId)]);
   return new Set([...pageFileIds(pages), ...referencedFileIds(canvas.elements)]);
 }
 
-/** Removes files neither the zine pages nor the canvas reference. Returns how many. */
+/** Removes files no zine page, page drawing or the canvas references. Returns how many. */
 export async function pruneFiles(db: TypestillDb, notebookId: string): Promise<number> {
   return db.transaction("rw", [db.pages, db.canvases, db.files], async () => {
     const used = await usedFileIds(db, notebookId);

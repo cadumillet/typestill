@@ -8,7 +8,7 @@ import {
   parseBackup,
   serializeBackup,
 } from "./backup";
-import { fileData } from "./fixtures";
+import { element, fileData, imageElement } from "./fixtures";
 import type { NotebookDocument } from "./model";
 
 const formatted: EditorDocument = {
@@ -50,6 +50,8 @@ const doc: NotebookDocument = {
       margin: 20,
       columns: [{ text: "hello \nworld!", doc: formatted }, columnFromText("world")],
       divider: 70,
+      drawing: [element("r1"), imageElement("img", "f1")],
+      drawingLayer: "under",
       canvasView: { scrollX: 0, scrollY: 0, zoom: 1 },
     },
     {
@@ -73,6 +75,8 @@ const doc: NotebookDocument = {
         ],
       },
       divider: null,
+      drawing: [],
+      drawingLayer: "over",
       canvasView: null,
     },
   ],
@@ -90,11 +94,47 @@ const legacyZine = {
   textRows: 3,
 };
 
+/** The document as a file from before version 8 holds it: no drawing fields. */
+function withoutDrawings<T extends { notebook: { pages: Record<string, unknown>[] } }>(raw: T): T {
+  for (const page of raw.notebook.pages) {
+    delete page.drawing;
+    delete page.drawingLayer;
+  }
+  return raw;
+}
+
+/** The document as it parses from a file without drawings. */
+const undrawn: NotebookDocument = {
+  ...doc,
+  pages: doc.pages.map((page) => ({ ...page, drawing: [], drawingLayer: "over" })),
+};
+
 describe("backup", () => {
-  it("round-trips through JSON", () => {
+  it("round-trips through JSON at version 8, drawings included", () => {
+    expect(BACKUP_VERSION).toBe(8);
     const text = serializeBackup(doc);
     expect(JSON.parse(text).version).toBe(BACKUP_VERSION);
     expect(parseBackup(text)).toEqual(doc);
+  });
+
+  it("reads version 7 files, giving pages an empty drawing over the text", () => {
+    const raw = withoutDrawings(JSON.parse(serializeBackup(doc)));
+    raw.version = 7;
+    expect(parseBackup(JSON.stringify(raw))).toEqual(undrawn);
+  });
+
+  it("checks the drawing fields of version 8 files", () => {
+    const missing = withoutDrawings(JSON.parse(serializeBackup(doc)));
+    expect(() => parseBackup(JSON.stringify(missing))).toThrow(BackupError);
+    expect(() => parseBackup(JSON.stringify(missing))).toThrow(/drawing/);
+
+    const notArray = JSON.parse(serializeBackup(doc));
+    notArray.notebook.pages[0].drawing = { elements: [] };
+    expect(() => parseBackup(JSON.stringify(notArray))).toThrow(/invalid drawing$/);
+
+    const sideways = JSON.parse(serializeBackup(doc));
+    sideways.notebook.pages[0].drawingLayer = "sideways";
+    expect(() => parseBackup(JSON.stringify(sideways))).toThrow(/drawing layer/);
   });
 
   it("reads version 1, turning each line break into a paragraph boundary", () => {
@@ -213,9 +253,9 @@ describe("backup", () => {
   });
 
   it("reads version 6 files as they are, and refuses an unknown highlight tint", () => {
-    const raw = JSON.parse(serializeBackup(doc));
+    const raw = withoutDrawings(JSON.parse(serializeBackup(doc)));
     raw.version = 6;
-    expect(parseBackup(JSON.stringify(raw))).toEqual(doc);
+    expect(parseBackup(JSON.stringify(raw))).toEqual(undrawn);
 
     const tinted = JSON.parse(serializeBackup(doc));
     tinted.notebook.pages[0].columns[0].doc.content[0].content[3].marks[0].attrs.tint = "orange";

@@ -1,8 +1,8 @@
-// Exports: PDF of every page, PNG of one page, PNG of the canvas. Pages are rendered
-// off screen at zoom 1 in preview mode (no rules, margin or divider; the page number
-// stays; no side, so the paper is rectangular) through the same renderer as thumbnails,
-// at 2x, so they wrap exactly as on screen; the PDF places each image on a page of the
-// paper's physical size.
+// Exports: PDF of every page, PNG of one page (and, dormant, PNG of the canvas). Pages
+// are rendered off screen at zoom 1 in preview mode (no rules, margin or divider; the
+// page number and the drawing stay; no side, so the paper is rectangular) through the
+// same renderer as thumbnails, at 2x, so they wrap exactly as on screen; the PDF places
+// each image on a page of the paper's physical size.
 
 import { exportToBlob } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
@@ -10,6 +10,7 @@ import type { BinaryFileData, BinaryFiles } from "@excalidraw/excalidraw/types";
 import { PDFDocument } from "pdf-lib";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
+import { primeDrawingStill } from "../page/stills";
 import { pageGeometry, pageMm } from "../page/paper";
 import { renderPage } from "../page/render";
 import { TextPage } from "../page/TextPage";
@@ -40,11 +41,19 @@ function pageElement(page: Page, index: number, source: ExportSource, theme: The
     preview: true,
     readOnly: true,
     number: page.showPageNumber ? index + 1 : null,
+    drawing: page.drawing,
+    drawingLayer: page.drawingLayer,
   };
   return page.kind === "zine" && page.zine ? (
     <ZinePage {...common} zine={page.zine} files={source.files} />
   ) : (
-    <TextPage {...common} margin={page.margin} columns={page.columns} divider={page.divider} />
+    <TextPage
+      {...common}
+      margin={page.margin}
+      columns={page.columns}
+      divider={page.divider}
+      files={source.files}
+    />
   );
 }
 
@@ -67,10 +76,15 @@ async function renderPages(
     (geometry.height / pageMm(source.notebook.pageSize, source.notebook.orientation).height) *
     theme.lined.pitchMm;
   // The fonts must be loaded and measured before the first render, so the pages come
-  // out with their baselines on the rules rather than the fallback ratio.
+  // out with their baselines on the rules rather than the fallback ratio; the drawings'
+  // stills likewise, so a page finds its still on its first render.
+  const { pageSize, orientation } = source.notebook;
   await Promise.all([
     primeBaseline(theme.lined.font, pitch / theme.lined.font.lineHeight, pitch),
     primeBaseline(theme.zine.font, pitch / theme.zine.font.lineHeight, pitch),
+    ...indexes
+      .filter((index) => pages[index].drawing.length > 0)
+      .map((index) => primeDrawingStill(pages[index].drawing, source.files, pageSize, orientation)),
   ]);
 
   const host = document.createElement("div");
@@ -136,7 +150,7 @@ export async function exportPagePng(
   return out;
 }
 
-/** The canvas as a PNG by content bounds, on white, without the grid. */
+/** The canvas as a PNG by content bounds, on white, without the grid. Dormant (PLAN.md section 8). */
 export async function exportCanvasPng(
   elements: readonly ExcalidrawElement[],
   files: BinaryFiles,

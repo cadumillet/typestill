@@ -203,3 +203,41 @@
   color: #c0504d;
   pointer-events: none;
 }
+
+/* The page's drawing as a still, in writing mode: an image the size of the page (sized
+   by DrawingStill, from the padding box's origin like the text), over the text (2) or
+   under it (0, placed before the columns so tree order paints it first). On dark paper it
+   takes the inversion filter Excalidraw's dark mode uses. */
+.text-page__drawing {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+.text-page__drawing--over {
+  z-index: 2;
+}
+
+.text-page__drawing--under {
+  z-index: 0;
+}
+
+.text-page__drawing.is-inverted {
+  filter: invert(93%) hue-rotate(180deg);
+}
+
+/* Drawing mode: the writing is locked and takes no clicks (the drawing editor is over the
+   page), and the text and the rules fade to the viewing aids' opacity. Screen only: no
+   render happens in this state. */
+.text-page.is-drawing .text-page__column {
+  pointer-events: none;
+  opacity: var(--page-text-opacity, 1);
+}
+
+.text-page.is-drawing::before,
+.text-page.is-drawing::after,
+.text-page.is-drawing .text-page__divider {
+  opacity: var(--page-rules-opacity, 1);
+}

@@ -27,6 +27,7 @@ import {
   neighbourIndex,
   pruneFiles,
   saveCanvasContent,
+  savePageDrawing,
   savePageText,
   savePageZine,
   saveThumbnail,
@@ -63,6 +64,8 @@ describe("notebooks", () => {
     expect(firstPage.columns).toEqual([columnFromText("")]);
     expect(firstPage.divider).toBeNull();
     expect(firstPage.margin).toBe(20);
+    expect(firstPage.drawing).toEqual([]);
+    expect(firstPage.drawingLayer).toBe("over");
     expect(firstPage.canvasView).toBeNull();
     expect(notebook.lastPageId).toBe(firstPage.id);
     expect((await db.notebooks.get(notebook.id))?.lastPageId).toBe(firstPage.id);
@@ -197,11 +200,13 @@ describe("pages", () => {
     await savePageText(db, second.id, [columnFromText("hello")]);
     await updatePage(db, second.id, {
       showPageNumber: false,
+      drawingLayer: "under",
       canvasView: { scrollX: 1, scrollY: 2, zoom: 0.5 },
     });
     const stored = await db.pages.get(second.id);
     expect(stored?.columns).toEqual([columnFromText("hello")]);
     expect(stored?.showPageNumber).toBe(false);
+    expect(stored?.drawingLayer).toBe("under");
     expect(stored?.canvasView).toEqual({ scrollX: 1, scrollY: 2, zoom: 0.5 });
     expect((await deletePage(db, firstPage.id)).id).toBe(second.id);
     expect((await listPages(db, notebook.id)).map((p) => p.id)).toEqual([second.id]);
@@ -297,17 +302,22 @@ describe("pages", () => {
     expect(isPageEmpty(stored!)).toBe(false);
   });
 
-  it("changes the kind of an empty page only", async () => {
+  it("changes the kind of an empty page only, keeping its drawing", async () => {
     const { notebook, firstPage } = await createNotebook(db, { name: "A" });
+    await savePageDrawing(db, firstPage.id, [element("a")], {});
+    await updatePage(db, firstPage.id, { drawingLayer: "under" });
     const zine = await setPageKind(db, firstPage.id, "zine");
     expect(zine.kind).toBe("zine");
     expect(zine.columns).toEqual([]);
     expect(zine.zine).toEqual(emptyZine());
     expect(zine.createdAt).toBe(firstPage.createdAt);
+    expect(zine.drawing).toEqual([element("a")]);
+    expect(zine.drawingLayer).toBe("under");
     const lined = await setPageKind(db, firstPage.id, "lined");
     expect(lined.kind).toBe("lined");
     expect(lined.columns).toEqual([columnFromText("")]);
     expect(lined.zine).toBeUndefined();
+    expect(lined.drawing).toEqual([element("a")]);
     expect((await db.pages.get(firstPage.id))?.zine).toBeUndefined();
     await savePageText(db, firstPage.id, [columnFromText("written")]);
     await expect(setPageKind(db, firstPage.id, "zine")).rejects.toThrow(/empty/);
@@ -395,6 +405,54 @@ describe("pages", () => {
     }
   });
 
+  it("gives pages from version 8 of the database an empty drawing over the text", async () => {
+    const name = `test-${crypto.randomUUID()}`;
+    const old = new Dexie(name);
+    old.version(8).stores({
+      notebooks: "id, lastOpenedAt",
+      pages: "id, notebookId, [notebookId+createdAt]",
+      canvases: "notebookId",
+      files: "[notebookId+id], notebookId",
+      thumbnails: "pageId, notebookId",
+    });
+    const before = [
+      {
+        id: "p1",
+        notebookId: "nb",
+        createdAt: 1,
+        kind: "lined",
+        tagId: "t1",
+        showPageNumber: false,
+        margin: 25,
+        columns: [columnFromText("a"), columnFromText("b")],
+        divider: 70,
+        canvasView: { scrollX: 1, scrollY: 2, zoom: 0.5 },
+      },
+      {
+        id: "p2",
+        notebookId: "nb",
+        createdAt: 2,
+        kind: "zine",
+        tagId: null,
+        showPageNumber: true,
+        margin: 20,
+        columns: [],
+        zine: emptyZine(),
+        divider: null,
+        canvasView: null,
+      },
+    ];
+    await old.table("pages").bulkAdd(before);
+    old.close();
+    const upgraded = new TypestillDb(name);
+    try {
+      const pages = await listPages(upgraded, "nb");
+      expect(pages).toEqual(before.map((page) => ({ ...page, drawing: [], drawingLayer: "over" })));
+    } finally {
+      await upgraded.delete();
+    }
+  });
+
   it("upgrades plain-text columns from version 1 of the database", async () => {
     const name = `test-${crypto.randomUUID()}`;
     const old = new Dexie(name);
@@ -464,27 +522,68 @@ describe("tags", () => {
 });
 
 describe("files", () => {
-  it("stores an image once and counts zine pages and the canvas as uses", async () => {
-    const { notebook } = await createNotebook(db, { name: "A" });
+  it("stores an image once and counts zine pages, page drawings and the canvas as uses", async () => {
+    const { notebook, firstPage } = await createNotebook(db, { name: "A" });
     await addFile(db, notebook.id, fileData("f1"));
     await addFile(db, notebook.id, fileData("f1"));
     await addFile(db, notebook.id, fileData("f2"));
     await addFile(db, notebook.id, fileData("f3"));
-    expect(await db.files.count()).toBe(3);
+    await addFile(db, notebook.id, fileData("f4"));
+    expect(await db.files.count()).toBe(4);
     const page = await createPage(db, notebook.id, { kind: "zine" });
     await savePageZine(db, page.id, {
       ...emptyZine(),
       rows: [{ blocks: [{ kind: "image", image: { fileId: "f1", fit: "cover" } }] }],
     });
     await saveCanvasContent(db, notebook.id, [imageElement("img", "f2")], {});
-    expect([...(await usedFileIds(db, notebook.id))].sort()).toEqual(["f1", "f2"]);
+    await savePageDrawing(db, firstPage.id, [imageElement("drawn", "f4")], {});
+    expect([...(await usedFileIds(db, notebook.id))].sort()).toEqual(["f1", "f2", "f4"]);
     await expect(deleteFile(db, notebook.id, "f1")).rejects.toThrow(FileInUseError);
     await expect(deleteFile(db, notebook.id, "f2")).rejects.toThrow(/in use/);
+    await expect(deleteFile(db, notebook.id, "f4")).rejects.toThrow(FileInUseError);
     await deleteFile(db, notebook.id, "f3");
-    expect(await db.files.count()).toBe(2);
+    expect(await db.files.count()).toBe(3);
     await addFile(db, notebook.id, fileData("f3"));
     expect(await pruneFiles(db, notebook.id)).toBe(1);
-    expect(Object.keys(await loadNotebookFiles(db, notebook.id)).sort()).toEqual(["f1", "f2"]);
+    expect(Object.keys(await loadNotebookFiles(db, notebook.id)).sort()).toEqual([
+      "f1",
+      "f2",
+      "f4",
+    ]);
+  });
+});
+
+describe("page drawings", () => {
+  it("saves a drawing without deleted elements and stores referenced files once", async () => {
+    const { notebook, firstPage } = await createNotebook(db, { name: "A" });
+    const files = { f1: fileData("f1"), unused: fileData("unused") };
+    await savePageDrawing(
+      db,
+      firstPage.id,
+      [element("a"), element("gone", { isDeleted: true }), imageElement("img", "f1")],
+      files,
+    );
+    const stored = await db.pages.get(firstPage.id);
+    expect(stored?.drawing.map((e) => e.id)).toEqual(["a", "img"]);
+    expect(Object.keys(await loadNotebookFiles(db, notebook.id))).toEqual(["f1"]);
+
+    // Saving again with the same file does not fail on the primary key.
+    await savePageDrawing(db, firstPage.id, [imageElement("img", "f1")], files);
+    expect(await db.files.count()).toBe(1);
+  });
+
+  it("refuses to save a drawing on a page that does not exist", async () => {
+    await createNotebook(db, { name: "A" });
+    await expect(savePageDrawing(db, "missing", [element("a")], {})).rejects.toThrow(/not found/);
+  });
+
+  it("prunes files no page drawing references any more", async () => {
+    const { notebook, firstPage } = await createNotebook(db, { name: "A" });
+    await savePageDrawing(db, firstPage.id, [imageElement("img", "f1")], { f1: fileData("f1") });
+    expect(await pruneFiles(db, notebook.id)).toBe(0);
+    await savePageDrawing(db, firstPage.id, [element("a")], {});
+    expect(await pruneFiles(db, notebook.id)).toBe(1);
+    expect(await db.files.count()).toBe(0);
   });
 });
 
@@ -526,10 +625,12 @@ describe("export and import", () => {
   it("round-trips a notebook document", async () => {
     const { notebook, firstPage } = await createNotebook(db, { name: "A" });
     await savePageText(db, firstPage.id, [columnFromText("some text")]);
+    await savePageDrawing(db, firstPage.id, [element("a")], {});
     await saveCanvasContent(db, notebook.id, [imageElement("img", "f1")], { f1: fileData("f1") });
     await createPage(db, notebook.id);
     const doc = await exportNotebook(db, notebook.id);
     expect(doc?.pages).toHaveLength(2);
+    expect(doc?.pages[0].drawing).toEqual([element("a")]);
     expect(doc?.canvas.elements).toHaveLength(1);
     expect(Object.keys(doc?.files ?? {})).toEqual(["f1"]);
 

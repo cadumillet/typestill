@@ -1,5 +1,5 @@
 // Test helpers. Minimal Excalidraw-shaped elements: the store only reads id, type,
-// version, isDeleted and fileId.
+// version, isDeleted and fileId, and search reads text and originalText.
 
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData } from "@excalidraw/excalidraw/types";
@@ -23,6 +23,22 @@ export function element(
 
 export function imageElement(id: string, fileId: string): ExcalidrawElement {
   return element(id, { type: "image", fileId });
+}
+
+/**
+ * A text element as typed. Excalidraw keeps the wrapped text in `text` and the source in
+ * `originalText`; both are the given text unless `originalText` is passed.
+ */
+export function textElement(
+  id: string,
+  text: string,
+  extra: { originalText?: string; isDeleted?: boolean } = {},
+): ExcalidrawElement {
+  return {
+    ...element(id, { type: "text", isDeleted: extra.isDeleted ?? false }),
+    text,
+    originalText: extra.originalText ?? text,
+  } as unknown as ExcalidrawElement;
 }
 
 export function fileData(id: string): BinaryFileData {

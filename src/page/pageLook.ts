@@ -1,5 +1,12 @@
 // The CSS custom properties a page sets from its theme, shared by every page kind.
 
+/**
+ * The page's border in CSS px (textpage.css, transparent unless the theme draws it).
+ * The page's content is laid out inside it, so anything pinned to the page from
+ * outside, like the drawing editor, starts one border in from the page's outer edge.
+ */
+export const PAGE_BORDER_PX = 1;
+
 import type { CSSProperties } from "react";
 import type { Font, Theme } from "../theme/theme";
 import { isDarkTheme } from "../theme/themes";

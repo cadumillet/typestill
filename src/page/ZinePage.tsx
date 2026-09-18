@@ -1,3 +1,4 @@
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData } from "@excalidraw/excalidraw/types";
 import {
   useCallback,
@@ -12,6 +13,10 @@ import { POOL_DRAG_TYPE } from "../notebook/pool";
 import { Column } from "./Column";
 import type { Column as ColumnValue } from "./document";
 import type { Theme } from "../theme/theme";
+import { isDarkTheme } from "../theme/themes";
+import type { DrawingLayer } from "../store/model";
+import { DrawingStill } from "./DrawingStill";
+import { drawingModeStyle, type DrawingAids } from "./drawingMode";
 import { FormatBar } from "./FormatBar";
 import { PageMarks } from "./PageMarks";
 import { mmToCssPx, pageMm, type Orientation, type PageSize } from "./paper";
@@ -66,6 +71,11 @@ export interface ZinePageProps {
   number?: number | null;
   /** The page's side, which rounds its outer corners; none for a rectangular render. */
   side?: PageSide;
+  /** The page's drawing, shown as a still over or under the blocks; empty for none. */
+  drawing?: readonly ExcalidrawElement[];
+  drawingLayer?: DrawingLayer;
+  /** Drawing mode, with its viewing aids: the page is locked and shows no still. */
+  drawingMode?: DrawingAids | null;
   onChange?: (zine: Zine) => void;
   /** Image files dropped, pasted or picked; null when pasted with every cell full. */
   onAddImages?: (cell: number | null, files: File[]) => void;
@@ -75,6 +85,8 @@ export interface ZinePageProps {
   selectedCell?: number | null;
   onSelectCell?: (cell: number | null) => void;
 }
+
+const NO_ELEMENTS: readonly ExcalidrawElement[] = [];
 
 const KIND_LABELS: Record<ZineBlockKind, string> = { image: "Image", grid: "Grid", text: "Text" };
 
@@ -107,6 +119,9 @@ export function ZinePage({
   readOnly = false,
   number = null,
   side,
+  drawing = NO_ELEMENTS,
+  drawingLayer = "over",
+  drawingMode = null,
   onChange,
   onAddImages,
   onPlaceFile,
@@ -121,7 +136,7 @@ export function ZinePage({
   const bar = useFormatBar(page);
   const [fullBlocks, setFullBlocks] = useState<boolean[]>([]);
   const [over, setOver] = useState(false);
-  const locked = preview || readOnly;
+  const locked = preview || readOnly || drawingMode !== null;
 
   const setBlockFull = useCallback((index: number, full: boolean) => {
     setFullBlocks((current) => {
@@ -220,6 +235,7 @@ export function ZinePage({
     height: px(mm.height),
     "--rule-pitch": `${pitch}px`,
     "--font-size": `${pitch / theme.zine.font.lineHeight}px`,
+    ...(drawingMode ? drawingModeStyle(drawingMode) : {}),
   } as CSSProperties;
 
   const boxStyle = (box: Box): CSSProperties => ({
@@ -236,6 +252,7 @@ export function ZinePage({
     preview ? "is-preview" : "",
     side ? `side-${side}` : "",
     over ? "is-over" : "",
+    drawingMode ? "is-drawing" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -265,6 +282,18 @@ export function ZinePage({
       onDragLeave={() => setOver(false)}
       onDrop={onDrop}
     >
+      {!drawingMode && (
+        <DrawingStill
+          elements={drawing}
+          files={files}
+          size={size}
+          orientation={orientation}
+          layer={drawingLayer}
+          inverted={isDarkTheme(theme)}
+          width={px(mm.width)}
+          height={px(mm.height)}
+        />
+      )}
       {blocks.map((entry) => {
         const { block, at, box } = entry;
         if (isMediaBlock(block)) {

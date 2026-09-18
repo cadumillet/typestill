@@ -253,3 +253,10 @@ button[aria-pressed="true"] {
   height: 100%;
   color: var(--muted);
 }
+
+/* In drawing mode the drawing editor covers the desk (z-index 5, pagedrawing.css); the
+   page bar stays above it, reachable, with its popovers and tooltips. */
+.page-bar {
+  position: relative;
+  z-index: 6;
+}

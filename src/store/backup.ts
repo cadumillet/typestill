@@ -3,10 +3,12 @@
 // Versions: 1 had plain-string columns; 2 (text formatting) has { text, doc } columns;
 // 3 (notebook cover) adds the cover; 4 (zine pages) adds the page kind and the zine
 // block; 5 (themes) adds the notebook's theme id; 6 (zine blocks) stores zine pages as
-// rows of blocks and drops the date stamp fields. Older files are still read: version 1
-// columns are converted, each line break becoming a paragraph boundary, a missing cover
-// is the default one, a page without a kind is lined, a missing theme is Ruled, and a
-// zine page of the old shape is converted losslessly (see zineLegacy.ts).
+// rows of blocks and drops the date stamp fields; 7 (highlight) lets documents carry the
+// highlight mark; 8 (drawing on the page) adds each page's drawing and its layer. Older
+// files are still read: version 1 columns are converted, each line break becoming a
+// paragraph boundary, a missing cover is the default one, a page without a kind is
+// lined, a missing theme is Ruled, a zine page of the old shape is converted losslessly
+// (see zineLegacy.ts), and a page without a drawing gets an empty one, over the text.
 
 import { DEFAULT_COVER, isCover } from "../notebook/cover";
 import { columnFromText, isColumn } from "../page/document";
@@ -17,10 +19,10 @@ import { DEFAULT_THEME_ID } from "../theme/themes";
 import type { Column, NotebookDocument, Page } from "./model";
 
 export const BACKUP_FORMAT = "typestill-notebook";
-// Version 7 added the highlight mark to the documents: nothing to convert, but an older
-// app would refuse the mark, so the version says so.
-export const BACKUP_VERSION = 7;
-const READABLE_VERSIONS = new Set([1, 2, 3, 4, 5, 6, 7]);
+// Version 8 added the page drawings (Phase 8): pages carry `drawing` and `drawingLayer`,
+// which older files lack and the parser fills in.
+export const BACKUP_VERSION = 8;
+const READABLE_VERSIONS = new Set([1, 2, 3, 4, 5, 6, 7, 8]);
 
 export interface BackupFile {
   format: typeof BACKUP_FORMAT;
@@ -127,6 +129,13 @@ export function parseBackup(text: string): NotebookDocument {
       page.margin === undefined || typeof page.margin === "number",
       "Page has an invalid margin",
     );
+    // The drawing's element shapes are Excalidraw's, sanitised by restoreElements when
+    // loaded, like the canvas's.
+    expect(version < 8 || Array.isArray(page.drawing), "Page has an invalid drawing");
+    expect(
+      version < 8 || page.drawingLayer === "over" || page.drawingLayer === "under",
+      "Page has an invalid drawing layer",
+    );
     expect(
       page.canvasView === null ||
         (isRecord(page.canvasView) &&
@@ -165,6 +174,9 @@ export function parseBackup(text: string): NotebookDocument {
         columns: (page.columns as (string | Column)[]).map((column) =>
           typeof column === "string" ? columnFromText(column) : column,
         ),
+        // Pages from before version 8 have no drawing.
+        drawing: version < 8 ? [] : page.drawing,
+        drawingLayer: version < 8 ? "over" : page.drawingLayer,
       };
       if (converted.kind === "zine") {
         const zine = page.zine as unknown;
