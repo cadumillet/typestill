@@ -1,10 +1,10 @@
 # typestill
 
-A commonplace notebook built on top of Excalidraw.
+A digital notebook made to be the bridge between digital notes and real commonplace notebooks and zines. Opinionated but flexible, with simplicity at its core. Built on top of Excalidraw for drawing.
 
-The idea: a notebook where each side has its own character. On the left, fixed-size lined pages you write on like a simple note editor, in Excalidraw's handwriting font, always on the lines. On the right, one infinite Excalidraw canvas per notebook for drawings, diagrams and images, with an optional grid that snaps. Pages remember where they left the canvas, so each page opens next to its own part of the drawing. No productivity-app machinery.
+The idea: a notebook where each side has its own character. On the left, fixed-size lined pages you write on like a simple note editor, in Excalidraw's handwriting font, always on the lines. On the right, one infinite Excalidraw canvas per notebook for drawings, diagrams and images, with an optional grid that snaps. Pages remember where they left the canvas, so each page opens next to its own part of the drawing. Pages come in two kinds: lined pages for writing, and zine pages for images with a little text. No productivity-app machinery.
 
-Status (2026-09-17): Phase 1 is complete and on `main`: the store, the page editor, the canvas panel and split view, storage wiring with autosave and per-page canvas views, backup download and restore, notebook settings, the left rail and the bare notebook switcher. Phase 2 has started with text formatting: the page editor is on ProseMirror with bold, italic, colour and alignment, a floating format bar, and the backup format at version 2. Next is the notebook cover. Visual refinement is deliberately left for the end; the page's paper look should be settled before export work starts.
+Status (2026-09-17): Phase 1 is complete and on `main`: the store, the page editor, the canvas panel and split view, storage wiring with autosave and per-page canvas views, backup download and restore, notebook settings, the left rail and the bare notebook switcher. Phase 2 has started with text formatting: the page editor is on ProseMirror with bold, italic, colour and alignment, a floating format bar, and the backup format at version 2. Next is the notebook cover, then zine pages (specified in sections 2, 3 and 5 on 2026-09-17). Visual refinement is deliberately left for the end; the page's paper look should be settled before export work starts.
 
 ---
 
@@ -17,6 +17,8 @@ Status (2026-09-17): Phase 1 is complete and on `main`: the store, the page edit
 - The app is not opinionated about organization. Tags and filters are the only structure.
 - Text is on the lines by construction. The user never nudges things to keep a page tidy.
 - Everything drawn on the canvas is plain Excalidraw. We only build the shell around it.
+- Simplicity over features. Each page kind does one thing well: lined pages hold writing, zine pages hold images. Images never go into lined pages.
+- The owner holds the data: browser storage plus backup files they keep. No accounts, no backend.
 
 ## 2. Product spec
 
@@ -46,6 +48,15 @@ Status (2026-09-17): Phase 1 is complete and on `main`: the store, the page edit
 - Optional page number at the bottom center.
 - Date stamp and page number are per-page toggles, with a notebook-level default for new pages. They are rendered by the shell as overlays and composited into exports.
 - Preview: the page without rules, margin and divider, read-only.
+
+### Pages (zine)
+- A second page kind, for images, next to lined pages. A notebook mixes both freely. The kind is chosen when a page is created and can change only while the page is empty.
+- A zine page is composed like a Behance project, but small: one media block, which is a single image or a grid of two to four images, plus optional text below the media, beside it, or both. Nothing else on the page; nothing is dragged.
+- The media block fills the page. Padding is a page setting: zero means the images bleed to the page edges; otherwise the same margin on every side and the same gap between blocks.
+- Text below reserves a fixed number of lines at the bottom (default four, a page setting). Text beside reserves a column on the right, a third of the page width (left is an option). Text blocks use the same editor as lined pages with the same formatting, no rules, and the same hard stop when full.
+- Grid presets: two side by side, two stacked, two by two. Each cell fills with its image cropped to cover it; a per-image "fit" option letterboxes instead. Empty cells show a placeholder until an image is dropped in.
+- Images come from paste, drop or a file picker. They are downscaled on import (long edge 2048px, re-encoded), stored once per notebook by content hash in the same files table the canvas uses, and inlined in backups.
+- Zine pages remember a canvas view like lined pages, appear in the rail like any page, face each other in the two-page spread, and export at physical size like lined pages.
 
 ### Canvas (drawing)
 - One infinite Excalidraw canvas per notebook. Pan and zoom as in Excalidraw.
@@ -106,11 +117,13 @@ Page {
   id: string
   notebookId: string
   createdAt: number                    // also the page order
+  kind: "lined" | "zine"
   tagId: string | null
   showDate: boolean
   showPageNumber: boolean
   margin: number                       // margin line offset in mm
-  columns: Column[]                    // one or two columns
+  columns: Column[]                    // lined pages: one or two columns
+  zine?: Zine                          // zine pages
   divider: number | null               // mm from the left edge, null for one column
   canvasView: { scrollX, scrollY, zoom } | null
 }
@@ -118,6 +131,18 @@ Page {
 Column {
   text: string                         // plain text mirror of doc: search, and what a backup reader without the editor can use
   doc: EditorDocument                  // ProseMirror JSON: paragraphs with an align attr; text with bold, italic and colour marks; hard breaks
+}
+
+Zine {
+  padding: number                      // mm; 0 = images bleed to the page edges
+  media: {
+    layout: "single" | "row" | "column" | "square"   // one image, 2 side by side, 2 stacked, 2 by 2
+    images: [{ fileId: string, fit: "cover" | "contain" }]
+  }
+  textBelow: Column | null             // reserves textRows lines at the bottom
+  textBeside: Column | null            // reserves a column of a third of the width
+  textSide: "right" | "left"
+  textRows: number
 }
 
 Canvas {
@@ -132,7 +157,7 @@ NotebookFile { notebookId, id, data: BinaryFileData }   // images, referenced by
 Notes:
 - Pages, the canvas and files are separate records so autosave writes only what changed. The shelf reads notebook metadata only.
 - The canvas's `elements` is valid Excalidraw data. It can be exported as a normal `.excalidraw` file at any time, and future sync/collab can reuse Excalidraw's own reconciliation instead of a custom one.
-- Backup file = notebook, pages, canvas and files as one JSON document, images base64 inside. Format version 2; version 1 files (plain-string columns) are converted on open, each line break becoming a paragraph boundary. The IndexedDB schema has the same upgrade (Dexie version 2).
+- Backup file = notebook, pages, canvas and files as one JSON document, images base64 inside. A zip backup with images as separate files is planned for Phase 3, for notebooks heavy with photos. Format version 2; version 1 files (plain-string columns) are converted on open, each line break becoming a paragraph boundary. The IndexedDB schema has the same upgrade (Dexie version 2).
 - Page thumbnails are cached separately in IndexedDB and are not part of the file.
 
 ## 4. Tech stack
@@ -152,6 +177,10 @@ Notes:
 **Two columns.** Two text areas side by side. The divider is a shell element positioned at the page's divider offset, dragged in 10mm steps. Text does not flow between columns; each column is its own text.
 
 **Text formatting.** Bold, italic, colour and paragraph alignment need a structured document rather than a string, and reliable caret, undo, paste and input-method handling around marks is exactly where hand-rolled editors bleed time. The column is a ProseMirror editor with a tiny schema: a document of paragraphs, each with an alignment attribute; text with bold, italic and colour marks; a hard break node for Shift+Enter; nothing else. Enter splits the paragraph (the new one keeps the alignment and the marks being typed with), so alignment is a block property exactly as in Google Docs: it applies to the whole paragraph (wrapped lines and hard breaks included) and to every paragraph a selection touches, never to a single visual line. The colour palette is Excalidraw's default stroke picks; "black" is the page's ink, stored as no colour mark. Pasted HTML keeps bold, italic, alignment and palette colours and drops every other colour; pasted plain text becomes one paragraph per line, blank lines included. A small bar floats over a selection (after the pointer is released, so it does not chase a drag) with bold, italic, the swatches and the three alignments; the page positions it from the column's report of where the selection is. Capacity is still measured by height; floats for images still work because the editor's content is not a new block formatting context; export still renders the same DOM. Storage: each column keeps a `doc` in ProseMirror's JSON and a plain `text` mirror derived from it (paragraphs and hard breaks as line breaks); the backup format is version 2, with a converter that turns version 1 strings into one paragraph per line (each existing line break becomes a paragraph boundary, since that is what Enter meant before), and the IndexedDB schema upgrades the same way.
+
+**Zine pages.** A zine page is a fixed layout, not a free canvas: the media block plus optional text below or beside it, computed from the page size, the padding and the text reservations. Nothing is dragged; the page settings popover holds the padding, the grid preset, the text placement and the rows reserved. The media block renders images with object-fit; the text blocks reuse the ProseMirror column with its capacity check and no rules. Export renders the same DOM as lined pages. Files are the notebook's existing files table, content-hashed and shared with the canvas; pruning walks zine pages as well as the canvas.
+
+**Images.** Photos would swamp browser storage and backups, so images are downscaled on import with a canvas in the browser (long edge 2048px, JPEG at quality 0.85, PNG kept only when transparent) and stored as data URLs. A 2048px JPEG is a few hundred KB, so a notebook with a hundred images is tens of MB in IndexedDB and in its backup, which browsers handle but is worth showing in notebook settings. Nothing here needs a backend: the owner's browser holds the data and the owner holds the backups; only sync or collaboration would, and both stay "later".
 
 **Page export with identical wrapping.** Render the page's DOM into an SVG foreignObject with the font inlined as data URLs, draw it to a canvas at 2x, then composite the date stamp and page number. The same DOM wraps identically on screen and in the export. Print CSS is the fallback if foreignObject proves unreliable.
 
@@ -189,6 +218,7 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 ### Phase 2: notebook feel
 - Text formatting: bold, italic, colour, alignment; the page editor moves onto ProseMirror (section 5) (done)
 - Notebook cover: colour, optional emoji and subtitle, set in notebook settings; shown as a swatch in the switcher and the app bar (the shelf renders it as a card in Phase 3)
+- Zine pages: the page kind and its picker on new page, the media block (single image or grid preset), optional text below and beside, padding and reservations in page settings, image import with downscaling, files shared with the canvas
 - Divider drag and inheritance polish (two columns exist since Phase 1)
 - Tags: create, assign, color; rail coloring and filtering
 - Hover thumbnails in the rail
@@ -201,13 +231,19 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - Full-text search
 - PDF export (all pages)
 - PNG export (current page, canvas)
+- Zip backup with images as files; storage size shown in notebook settings; prune unreferenced images
 - Delete page with confirm
 - Keyboard shortcuts for page navigation
 - Proper shelf screen, notebooks shown as their covers
 - First-run onboarding
 
+### Ideas under discussion (2026-09-17, not yet specified)
+- Media pool: on a zine page the side panel shows the notebook's image pool instead of the drawing canvas. The pool is a view over the notebook's files table (every image, whether used on a zine page or the canvas) with import by drop or picker, and images are placed on the page from it.
+- Zine text blocks use a different font style from lined pages (a typeface rather than handwriting), set by the theme.
+- Themes: the page layout's variables (font, line pitch, rules and margin line on or off, insets, paper and ink colours, the zine text font and defaults) extracted from the code into a theme the notebook references. Built-in themes first (the current ruled look, a plain monospaced one without lines); user-made themes and "notebook templates" (theme plus notebook defaults) later. Themes change the page look only, nothing else in the app. Assessed as feasible; see the decisions log once specified.
+
 ### Later, not now
-- Images on text pages, with the text wrapping around them on the rule grid. Feasible: floats placed at the start of a column with a top margin sit at fixed lines regardless of the text, and the text flows around them. Needs the page editor to move from a text area to a plain-text contenteditable, since a text area cannot wrap around anything. See the assessment of 2026-09-17 in the decisions log.
+- Images on text pages with text wrapping around them: superseded by zine pages on 2026-09-17. The float approach stays documented in the decisions log in case it is ever wanted.
 - Cursor alternatives for pages: highlighting the active rule, or only the piece of rule under the next character, instead of a caret. Tried on 2026-09-17, not adopted for now.
 - Tag-based links between pages and canvas areas
 - Multiple notebooks polish (sorting)
@@ -239,4 +275,7 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - The caret is drawn by the shell, centred between rules, because a native text caret spans the whole line box and straddles the rule. Known issue: in the user's Chrome the caret still appears to cross the rule below it, while the built-in browser shows it centred; to be investigated in that Chrome directly.
 - The left rail sits under the app bar, to the left of the desk, with its first square aligned to the top of the page. The list scrolls on its own and keeps the open page's square in view; the hover label (and later the hover preview) floats beside the rail rather than inside the scrolling list, so it is never clipped.
 - The notebook switcher is the notebook name in the app bar: it opens a list of every notebook (most recently opened first, with page counts) and a "New notebook…" entry that asks for a name with a browser prompt. Renaming and deleting wait for the shelf screen (Phase 3).
-- Images on text pages (assessed 2026-09-17, not scheduled): possible with fixed-position floats now that the editor is a contenteditable. The editor switch was done on 2026-09-17.
+- Images on text pages (assessed 2026-09-17, not scheduled): possible with fixed-position floats now that the editor is a contenteditable. The editor switch was done on 2026-09-17. Superseded the same day by zine pages: images get their own page kind rather than a place inside lined pages.
+- Mission (2026-09-17): typestill is a digital notebook made to be the bridge between digital notes and real commonplace notebooks and zines. Opinionated but flexible, simplicity at its core. Note-taking is close to its end behaviour; the remaining area is images, handled by zine pages.
+- Zine pages (2026-09-17): a second page kind with one media block (a single image or a grid of up to four) and optional text below and/or beside it; padding as a page setting, no free placement, a fixed number of text rows. Text blocks reuse the lined editor without rules. Images are downscaled on import, stored in the notebook's files table by content hash and inlined in backups. No backend: browser storage plus owner-held backups remain the whole story.
+- Page sizes: A4 may be descoped, since zine pages want small pages. Not decided.
