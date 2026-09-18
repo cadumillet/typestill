@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { INK_COLORS } from "../canvas/palette";
 import { IconButton } from "../shell/IconButton";
+import { keyLabel } from "../shell/keys";
 import { AlignCenter, AlignLeft, AlignRight, Bold, Italic } from "../shell/icons";
 import { ALIGNMENTS, type Alignment } from "./document";
 import type { FormatAction, FormatState } from "./editor/commands";
@@ -17,9 +18,7 @@ export interface FormatBarProps {
 
 const GAP = 6;
 const INSET = 4;
-const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
-const shortcut = (key: string, shift = false) =>
-  isMac ? `⌘${shift ? "⇧" : ""}${key}` : `Ctrl+${shift ? "Shift+" : ""}${key}`;
+const shortcut = (key: string, shift = false) => keyLabel({ mod: true, shift, key });
 
 const ALIGNMENT_ICONS: Record<Alignment, { label: string; key: string; icon: () => ReactNode }> = {
   left: { label: "Align left", key: "L", icon: AlignLeft },

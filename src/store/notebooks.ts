@@ -334,11 +334,51 @@ export async function setPageDivider(
   });
 }
 
-/** Deletes a page and its thumbnail. */
-export async function deletePage(db: TypestillDb, id: string): Promise<void> {
-  await db.transaction("rw", [db.pages, db.thumbnails], async () => {
+/**
+ * The page to open once the page at `index` of `count` is gone: the previous one if there
+ * is one, else the next. Null when it is the only page. The index is into the list before
+ * the deletion.
+ */
+export function neighbourIndex(index: number, count: number): number | null {
+  if (index > 0) return index - 1;
+  return count > 1 ? 1 : null;
+}
+
+/**
+ * Deletes a page and its thumbnail, and returns the page to open next: the previous page,
+ * else the next. A notebook keeps at least one page, so deleting the only page replaces
+ * it with a fresh lined page built from the notebook defaults, which is then returned.
+ * If the deleted page was the notebook's remembered page, the returned page takes its
+ * place. Images a zine page used stay in the notebook's files; the media pool owns
+ * their deletion.
+ */
+export async function deletePage(db: TypestillDb, id: string): Promise<Page> {
+  return db.transaction("rw", [db.notebooks, db.pages, db.thumbnails], async () => {
+    const page = await db.pages.get(id);
+    if (!page) throw new Error(`Page ${id} not found`);
+    const notebook = await db.notebooks.get(page.notebookId);
+    if (!notebook) throw new Error(`Notebook ${page.notebookId} not found`);
+    const pages = await listPages(db, page.notebookId);
+    const index = pages.findIndex((p) => p.id === id);
+    const neighbour = neighbourIndex(index, pages.length);
     await db.pages.delete(id);
     await db.thumbnails.delete(id);
+    let opened: Page;
+    if (neighbour === null) {
+      opened = buildPage(
+        notebook,
+        Math.max(Date.now(), page.createdAt + 1),
+        "lined",
+        notebook.defaults.divider,
+      );
+      await db.pages.add(opened);
+    } else {
+      opened = pages[neighbour];
+    }
+    if (notebook.lastPageId === id) {
+      await db.notebooks.update(notebook.id, { lastPageId: opened.id });
+    }
+    return opened;
   });
 }
 

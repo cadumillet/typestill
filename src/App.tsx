@@ -1,10 +1,11 @@
 import { useCallback, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { Canvas, type CanvasContent } from "./canvas/Canvas";
+import { Canvas, type CanvasContent, type CanvasHandle } from "./canvas/Canvas";
 import { MediaPool } from "./notebook/MediaPool";
 import { PageRail } from "./notebook/PageRail";
 import { NotebookSwitcher } from "./notebook/NotebookSwitcher";
 import { PageSettings } from "./notebook/PageSettings";
+import { SearchBox } from "./notebook/SearchBox";
 import { SettingsDialog } from "./notebook/SettingsDialog";
 import { WelcomeDialog } from "./notebook/WelcomeDialog";
 import { useNotebookSession } from "./notebook/useNotebookSession";
@@ -13,6 +14,8 @@ import { TextPage } from "./page/TextPage";
 import { ZinePage } from "./page/ZinePage";
 import { defaultDivider, fitPage, pageGeometry, pageMm } from "./page/paper";
 import { imagesForLayout, isZineEmpty, type Zine } from "./page/zine";
+import { exportCanvasPng, exportFileName, exportPagePng, exportPdf } from "./notebook/export";
+import { downloadBlob } from "./notebook/files";
 import { nextTagColor } from "./notebook/tags";
 import { usePageThumbnail } from "./notebook/usePageThumbnail";
 import { columnsKey } from "./store/autosave";
@@ -22,6 +25,7 @@ import { IconButton } from "./shell/IconButton";
 import { Menu } from "./shell/Menu";
 import { Panel } from "./shell/Panel";
 import { SplitView } from "./shell/SplitView";
+import { shortcutLabel, useShortcuts } from "./shell/useShortcuts";
 import { FileInUseError } from "./store/notebooks";
 import { getTheme } from "./theme/themes";
 import {
@@ -75,9 +79,16 @@ export function App() {
     loadId: number;
     content: CanvasContent;
   }>();
+  /**
+   * The latest drawing the mounted canvas reported, for the canvas export and the search,
+   * without a render per stroke. Tagged with its load so another notebook's drawing is
+   * never used.
+   */
+  const latestCanvas = useRef<{ loadId: number; content: CanvasContent } | null>(null);
   const [deskRef, desk] = useElementSize<HTMLElement>();
   const deskElement = useRef<HTMLElement | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const canvasRef = useRef<CanvasHandle>(null);
   // The panel shows the media pool on zine pages and the canvas on lined pages. A peek
   // at the other lasts until the next page change, so it is tagged with its page.
   const [peek, setPeek] = useState<{ pageId: string; mode: "canvas" | "pool" } | null>(null);
@@ -121,6 +132,15 @@ export function App() {
     Boolean(loaded) && !preview,
     loaded ? loaded.saveThumbnail : () => undefined,
   );
+
+  // The shell's shortcuts mirror the app bar: page navigation, new page, the panel.
+  useShortcuts({
+    previousPage: () => session?.goTo(session.index - 1),
+    nextPage: () => session?.goTo(session.index + 1),
+    newLinedPage: () => void session?.newPage("lined"),
+    newZinePage: () => void session?.newPage("zine"),
+    togglePanel: () => setPanelOpen((open) => !open),
+  });
 
   if (!session) {
     return <div className="loading">Opening notebook…</div>;
@@ -222,6 +242,20 @@ export function App() {
     }
   };
 
+  // Deleting is by page id, so it reaches the real notebook whatever the rail's filter.
+  const deletePage = async () => {
+    const what =
+      page.kind === "zine"
+        ? "Its writing is removed from the notebook; its images stay in the media pool."
+        : "Its writing is removed from the notebook.";
+    const only =
+      pages.length === 1
+        ? " A fresh empty page takes its place, since a notebook keeps at least one page."
+        : "";
+    if (!window.confirm(`Delete page ${index + 1}? ${what}${only}`)) return;
+    await session.deletePage();
+  };
+
   const newTag = async () => {
     const name = window.prompt("Name for the new tag", "Tag")?.trim();
     if (!name) return;
@@ -238,7 +272,37 @@ export function App() {
     await session.deleteTag(tagId);
   };
 
+  // Exports run on the saved pages and the latest drawing; failures are reported plainly.
+  const exportSource = { notebook, files: session.files };
+  const runExport = async (make: () => Promise<Blob>, name: string) => {
+    try {
+      downloadBlob(name, await make());
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "The export failed.");
+    }
+  };
+  const currentCanvas = () =>
+    latestCanvas.current?.loadId === session.loadId
+      ? latestCanvas.current.content
+      : canvasSnapshot?.loadId === session.loadId
+        ? canvasSnapshot.content
+        : { elements: session.canvas.elements, files: session.files };
+
   const panelMode = peek?.pageId === page.id ? peek.mode : page.kind === "zine" ? "pool" : "canvas";
+
+  /** The canvas's elements as the editor has them, or as loaded while it has not reported yet. */
+  const canvasElements = () => currentCanvas().elements;
+
+  /** Shows the canvas, whatever the panel was doing, and pans it to an element. */
+  const openElement = (elementId: string) => {
+    // Mounting the editor synchronously puts its handle in place; the editor itself
+    // waits for its scene before jumping.
+    flushSync(() => {
+      setPanelOpen(true);
+      setPeek({ pageId: page.id, mode: "canvas" });
+    });
+    canvasRef.current?.scrollTo(elementId);
+  };
   const selectedCell = chosenCell?.pageId === page.id ? chosenCell.cell : null;
   const setSelectedCell = (cell: number | null) =>
     setChosenCell(cell === null ? null : { pageId: page.id, cell });
@@ -257,6 +321,7 @@ export function App() {
             <nav className="page-nav" aria-label="Pages">
               <IconButton
                 label="Previous page"
+                shortcut={shortcutLabel("previousPage")}
                 onClick={() => session.goTo(index - 1)}
                 disabled={index === 0}
               >
@@ -267,6 +332,7 @@ export function App() {
               </span>
               <IconButton
                 label="Next page"
+                shortcut={shortcutLabel("nextPage")}
                 onClick={() => session.goTo(index + 1)}
                 disabled={index === pages.length - 1}
               >
@@ -274,6 +340,7 @@ export function App() {
               </IconButton>
               <Menu
                 label="New page"
+                shortcut={shortcutLabel("newLinedPage")}
                 items={[
                   { label: "Lined page", onSelect: () => void session.newPage("lined") },
                   { label: "Zine page", onSelect: () => void session.newPage("zine") },
@@ -290,6 +357,12 @@ export function App() {
               onCreate={(name) => void session.createNotebook(name)}
             />
             <div className="app-header__actions">
+              <SearchBox
+                pages={pages}
+                elements={canvasElements}
+                onOpenPage={session.goTo}
+                onOpenElement={openElement}
+              />
               <PageSettings
                 page={page}
                 number={index + 1}
@@ -304,11 +377,39 @@ export function App() {
                 twoColumns={page.divider !== null}
                 onTwoColumnsChange={setTwoColumns}
                 onZineChange={changeZine}
+                onDeletePage={() => void deletePage()}
               />
               <Menu
                 label="Notebook"
                 items={[
                   { label: "Settings…", onSelect: () => setSettingsOpen(true) },
+                  {
+                    label: "Export PDF",
+                    onSelect: () =>
+                      void runExport(
+                        () => exportPdf(pages, exportSource),
+                        exportFileName(notebook, { kind: "pdf" }),
+                      ),
+                  },
+                  {
+                    label: "Export page as PNG",
+                    onSelect: () =>
+                      void runExport(
+                        () => exportPagePng(pages, index, exportSource),
+                        exportFileName(notebook, { kind: "page", number: index + 1 }),
+                      ),
+                  },
+                  {
+                    label: "Export canvas as PNG",
+                    onSelect: () =>
+                      void runExport(
+                        () => {
+                          const { elements, files } = currentCanvas();
+                          return exportCanvasPng(elements, files);
+                        },
+                        exportFileName(notebook, { kind: "canvas" }),
+                      ),
+                  },
                   { label: "Download backup", onSelect: () => void session.downloadBackup() },
                   { label: "Open backup…", onSelect: () => fileInput.current?.click() },
                 ]}
@@ -331,6 +432,7 @@ export function App() {
               </IconButton>
               <IconButton
                 label={panelOpen ? "Hide canvas" : "Show canvas"}
+                shortcut={shortcutLabel("togglePanel")}
                 pressed={panelOpen}
                 onClick={() => setPanelOpen((open) => !open)}
               >
@@ -435,6 +537,7 @@ export function App() {
           ) : (
             <Canvas
               key={session.loadId}
+              ref={canvasRef}
               initial={
                 canvasSnapshot?.loadId === session.loadId
                   ? canvasSnapshot.content
@@ -442,7 +545,10 @@ export function App() {
               }
               initialGridEnabled={session.canvas.gridEnabled}
               view={session.restoreView}
-              onChange={(content) => session.onCanvasChange(content, session.loadId)}
+              onChange={(content) => {
+                latestCanvas.current = { loadId: session.loadId, content };
+                session.onCanvasChange(content, session.loadId);
+              }}
               onViewChange={(view) => session.onCanvasViewChange(view, session.loadId)}
               onGridChange={session.onGridChange}
               onUnmount={(content) => setCanvasSnapshot({ loadId: session.loadId, content })}

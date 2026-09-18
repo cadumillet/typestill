@@ -1,0 +1,78 @@
+/* The search popover from the app bar: a text field over a list of results. */
+
+.search {
+  width: 320px;
+  padding: 2px;
+  font-size: 13px;
+}
+
+.search__input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font: inherit;
+  color: var(--ink);
+  background: var(--well);
+  border: 1px solid var(--control-line);
+  border-radius: 6px;
+  outline: none;
+}
+
+.search__input:focus {
+  border-color: var(--accent-line);
+}
+
+.search__results {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.search__result {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+  white-space: normal;
+}
+
+.search__result:hover,
+.search__result.is-active {
+  background: var(--hover);
+}
+
+.search__where {
+  flex: none;
+  min-width: 56px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.search__snippet {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search__snippet mark {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 2px;
+}
+
+.search__empty {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  color: var(--muted);
+}
