@@ -13,6 +13,7 @@ import { Column } from "./Column";
 import type { Column as ColumnValue } from "./document";
 import type { Theme } from "../theme/theme";
 import { FormatBar } from "./FormatBar";
+import { PageMarks } from "./PageMarks";
 import { mmToCssPx, pageMm, type Orientation, type PageSize } from "./paper";
 import { pageLookStyle } from "./pageLook";
 import { useFormatBar } from "./useFormatBar";
@@ -33,6 +34,10 @@ export interface ZinePageProps {
   /** Preview: placeholders hidden, no editing. */
   preview?: boolean;
   readOnly?: boolean;
+  /** The date stamp in the top right corner, when the page shows one. */
+  date?: Date | null;
+  /** The page number at the bottom centre, when the page shows one. */
+  number?: number | null;
   onChange?: (zine: Zine) => void;
   /** Image files dropped, pasted or picked; null when pasted with every cell full. */
   onAddImages?: (cell: number | null, files: File[]) => void;
@@ -62,6 +67,8 @@ export function ZinePage({
   files,
   preview = false,
   readOnly = false,
+  date = null,
+  number = null,
   onChange,
   onAddImages,
   onPlaceFile,
@@ -194,6 +201,7 @@ export function ZinePage({
               </div>
             ),
         )}
+      <PageMarks date={date} number={number} zoom={zoom} />
       {!locked && bar.selection && (
         <FormatBar
           anchor={bar.selection.anchor}

@@ -8,7 +8,10 @@ import { CoverSwatch } from "./CoverSwatch";
 import { TAG_COLORS, nextTagColor } from "./tags";
 import "./settings.css";
 
-export type NotebookSettings = Pick<Notebook, "cover" | "themeId" | "pageSize" | "orientation">;
+export type NotebookSettings = Pick<
+  Notebook,
+  "cover" | "themeId" | "pageSize" | "orientation" | "defaults"
+>;
 
 export interface SettingsDialogProps {
   open: boolean;
@@ -48,6 +51,8 @@ export function SettingsDialog({
   const [appearance, setAppearance] = useState(currentAppearance);
   const [pageSize, setPageSize] = useState(notebook.pageSize);
   const [orientation, setOrientation] = useState(notebook.orientation);
+  const [showDate, setShowDate] = useState(notebook.defaults.showDate);
+  const [showPageNumber, setShowPageNumber] = useState(notebook.defaults.showPageNumber);
   const [color, setColor] = useState(notebook.cover.color);
   const [emoji, setEmoji] = useState(notebook.cover.emoji ?? "");
   const [subtitle, setSubtitle] = useState(notebook.cover.subtitle ?? "");
@@ -62,6 +67,8 @@ export function SettingsDialog({
       setAppearance(currentAppearance);
       setPageSize(notebook.pageSize);
       setOrientation(notebook.orientation);
+      setShowDate(notebook.defaults.showDate);
+      setShowPageNumber(notebook.defaults.showPageNumber);
       setColor(notebook.cover.color);
       setEmoji(notebook.cover.emoji ?? "");
       setSubtitle(notebook.cover.subtitle ?? "");
@@ -75,6 +82,7 @@ export function SettingsDialog({
     notebook.themeId,
     notebook.pageSize,
     notebook.orientation,
+    notebook.defaults,
     notebook.cover,
   ]);
 
@@ -88,7 +96,16 @@ export function SettingsDialog({
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    void onSave({ cover, themeId, pageSize, orientation }, appearance);
+    void onSave(
+      {
+        cover,
+        themeId,
+        pageSize,
+        orientation,
+        defaults: { ...notebook.defaults, showDate, showPageNumber },
+      },
+      appearance,
+    );
     onClose();
   };
 
@@ -183,6 +200,28 @@ export function SettingsDialog({
           <p className="settings__note">
             Apply to every page. Text keeps its lines; on a smaller page or a theme with a wider
             font, text past the last line stays saved but out of view.
+          </p>
+        </fieldset>
+        <fieldset className="settings__group">
+          <legend>New pages</legend>
+          <label className="settings__check">
+            <input
+              type="checkbox"
+              checked={showDate}
+              onChange={(event) => setShowDate(event.target.checked)}
+            />
+            Date stamp
+          </label>
+          <label className="settings__check">
+            <input
+              type="checkbox"
+              checked={showPageNumber}
+              onChange={(event) => setShowPageNumber(event.target.checked)}
+            />
+            Page number
+          </label>
+          <p className="settings__note">
+            What a new page starts with; each page has its own toggles in page settings.
           </p>
         </fieldset>
         <fieldset className="settings__group">

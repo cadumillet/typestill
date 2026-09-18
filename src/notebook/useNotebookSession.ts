@@ -92,6 +92,8 @@ export interface NotebookSession {
   /** Removes the tag and untags its pages. */
   deleteTag: (tagId: string) => Promise<void>;
   setPageTag: (tagId: string | null) => void;
+  /** The open page's date stamp and page number toggles. */
+  setPageMarks: (patch: Partial<Pick<Page, "showDate" | "showPageNumber">>) => void;
   /** Stores a fresh thumbnail of the open page. */
   saveThumbnail: (dataURL: string) => void;
   /** Canvas callbacks carry the loadId of the editor that sent them; stale editors are ignored. */
@@ -102,9 +104,9 @@ export interface NotebookSession {
   openNotebook: (id: string) => Promise<void>;
   /** Creates a notebook with one empty page and opens it. */
   createNotebook: (name: string) => Promise<void>;
-  /** The cover, the theme, and the page size and orientation applied to every page. */
+  /** The cover, the theme, the page size and orientation of every page, and the defaults for new pages. */
   updateSettings: (
-    settings: Pick<Notebook, "cover" | "themeId" | "pageSize" | "orientation">,
+    settings: Pick<Notebook, "cover" | "themeId" | "pageSize" | "orientation" | "defaults">,
   ) => Promise<void>;
   /** Saves everything pending, then offers the notebook as a backup file. */
   downloadBackup: () => Promise<void>;
@@ -502,6 +504,23 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     [db, state],
   );
 
+  const setPageMarks = useCallback(
+    (patch: Partial<Pick<Page, "showDate" | "showPageNumber">>) => {
+      if (!state) return;
+      const page = state.pages[state.index];
+      updatePage(db, page.id, patch).catch(report);
+      setState((current) =>
+        current
+          ? {
+              ...current,
+              pages: current.pages.map((p, i) => (i === current.index ? { ...p, ...patch } : p)),
+            }
+          : current,
+      );
+    },
+    [db, state],
+  );
+
   const saveThumbnail = useCallback(
     (dataURL: string) => {
       if (!state) return;
@@ -561,7 +580,9 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
   );
 
   const updateSettings = useCallback(
-    async (settings: Pick<Notebook, "cover" | "themeId" | "pageSize" | "orientation">) => {
+    async (
+      settings: Pick<Notebook, "cover" | "themeId" | "pageSize" | "orientation" | "defaults">,
+    ) => {
       if (!state) return;
       await updateNotebookSettings(db, state.notebook.id, settings);
       setState((current) =>
@@ -627,6 +648,7 @@ export function useNotebookSession(db: TypestillDb = getDb()): NotebookSession |
     updateTag,
     deleteTag,
     setPageTag,
+    setPageMarks,
     saveThumbnail,
     onCanvasChange,
     onCanvasViewChange,

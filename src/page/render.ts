@@ -23,7 +23,7 @@ export interface RenderOptions {
 }
 
 /** Rules a page render needs: the page styles, the fonts, and the colour tokens. */
-const PAGE_RULE = /\.(text-page|zine-)|@font-face|:root/;
+const PAGE_RULE = /\.(text-page|zine-|page-marks)|@font-face|:root/;
 
 /** The CSS rules of the app's stylesheets that concern pages, as text. */
 function collectCss(): string {

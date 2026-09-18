@@ -4,7 +4,7 @@ A digital notebook made to be the bridge between digital notes and real commonpl
 
 The idea: a notebook where each side has its own character. On the left, fixed-size lined pages you write on like a simple note editor, in Excalidraw's handwriting font, always on the lines. On the right, one infinite Excalidraw canvas per notebook for drawings, diagrams and images, with an optional grid that snaps. Pages remember where they left the canvas, so each page opens next to its own part of the drawing. Pages come in two kinds: lined pages for writing, and zine pages for images with a little text. No productivity-app machinery.
 
-Status (2026-09-18): Phase 1 is complete and on `main`: the store, the page editor, the canvas panel and split view, storage wiring with autosave and per-page canvas views, backup download and restore, notebook settings, the left rail and the bare notebook switcher. Phase 2 is under way: text formatting, the notebook cover, zine pages, the media pool, themes (Ruled and Plain), Dark with the app appearance setting, the divider drag, tags, hover thumbnails and the two-page spread are done; the backup format is at version 5. Next are the date stamp and page number, and the page settings panel. Visual refinement is deliberately left for the end; the page's paper look should be settled before export work starts.
+Status (2026-09-18): Phase 1 is complete and on `main`: the store, the page editor, the canvas panel and split view, storage wiring with autosave and per-page canvas views, backup download and restore, notebook settings, the left rail and the bare notebook switcher. Phase 2 is under way: text formatting, the notebook cover, zine pages, the media pool, themes (Ruled and Plain), Dark with the app appearance setting, the divider drag, tags, hover thumbnails, the two-page spread and the date stamp and page number are done; the backup format is at version 5. Next is the page settings panel, the last Phase 2 item. Visual refinement is deliberately left for the end; the page's paper look should be settled before export work starts.
 
 ---
 
@@ -237,7 +237,7 @@ Notes:
 
 **Thumbnails.** The same foreignObject render at roughly 120px wide, debounced after each change, stored in IndexedDB keyed by page id.
 
-**Date stamp and page number.** HTML overlays positioned over the page. For exports, drawn on top of the rendered page before saving.
+**Date stamp and page number.** HTML overlays positioned inside the page element, so the page render (thumbnails, exports) carries them without a compositing step.
 
 **Search.** Pages are plain strings. For the canvas, walk the text elements (they carry a `.text` field).
 
@@ -273,7 +273,7 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - Tags: create, assign, color; rail coloring and filtering (done)
 - Hover thumbnails in the rail (done)
 - Two-page spread when the canvas is collapsed (done)
-- Per-page date stamp and page number, with notebook defaults
+- Per-page date stamp and page number, with notebook defaults (done)
 - Page settings panel
 - Preview, the page without rules, margin or divider (done in Phase 1)
 
@@ -328,6 +328,7 @@ Asked "does a constrained page feel like paper?" with a pinned Excalidraw page. 
 - Media pool (2026-09-18): an image in use on a page or the canvas cannot be deleted from the pool. Replace it first, then delete. Things stay tied, as in a real notebook; the user plays by its rules. The pool is one per notebook, over the same files table the canvas uses, and the side panel shows it on zine pages in place of the canvas.
 - Themes (2026-09-18): the page look is a theme the notebook references; built-in Ruled and Plain first, custom themes and templates later. Rules may be lines, dots or none, but the line grid and the hard stop are never themed away. Fonts are bundled or stored in the notebook, never fetched from the network; the baseline offset is measured at runtime rather than stored. This brings dot and blank paper back as theme choices without the page-level paper setting that was removed on 2026-09-17.
 - Zine text blocks use the theme's zine font, a typeface rather than the lined pages' handwriting.
+- Date stamp and page number, built (2026-09-18): both are elements inside the page (`src/page/PageMarks.tsx`), in the page's font and ink at 60% opacity, 3.2mm tall: the date 6mm from the top and right edges, the number 4mm from the bottom, centred. Being part of the page element they are in thumbnails and exports for free, so the export step composites nothing. They stay in the preview (only rules, margin and divider go). The date is the page's creation date in the browser's locale with the month in full. The toggles are in page settings; the notebook defaults for new pages are a "New pages" group in notebook settings. Zine pages show them too, over the image when it bleeds.
 - Two-page spread, built (2026-09-18): with the panel closed the desk shows fixed pairs of pages, 1–2, 3–4 and so on, like a book lying open, so the open page stays put while its neighbour appears beside it; the last odd page sits alone on the left. The other page of the spread is read-only (dimmed a touch) until it is clicked, when it becomes the open page in the same click, before the pointer reaches its editor, so the caret lands where the click was; drops and pastes go to the open page only. Page settings, the tag and the thumbnail follow the open page.
 - Hover thumbnails, built (2026-09-18): the page render is the foreignObject approach of section 5 (`src/page/render.ts`): the live page element is cloned into an SVG with the page's stylesheet rules and the fonts it uses inlined as data URLs, drawn to a canvas. Thumbnails are rendered 240px wide and shown at 120px, 1.2s after the open page's content or look last changed, and stored per page id in a `thumbnails` table (Dexie version 6; not in backups, which stay at version 5). Only the open page is re-rendered, so a theme or page size change refreshes other pages' thumbnails when they are next opened. Nothing is rendered while the preview is on. The same renderer will serve the PNG and PDF exports.
 - Tags, built (2026-09-18): tags are managed in a Tags group of notebook settings (name, a colour from the cover palette, delete) and applied at once rather than on Save; a page's tag is a select in the page settings popover, with a "New tag…" entry that asks for a name and assigns it. New tags take the least used palette colour. Deleting a tag asks first and untags its pages. The rail colours tagged squares and rings the open one; its filter is a small button above the squares, per session (not stored), and a filter whose tag is gone counts as no filter.

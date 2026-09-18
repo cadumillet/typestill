@@ -25,6 +25,8 @@ export interface PageSettingsProps {
   onTagChange: (tagId: string | null) => void;
   /** "New tag…" was picked: the caller asks for a name and assigns the new tag. */
   onNewTag: () => void;
+  /** The page's date stamp and page number toggles. */
+  onMarksChange: (patch: Partial<Pick<Page, "showDate" | "showPageNumber">>) => void;
   /** Lined pages. */
   twoColumns: boolean;
   onTwoColumnsChange: (enabled: boolean) => void;
@@ -64,6 +66,7 @@ export function PageSettings({
   tags,
   onTagChange,
   onNewTag,
+  onMarksChange,
   twoColumns,
   onTwoColumnsChange,
   onZineChange,
@@ -126,6 +129,22 @@ export function PageSettings({
             ))}
           </span>
         </div>
+        <label className="page-settings__row">
+          <input
+            type="checkbox"
+            checked={page.showDate}
+            onChange={(event) => onMarksChange({ showDate: event.target.checked })}
+          />
+          Date stamp
+        </label>
+        <label className="page-settings__row">
+          <input
+            type="checkbox"
+            checked={page.showPageNumber}
+            onChange={(event) => onMarksChange({ showPageNumber: event.target.checked })}
+          />
+          Page number
+        </label>
         {page.kind === "lined" && (
           <label className="page-settings__row">
             <input
