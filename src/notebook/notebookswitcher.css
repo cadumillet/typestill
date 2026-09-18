@@ -13,13 +13,13 @@
   height: 30px;
   padding: 0 6px 0 8px;
   border-color: transparent;
-  color: var(--muted, #7d786d);
+  color: var(--muted);
 }
 
 .switcher__trigger:hover,
 .switcher__trigger[aria-expanded="true"] {
-  background: #f1efe9;
-  color: var(--ink, #26241f);
+  background: var(--hover);
+  color: var(--ink);
 }
 
 .switcher__name {
@@ -50,7 +50,7 @@
 }
 
 .switcher__item:hover {
-  background: #f1efe9;
+  background: var(--hover);
 }
 
 .switcher__item[aria-checked="true"] {
@@ -68,14 +68,14 @@
   display: block;
   font-weight: 400;
   font-size: 12px;
-  color: var(--muted, #7d786d);
+  color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .switcher__item-count {
   flex: none;
-  color: var(--muted, #7d786d);
+  color: var(--muted);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
@@ -83,5 +83,5 @@
 .switcher__separator {
   height: 1px;
   margin: 4px 6px;
-  background: #efede8;
+  background: var(--line-soft);
 }

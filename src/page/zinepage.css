@@ -9,14 +9,15 @@
   position: absolute;
   z-index: 1;
   overflow: hidden;
-  background: #f4f2ee;
+  /* Relative to the paper, so empty cells read on light and dark themes alike. */
+  background: rgb(128 128 128 / 0.12);
 }
 
 .zine-cell.is-empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px dashed #d6d2ca;
+  border: 1px dashed rgb(128 128 128 / 0.4);
   box-sizing: border-box;
 }
 
@@ -26,14 +27,14 @@
 }
 
 .zine-cell.is-selected {
-  outline: 2px solid #5b4fb5;
+  outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 
 .zine-cell.is-over {
-  outline: 2px dashed #5b4fb5;
+  outline: 2px dashed var(--accent);
   outline-offset: -2px;
-  background: #eceaf6;
+  background: var(--accent-soft);
 }
 
 .zine-cell__image {
@@ -46,12 +47,12 @@
 .zine-cell__add {
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 12px;
-  color: var(--muted, #7d786d);
-  background: #fff;
+  color: var(--muted);
+  background: var(--surface);
 }
 
 .zine-cell__add:hover {
-  color: var(--ink, #26241f);
+  color: var(--ink);
 }
 
 .zine-cell__missing {
@@ -62,7 +63,7 @@
   justify-content: center;
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 12px;
-  color: #c0504d;
+  color: var(--danger);
 }
 
 /* Fit and remove, shown while the pointer is over a filled cell. */
@@ -86,9 +87,9 @@
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 11px;
   border-color: transparent;
-  background: rgb(255 255 255 / 0.9);
-  color: var(--ink, #26241f);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 2px var(--control-line);
 }
 
 .zine-page__full {

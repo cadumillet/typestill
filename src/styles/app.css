@@ -1,8 +1,51 @@
-/* Chrome colours. The pages take theirs from the notebook's theme (--page-*). */
+/* Chrome colours. The pages take theirs from the notebook's theme (--page-*); the chrome
+   follows the app appearance setting, applied as data-appearance on <html>. */
 :root {
   --desk: #ffffff;
+  --surface: #ffffff;
   --ink: #26241f;
   --muted: #7d786d;
+  --line: #e6e4de;
+  --line-soft: #efede8;
+  --control-line: rgb(0 0 0 / 0.15);
+  --hover: #f1efe9;
+  --well: #f4f2ee;
+  --rail: #e3e1da;
+  --rail-hover: #c9c5ba;
+  --accent: #5b4fb5;
+  --accent-soft: #eceaf6;
+  --accent-line: #b9b3e0;
+  --tooltip: #1f1e1b;
+  --danger: #c0504d;
+  --danger-soft: #fbeeed;
+  color-scheme: light;
+}
+
+:root[data-appearance="dark"] {
+  --desk: #191917;
+  --surface: #232320;
+  --ink: #e8e5dd;
+  --muted: #9a958a;
+  --line: #34332f;
+  --line-soft: #2d2c29;
+  --control-line: rgb(255 255 255 / 0.16);
+  --hover: #2f2e2a;
+  --well: #2a2926;
+  --rail: #3a3935;
+  --rail-hover: #55534d;
+  --accent: #9d93e6;
+  --accent-soft: #2f2c48;
+  --accent-line: #5a5290;
+  --tooltip: #e8e5dd;
+  --danger: #e07a76;
+  --danger-soft: #3a2626;
+  color-scheme: dark;
+}
+
+:root[data-appearance="dark"] .icon-button[data-tooltip]::after,
+:root[data-appearance="dark"] .page-rail__label,
+:root[data-appearance="dark"] .format-bar__swatch[data-tooltip]::after {
+  color: #191917;
 }
 
 html,
@@ -45,16 +88,16 @@ button {
   font: inherit;
   white-space: nowrap;
   padding: 4px 10px;
-  border: 1px solid rgb(0 0 0 / 0.15);
+  border: 1px solid var(--control-line);
   border-radius: 6px;
-  background: #fff;
+  background: var(--surface);
   color: var(--ink);
   cursor: pointer;
 }
 
 button[aria-pressed="true"] {
-  background: #eceaf6;
-  border-color: #b9b3e0;
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
 }
 
 .icon-button {
@@ -80,7 +123,7 @@ button[aria-pressed="true"] {
   z-index: 20;
   padding: 4px 8px;
   border-radius: 6px;
-  background: #1f1e1b;
+  background: var(--tooltip);
   color: #fff;
   font-size: 12px;
   font-weight: 400;
@@ -100,14 +143,14 @@ button[aria-pressed="true"] {
 }
 
 .icon-button:hover {
-  background: #f1efe9;
+  background: var(--hover);
   color: var(--ink);
 }
 
 .icon-button[aria-pressed="true"] {
-  background: #eceaf6;
+  background: var(--accent-soft);
   border-color: transparent;
-  color: #5b4fb5;
+  color: var(--accent);
 }
 
 .wordmark {

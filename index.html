@@ -9,6 +9,19 @@
     <!-- Serve Excalidraw's fonts from public/fonts (copied by scripts/copy-fonts.mjs) instead of its CDN. -->
     <script>
       window.EXCALIDRAW_ASSET_PATH = "/";
+      // The app appearance (see src/shell/appearance.ts), applied before the first paint
+      // so a dark chrome does not flash light.
+      try {
+        var appearance = localStorage.getItem("typestill.appearance");
+        document.documentElement.dataset.appearance =
+          appearance === "dark" || appearance === "light"
+            ? appearance
+            : matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+      } catch (error) {
+        document.documentElement.dataset.appearance = "light";
+      }
     </script>
   </head>
   <body>
