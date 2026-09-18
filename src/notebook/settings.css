@@ -110,6 +110,11 @@ button.primary {
   background: var(--surface);
 }
 
+.settings__name input {
+  flex: 1;
+  min-width: 0;
+}
+
 .settings__emoji {
   width: 48px;
   text-align: center;

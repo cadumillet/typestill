@@ -18,7 +18,7 @@ import "./settings.css";
 
 export type NotebookSettings = Pick<
   Notebook,
-  "cover" | "themeId" | "pageSize" | "orientation" | "defaults"
+  "name" | "cover" | "themeId" | "pageSize" | "orientation" | "defaults"
 >;
 
 export interface SettingsDialogProps {
@@ -47,7 +47,7 @@ const APPEARANCE_LABELS: Record<Appearance, string> = {
 const PAGE_SIZES = Object.keys(PAGE_SIZES_MM) as PageSize[];
 const ORIENTATIONS: Orientation[] = ["portrait", "landscape"];
 
-/** Notebook settings: the cover, the theme, and the page size and orientation of every page. */
+/** Notebook settings: the name and cover, the theme, and the page size and orientation of every page. */
 export function SettingsDialog({
   open,
   notebook,
@@ -67,10 +67,13 @@ export function SettingsDialog({
   const [orientation, setOrientation] = useState(notebook.orientation);
   const [showPageNumber, setShowPageNumber] = useState(notebook.defaults.showPageNumber);
   const [margin, setMargin] = useState(notebook.defaults.margin);
+  const [name, setName] = useState(notebook.name);
   const [color, setColor] = useState(notebook.cover.color);
   const [emoji, setEmoji] = useState(notebook.cover.emoji ?? "");
   const [subtitle, setSubtitle] = useState(notebook.cover.subtitle ?? "");
   const cover = coverFromFields({ color, emoji, subtitle });
+  /** A blank name keeps the current one, as the shelf's rename did. */
+  const shownName = name.trim() || notebook.name;
 
   // Native dialog: showModal traps focus and closes on Escape.
   useEffect(() => {
@@ -83,6 +86,7 @@ export function SettingsDialog({
       setOrientation(notebook.orientation);
       setShowPageNumber(notebook.defaults.showPageNumber);
       setMargin(notebook.defaults.margin);
+      setName(notebook.name);
       setColor(notebook.cover.color);
       setEmoji(notebook.cover.emoji ?? "");
       setSubtitle(notebook.cover.subtitle ?? "");
@@ -97,6 +101,7 @@ export function SettingsDialog({
     notebook.pageSize,
     notebook.orientation,
     notebook.defaults,
+    notebook.name,
     notebook.cover,
   ]);
 
@@ -112,6 +117,7 @@ export function SettingsDialog({
     event.preventDefault();
     void onSave(
       {
+        name: shownName,
         cover,
         themeId,
         pageSize,
@@ -126,12 +132,21 @@ export function SettingsDialog({
   return (
     <dialog ref={ref} className="settings" onClose={onClose} aria-label="Notebook settings">
       <form onSubmit={submit}>
-        <h2 className="settings__title">{notebook.name}</h2>
+        <h2 className="settings__title">Notebook settings</h2>
         <fieldset className="settings__group">
           <legend>Cover</legend>
           <div className="settings__cover">
-            <CoverSwatch cover={cover} name={notebook.name} size={56} />
+            <CoverSwatch cover={cover} name={shownName} size={56} />
             <div className="settings__cover-fields">
+              <label className="settings__field settings__name">
+                <span>Name</span>
+                <input
+                  type="text"
+                  value={name}
+                  placeholder={notebook.name}
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </label>
               <div className="settings__swatches" role="radiogroup" aria-label="Cover colour">
                 {COVER_COLORS.map((choice) => (
                   <button
@@ -151,7 +166,7 @@ export function SettingsDialog({
                 <input
                   type="text"
                   value={emoji}
-                  placeholder={notebook.name.trim().charAt(0).toUpperCase() || "–"}
+                  placeholder={shownName.trim().charAt(0).toUpperCase() || "–"}
                   onChange={(event) => setEmoji(event.target.value)}
                   className="settings__emoji"
                   aria-describedby="cover-emoji-hint"

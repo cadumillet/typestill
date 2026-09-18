@@ -123,9 +123,12 @@ export interface NotebookSession {
   closeNotebook: () => Promise<void>;
   /** Creates a notebook with one empty page and opens it. */
   createNotebook: (name: string, cover?: Partial<Cover>) => Promise<void>;
-  /** The cover, the theme, the page size and orientation of every page, and the defaults for new pages. */
+  /** The name and cover, the theme, the page size and orientation of every page, and the defaults for new pages. */
   updateSettings: (
-    settings: Pick<Notebook, "cover" | "themeId" | "pageSize" | "orientation" | "defaults">,
+    settings: Pick<
+      Notebook,
+      "name" | "cover" | "themeId" | "pageSize" | "orientation" | "defaults"
+    >,
   ) => Promise<void>;
   /**
    * Saves everything pending, then offers the notebook as a backup file: a zip with the
@@ -135,8 +138,12 @@ export interface NotebookSession {
   /** Removes the images no page and not the canvas uses. Returns how many went. */
   pruneImages: () => Promise<number>;
   /**
-   * Restores a backup file and opens that notebook. Asks before replacing a notebook that
-   * already exists. Throws BackupError for files that are not valid backups.
+   * Opens a backup file in place of the open notebook, after asking: the backup's
+   * notebook is imported (over the stored one of the same id, if any), the notebook that
+   * was open is deleted when the ids differ, so nothing invisible is left in storage,
+   * and the imported one is opened. With no notebook open (the first run, the dormant
+   * shelf) it only asks before overwriting a stored notebook of the same id. Throws
+   * BackupError for files that are not valid backups.
    */
   restoreBackup: (file: File) => Promise<void>;
 }
@@ -734,7 +741,10 @@ export function useNotebookSession(
 
   const updateSettings = useCallback(
     async (
-      settings: Pick<Notebook, "cover" | "themeId" | "pageSize" | "orientation" | "defaults">,
+      settings: Pick<
+        Notebook,
+        "name" | "cover" | "themeId" | "pageSize" | "orientation" | "defaults"
+      >,
     ) => {
       if (!state) return;
       await updateNotebookSettings(db, state.notebook.id, settings);
@@ -744,7 +754,9 @@ export function useNotebookSession(
               ...current,
               notebook: { ...current.notebook, ...settings },
               notebooks: current.notebooks.map((n) =>
-                n.id === current.notebook.id ? { ...n, cover: settings.cover } : n,
+                n.id === current.notebook.id
+                  ? { ...n, name: settings.name, cover: settings.cover }
+                  : n,
               ),
             }
           : current,
@@ -787,20 +799,34 @@ export function useNotebookSession(
       const doc = isZipBackup(file)
         ? unpackBackupZip(new Uint8Array(await file.arrayBuffer()))
         : parseBackup(await file.text());
-      const existing = await getNotebook(db, doc.id);
-      if (
-        existing &&
-        !window.confirm(
-          `Replace the notebook "${existing.name}" with this backup? Its current pages and canvas will be overwritten.`,
-        )
-      ) {
-        return;
+      const current = state?.notebook ?? null;
+      if (current) {
+        if (
+          !window.confirm(
+            `Open this backup in place of the notebook "${current.name}"? "${current.name}" will only remain in a backup you have already downloaded.`,
+          )
+        ) {
+          return;
+        }
+      } else {
+        const existing = await getNotebook(db, doc.id);
+        if (
+          existing &&
+          !window.confirm(
+            `Replace the notebook "${existing.name}" with this backup? Its current pages and canvas will be overwritten.`,
+          )
+        ) {
+          return;
+        }
       }
       await detach();
       await importNotebook(db, doc, { replace: true });
+      // The notebook that was open goes once the import is in, so a failed import
+      // leaves it untouched; a same-id backup has already replaced it.
+      if (current && current.id !== doc.id) await deleteNotebookRecord(db, current.id);
       await load(doc.id);
     },
-    [db, detach, load],
+    [db, state, detach, load],
   );
 
   if (!state) {

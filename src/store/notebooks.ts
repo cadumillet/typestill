@@ -170,7 +170,9 @@ export async function renameNotebook(db: TypestillDb, id: string, name: string):
 export async function updateNotebookSettings(
   db: TypestillDb,
   id: string,
-  patch: Partial<Pick<Notebook, "cover" | "themeId" | "pageSize" | "orientation" | "defaults">>,
+  patch: Partial<
+    Pick<Notebook, "name" | "cover" | "themeId" | "pageSize" | "orientation" | "defaults">
+  >,
 ): Promise<void> {
   await db.notebooks.update(id, patch);
 }
