@@ -51,13 +51,27 @@ export function measureBaseline(font: Font, sizePx: number, lineHeightPx: number
   return offset;
 }
 
+/** Loads the font for the sample and measures, so later synchronous reads hit the cache. */
+export async function primeBaseline(
+  font: Font,
+  sizePx: number,
+  lineHeightPx: number,
+): Promise<number> {
+  if ("fonts" in document) await document.fonts.load(fontString(font, sizePx), SAMPLE);
+  return measureBaseline(font, sizePx, lineHeightPx);
+}
+
 /**
  * The baseline offset for a font at a size, in px from the top of the line box. Starts
- * from the fallback ratio and settles on the measured value once the font has loaded.
+ * from the cached measurement when there is one, else from the fallback ratio, and
+ * settles on the measured value once the font has loaded.
  */
 export function useBaseline(font: Font, sizePx: number, lineHeightPx: number): number {
-  const [measured, setMeasured] = useState<{ key: string; offset: number } | null>(null);
   const key = `${fontString(font, sizePx)}@${lineHeightPx}`;
+  const [measured, setMeasured] = useState<{ key: string; offset: number } | null>(() => {
+    const cached = cache.get(key);
+    return cached === undefined ? null : { key, offset: cached };
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -73,5 +87,6 @@ export function useBaseline(font: Font, sizePx: number, lineHeightPx: number): n
     };
   }, [font, sizePx, lineHeightPx, key]);
 
-  return measured?.key === key ? measured.offset : lineHeightPx * FALLBACK_BASELINE;
+  if (measured?.key === key) return measured.offset;
+  return cache.get(key) ?? lineHeightPx * FALLBACK_BASELINE;
 }
