@@ -4,7 +4,10 @@ import type { CSSProperties } from "react";
 import type { Font, Theme } from "../theme/theme";
 import { mmToCssPx } from "./paper";
 
-/** Colours, corner and font of a page as custom properties for textpage.css. */
+/**
+ * Colours, corner and fonts of a page as custom properties for textpage.css: `font` is
+ * the page's text font; the page number is always in the lined font.
+ */
 export function pageLookStyle(theme: Theme, font: Font, zoom: number): CSSProperties {
   return {
     "--page-paper": theme.colours.paper,
@@ -14,5 +17,6 @@ export function pageLookStyle(theme: Theme, font: Font, zoom: number): CSSProper
     "--page-divider": theme.colours.divider,
     "--page-corner": `${mmToCssPx(theme.page.cornerMm, zoom)}px`,
     "--page-font": `"${font.family}"`,
+    "--page-mark-font": `"${theme.lined.font.family}"`,
   } as CSSProperties;
 }

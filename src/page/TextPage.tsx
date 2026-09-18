@@ -16,6 +16,7 @@ import {
   type PageSize,
 } from "./paper";
 import { pageLookStyle } from "./pageLook";
+import type { PageSide } from "./sides";
 import { useFormatBar } from "./useFormatBar";
 import "./textpage.css";
 
@@ -35,10 +36,10 @@ export interface TextPageProps {
   /** Preview: no rules, margin or divider, and no editing. */
   preview?: boolean;
   readOnly?: boolean;
-  /** The date stamp in the top right corner, when the page shows one. */
-  date?: Date | null;
   /** The page number at the bottom centre, when the page shows one. */
   number?: number | null;
+  /** The page's side, which rounds its outer corners; none for a rectangular render. */
+  side?: PageSide;
   onChange?: (columns: ColumnValue[]) => void;
   /** The divider was dragged to a new offset (already snapped), in mm. */
   onDividerChange?: (divider: number) => void;
@@ -62,8 +63,8 @@ export function TextPage({
   divider,
   preview = false,
   readOnly = false,
-  date = null,
   number = null,
+  side,
   onChange,
   onDividerChange,
 }: TextPageProps) {
@@ -135,6 +136,7 @@ export function TextPage({
     lined.marginLine ? "has-margin-line" : "",
     theme.page.border ? "has-border" : "",
     preview ? "is-preview" : "",
+    side ? `side-${side}` : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -199,7 +201,7 @@ export function TextPage({
               </div>
             ),
         )}
-      <PageMarks date={date} number={number} zoom={zoom} />
+      <PageMarks number={number} zoom={zoom} />
       {!locked && bar.selection && (
         <FormatBar
           anchor={bar.selection.anchor}

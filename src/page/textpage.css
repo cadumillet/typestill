@@ -6,13 +6,23 @@
   box-sizing: border-box;
   background: var(--page-paper, #fff);
   border: 1px solid transparent;
-  border-radius: var(--page-corner, 12px);
   overflow: hidden;
   font-family: var(--page-font, "Excalifont"), "Segoe Print", "Comic Sans MS", sans-serif;
 }
 
 .text-page.has-border {
   border-color: #e6e4de;
+}
+
+/* A page rounds the corners of its outer edge only: a right-hand page its right corners, a
+   left-hand page its left ones. The inner edge, at the gutter, is square. Without a side
+   (exports) the paper is rectangular. */
+.text-page.side-right {
+  border-radius: 0 var(--page-corner, 12px) var(--page-corner, 12px) 0;
+}
+
+.text-page.side-left {
+  border-radius: var(--page-corner, 12px) 0 0 var(--page-corner, 12px);
 }
 
 /* Stacking: paper marks 0, text 1, labels 2. */
