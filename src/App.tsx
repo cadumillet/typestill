@@ -490,17 +490,18 @@ export function App() {
                     {slots.map((shown, slot) => {
                       if (shown.kind !== "page") {
                         const side = slot === 0 ? "left" : "right";
-                        const blank = shown.kind === "blank";
-                        // A divider's front carries the section's colour and name; its
-                        // back and the inside of a cover are plain surfaces.
-                        const plain =
-                          shown.kind === "cover" ||
+                        // A divider's front is a slab in the section's colour with the
+                        // name; its back is paper with a tab in the colour along the outer
+                        // edge; a blank back is paper; the inside of a cover is plain.
+                        const paper =
+                          shown.kind === "blank" ||
                           (shown.kind === "divider" && shown.face === "back");
-                        const kind = plain
-                          ? " desk__slab--plain"
-                          : blank && theme.page.border
-                            ? " desk__slab--blank"
-                            : "";
+                        const kind =
+                          shown.kind === "cover"
+                            ? " desk__slab--plain"
+                            : paper && theme.page.border
+                              ? " desk__slab--paper"
+                              : "";
                         return (
                           <div
                             key={`slab-${side}`}
@@ -509,11 +510,12 @@ export function App() {
                               {
                                 width: geometry.width * fit.zoom,
                                 height: fit.height,
-                                background: plain
-                                  ? undefined
-                                  : blank
-                                    ? theme.colours.paper
-                                    : shown.section.color,
+                                background:
+                                  shown.kind === "cover"
+                                    ? undefined
+                                    : paper
+                                      ? theme.colours.paper
+                                      : shown.section.color,
                                 "--page-corner": `${cornerPx}px`,
                               } as CSSProperties
                             }
@@ -521,6 +523,14 @@ export function App() {
                           >
                             {shown.kind === "divider" && shown.face === "front" && (
                               <span className="desk__slab__name">{shown.section.name}</span>
+                            )}
+                            {shown.kind === "divider" && shown.face === "back" && (
+                              <span
+                                className="desk__slab__tab"
+                                style={{ background: shown.section.color }}
+                              >
+                                {shown.section.name}
+                              </span>
                             )}
                           </div>
                         );

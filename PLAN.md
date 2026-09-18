@@ -348,7 +348,7 @@ Built on the same branch as Phases 7 and 8, before the one pull request is merge
 - The page bar regrouped: previous, the counter, next centred on the page, the counter a button with the section's dot that opens the notebook box on the map; new page and delete page at the left end; the layout toggle (two columns, lined pages) and drawing mode at the right end (done)
 - The notebook box: one dialog (⌥M, the app bar's notebook button, the counter) with the map, the Sections group, the This page group (section with "New section…", layout, kind behind the flag, created) and the notebook groups (name and cover, paper, theme, new-page defaults, appearance, storage), applying changes at once with no Save; it replaces the settings dialog, the page settings popover and the rail; the desk is the page alone; the margin line becomes a notebook setting every page follows (done)
 - Drawing tools trimmed: the over-or-under layer control goes (`drawingLayer` stays stored, always "over"); the dimming controls are named "Text" and "Rules" (done)
-- Divider backs show the section: paper with a tab in the section's colour along the outer edge with the name, so (divider back | first page) reads as the section opening
+- Divider backs show the section: paper with a tab in the section's colour along the outer edge with the name, so (divider back | first page) reads as the section opening (done)
 - Section 9 started: a list of features that may be descoped before release, the media pool first on it
 
 ### Later, not now
