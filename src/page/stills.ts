@@ -28,13 +28,17 @@ function stillKey(
   return `${size}|${orientation}|${elementsKey(elements)}`;
 }
 
-/** A transparent frame the size of the page, at the page's origin. */
+/**
+ * A transparent frame the size of the page, at the page's origin. The converter pads a
+ * frame by 10px around its (here absent) children and so puts it at (-10, -10); the
+ * origin is set back, or the whole still would sit 10 scene px down and to the right.
+ */
 function pageFrame(size: PageSize, orientation: Orientation): ExcalidrawFrameLikeElement {
   const { width, height } = pageGeometry(size, orientation);
   const [frame] = convertToExcalidrawElements([
     { type: "frame", children: [], x: 0, y: 0, width, height, name: "page" },
   ]);
-  return frame as ExcalidrawFrameLikeElement;
+  return { ...frame, x: 0, y: 0, width, height } as ExcalidrawFrameLikeElement;
 }
 
 /** The SVG of the drawing framed by the page, as a data URL. */
