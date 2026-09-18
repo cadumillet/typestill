@@ -231,3 +231,8 @@ button.primary {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.settings__add-section.is-off {
+  opacity: 0.35;
+  cursor: default;
+}

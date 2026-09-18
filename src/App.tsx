@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import { DrawingTools } from "./notebook/DrawingTools";
+import { SectionTabs, TAB_OUT_OPEN_MM } from "./notebook/SectionTabs";
 import { MediaPool } from "./notebook/MediaPool";
 import { PAGE_BAR_HEIGHT, PageBar } from "./notebook/PageBar";
 import { CoverSwatch } from "./notebook/CoverSwatch";
@@ -14,7 +15,14 @@ import { isBlankDocument } from "./page/document";
 import { canAddPage } from "./notebook/pageRules";
 import { TextPage } from "./page/TextPage";
 import { ZinePage } from "./page/ZinePage";
-import { defaultDivider, fitPage, mmToCssPx, pageGeometry, pageMm } from "./page/paper";
+import {
+  SCENE_PX_PER_MM,
+  defaultDivider,
+  fitPage,
+  mmToCssPx,
+  pageGeometry,
+  pageMm,
+} from "./page/paper";
 import { PageDrawing, type PageBox } from "./page/PageDrawing";
 import {
   readDrawingAids,
@@ -215,13 +223,23 @@ export function App() {
   const slots: Side[] = spread ? spreadOf(sides, sideIndex) : [{ kind: "page", index }];
   /** Which half of the sheet the open page is: 0 on the left, 1 on the right. */
   const openSlot = spread && sideAt(sideIndex) === "right" ? 1 : 0;
-  // The page bar sits under the page, so the page is fitted above its height.
-  const fit = desk
-    ? fitPage(spread ? { width: geometry.width * 2, height: geometry.height } : geometry, {
+  // The page bar sits under the page, so the page is fitted above its height. With the
+  // tabs experiment on, the fit reserves room on both sides for the tabs that stick out
+  // past the page edges, so the sheet is the page or spread alone and the tabs overflow
+  // it into that room.
+  const sheetScene = spread ? geometry.width * 2 : geometry.width;
+  const tabRoom = features.tabs ? TAB_OUT_OPEN_MM * SCENE_PX_PER_MM : 0;
+  const fit = (() => {
+    if (!desk) return null;
+    const room = fitPage(
+      { width: sheetScene + 2 * tabRoom, height: geometry.height },
+      {
         width: desk.width - 2 * DESK_PADDING,
         height: desk.height - 2 * DESK_PADDING - PAGE_BAR_HEIGHT,
-      })
-    : null;
+      },
+    );
+    return tabRoom === 0 ? room : { ...room, width: sheetScene * room.zoom };
+  })();
   /** The corner radius of a page at the desk's zoom, for the slab. */
   const cornerPx = fit ? mmToCssPx(theme.page.cornerMm, fit.zoom) : 0;
   /** Top of the page in the desk: the sheet (page and bar) is centred vertically. */
@@ -248,6 +266,9 @@ export function App() {
           height: fit.height - 2 * PAGE_BORDER_PX,
         }
       : null;
+
+  /** The open page's section, in section order, for the tabs. */
+  const openSectionIndex = notebook.sections.findIndex((s) => s.id === page.sectionId);
 
   /** Makes another page of the spread the open one, before the pointer reaches its editor. */
   const openInSpread = (i: number) => {
@@ -492,10 +513,12 @@ export function App() {
                         const side = slot === 0 ? "left" : "right";
                         // A divider's front is a slab in the section's colour with the
                         // name; its back is paper with a tab in the colour along the outer
-                        // edge; a blank back is paper; the inside of a cover is plain.
+                        // edge; a blank back is paper; the inside of a cover is plain. With
+                        // the tabs experiment on, both faces of a divider are paper: the
+                        // section's tab in its slot on the sheet's edge is the leaf's.
                         const paper =
                           shown.kind === "blank" ||
-                          (shown.kind === "divider" && shown.face === "back");
+                          (shown.kind === "divider" && (features.tabs || shown.face === "back"));
                         const kind =
                           shown.kind === "cover"
                             ? " desk__slab--plain"
@@ -521,17 +544,21 @@ export function App() {
                             }
                             aria-hidden
                           >
-                            {shown.kind === "divider" && shown.face === "front" && (
-                              <span className="desk__slab__name">{shown.section.name}</span>
-                            )}
-                            {shown.kind === "divider" && shown.face === "back" && (
-                              <span
-                                className="desk__slab__tab"
-                                style={{ background: shown.section.color }}
-                              >
-                                {shown.section.name}
-                              </span>
-                            )}
+                            {shown.kind === "divider" &&
+                              shown.face === "front" &&
+                              !features.tabs && (
+                                <span className="desk__slab__name">{shown.section.name}</span>
+                              )}
+                            {shown.kind === "divider" &&
+                              shown.face === "back" &&
+                              !features.tabs && (
+                                <span
+                                  className="desk__slab__tab"
+                                  style={{ background: shown.section.color }}
+                                >
+                                  {shown.section.name}
+                                </span>
+                              )}
                           </div>
                         );
                       }
@@ -590,6 +617,16 @@ export function App() {
                         </div>
                       );
                     })}
+                    {features.tabs && (
+                      <SectionTabs
+                        sections={notebook.sections}
+                        openIndex={openSectionIndex}
+                        size={notebook.pageSize}
+                        orientation={notebook.orientation}
+                        zoom={fit.zoom}
+                        onOpenSection={(sectionId) => void session.openSection(sectionId)}
+                      />
+                    )}
                   </div>
                   <PageBar
                     index={index}

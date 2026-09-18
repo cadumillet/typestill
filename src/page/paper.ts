@@ -69,6 +69,17 @@ export function ruleCount(heightMm: number, grid: LinedMetrics = RULED_GRID): nu
   return Math.max(1, Math.floor((heightMm - grid.firstRuleMm - grid.bottomMm) / grid.pitchMm) + 1);
 }
 
+/** A section's index tab needs this much of the page's height; the count is floored. */
+export const MM_PER_SECTION_TAB = 38;
+
+/**
+ * How many sections a page fits, one tab per 38mm of its height: five on A5 portrait,
+ * seven on A4 and Letter, three on A5 landscape.
+ */
+export function maxSections(size: PageSize, orientation: Orientation): number {
+  return Math.floor(pageMm(size, orientation).height / MM_PER_SECTION_TAB);
+}
+
 /** Divider position that halves the writable area between the margin line and the right edge. */
 export function defaultDivider(widthMm: number, marginMm: number): number {
   return marginMm + (widthMm - marginMm) / 2;

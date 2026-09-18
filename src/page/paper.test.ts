@@ -4,12 +4,22 @@ import {
   columnBoxes,
   defaultDivider,
   fitPage,
+  maxSections,
   mmToCssPx,
   pageGeometry,
   clampMargin,
   ruleCount,
   snapDivider,
 } from "./paper";
+
+describe("maxSections", () => {
+  it("fits one section per 38mm of page height", () => {
+    expect(maxSections("A5", "portrait")).toBe(5);
+    expect(maxSections("A4", "portrait")).toBe(7);
+    expect(maxSections("Letter", "portrait")).toBe(7);
+    expect(maxSections("A5", "landscape")).toBe(3);
+  });
+});
 
 describe("pageGeometry", () => {
   it("maps A5 portrait to scene pixels at 96 dpi", () => {

@@ -12,9 +12,16 @@ export interface Features {
    * still opens, edits and exports as ever, with the pool beside it.
    */
   zinePages: boolean;
+  /**
+   * The tabs, an experiment: section dividers as index tabs on the page's edges, all
+   * visible at once, with a section limit from the page's height; the divider leaves
+   * are paper. Off, or the experiment's commit reverted, restores the coloured slabs.
+   */
+  tabs: boolean;
 }
 
 const ZINE_STORAGE_KEY = "typestill.features.zine";
+const TABS_STORAGE_KEY = "typestill.features.tabs";
 
 /** The local-storage override of a flag, if the key holds "on" or "off". */
 function readOverride(key: string): boolean | null {
@@ -33,4 +40,5 @@ function readFlag(key: string, variable: string | undefined): boolean {
 
 export const features: Features = {
   zinePages: readFlag(ZINE_STORAGE_KEY, import.meta.env.VITE_FEATURE_ZINE as string | undefined),
+  tabs: readFlag(TABS_STORAGE_KEY, undefined),
 };
