@@ -92,6 +92,7 @@ function pagesOf(db: TypestillDb, notebookId: string) {
 async function removeNotebookRecords(db: TypestillDb, id: string): Promise<void> {
   await db.pages.where("notebookId").equals(id).delete();
   await db.files.where("notebookId").equals(id).delete();
+  await db.thumbnails.where("notebookId").equals(id).delete();
   await db.canvases.delete(id);
   await db.notebooks.delete(id);
 }
@@ -228,9 +229,9 @@ export async function deleteTag(
   });
 }
 
-/** Deletes the notebook with its pages, canvas and files. */
+/** Deletes the notebook with its pages, canvas, files and thumbnails. */
 export async function deleteNotebook(db: TypestillDb, id: string): Promise<void> {
-  await db.transaction("rw", [db.notebooks, db.pages, db.canvases, db.files], () =>
+  await db.transaction("rw", [db.notebooks, db.pages, db.canvases, db.files, db.thumbnails], () =>
     removeNotebookRecords(db, id),
   );
 }
@@ -333,9 +334,33 @@ export async function setPageDivider(
   });
 }
 
-/** Deletes a page. */
+/** Deletes a page and its thumbnail. */
 export async function deletePage(db: TypestillDb, id: string): Promise<void> {
-  await db.pages.delete(id);
+  await db.transaction("rw", [db.pages, db.thumbnails], async () => {
+    await db.pages.delete(id);
+    await db.thumbnails.delete(id);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Thumbnails: a cache of rendered pages, keyed by page id, outside the backup.
+
+export async function saveThumbnail(
+  db: TypestillDb,
+  notebookId: string,
+  pageId: string,
+  dataURL: string,
+): Promise<void> {
+  await db.thumbnails.put({ pageId, notebookId, dataURL, updatedAt: Date.now() });
+}
+
+/** Every thumbnail of a notebook, keyed by page id. */
+export async function loadThumbnails(
+  db: TypestillDb,
+  notebookId: string,
+): Promise<Record<string, string>> {
+  const rows = await db.thumbnails.where("notebookId").equals(notebookId).toArray();
+  return Object.fromEntries(rows.map((row) => [row.pageId, row.dataURL]));
 }
 
 // ---------------------------------------------------------------------------
@@ -459,17 +484,21 @@ export async function importNotebook(
   options: { replace?: boolean } = {},
 ): Promise<Notebook> {
   const { pages, canvas, files, ...notebook } = doc;
-  await db.transaction("rw", [db.notebooks, db.pages, db.canvases, db.files], async () => {
-    if (await db.notebooks.get(notebook.id)) {
-      if (!options.replace) throw new NotebookExistsError(notebook.id);
-      await removeNotebookRecords(db, notebook.id);
-    }
-    await db.notebooks.add(notebook);
-    await db.pages.bulkAdd(pages.map((page) => ({ ...page, notebookId: notebook.id })));
-    await db.canvases.add({ ...canvas, notebookId: notebook.id });
-    await db.files.bulkAdd(
-      Object.values(files).map((data) => ({ notebookId: notebook.id, id: data.id, data })),
-    );
-  });
+  await db.transaction(
+    "rw",
+    [db.notebooks, db.pages, db.canvases, db.files, db.thumbnails],
+    async () => {
+      if (await db.notebooks.get(notebook.id)) {
+        if (!options.replace) throw new NotebookExistsError(notebook.id);
+        await removeNotebookRecords(db, notebook.id);
+      }
+      await db.notebooks.add(notebook);
+      await db.pages.bulkAdd(pages.map((page) => ({ ...page, notebookId: notebook.id })));
+      await db.canvases.add({ ...canvas, notebookId: notebook.id });
+      await db.files.bulkAdd(
+        Object.values(files).map((data) => ({ notebookId: notebook.id, id: data.id, data })),
+      );
+    },
+  );
   return notebook;
 }

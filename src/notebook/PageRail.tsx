@@ -18,6 +18,8 @@ export interface PageRailProps {
   /** Only pages with this tag are shown; null shows every page. */
   filterTagId: string | null;
   onFilterChange: (tagId: string | null) => void;
+  /** Rendered previews by page id, shown beside the hovered square when there is one. */
+  thumbnails: Record<string, string>;
 }
 
 interface Hover {
@@ -28,6 +30,9 @@ interface Hover {
 
 /** Room the filter button needs above the first square. */
 const FILTER_HEIGHT = 40;
+/** Rough heights of the hover box, with and without a thumbnail, for keeping it in view. */
+const HOVER_HEIGHT = 230;
+const LABEL_HEIGHT = 26;
 
 /** Closes the popover the way Menu does: through the outside pointerdown it listens for. */
 const closePopovers = () => document.dispatchEvent(new PointerEvent("pointerdown"));
@@ -35,8 +40,9 @@ const closePopovers = () => document.dispatchEvent(new PointerEvent("pointerdown
 /**
  * The left rail: one small square per page in notebook order, coloured by the page's
  * tag, the open page highlighted. Filtering by tag only hides squares; page order and
- * numbering stay the same. The hover label floats outside the scrolling list so it is
- * never clipped; the hover preview of Phase 2 will hang off the same anchor.
+ * numbering stay the same. Hovering a square shows its label and, once one has been
+ * rendered, a thumbnail of the page; both float outside the scrolling list so they are
+ * never clipped.
  */
 export function PageRail({
   pages,
@@ -46,6 +52,7 @@ export function PageRail({
   tags,
   filterTagId,
   onFilterChange,
+  thumbnails,
 }: PageRailProps) {
   const rail = useRef<HTMLElement>(null);
   const current = useRef<HTMLButtonElement>(null);
@@ -59,11 +66,18 @@ export function PageRail({
     current.current?.scrollIntoView({ block: "nearest" });
   }, [index, pages.length]);
 
+  // The hover box is centred on the square, but kept inside the rail's height so a
+  // thumbnail near the top or bottom is not cut off.
   const onEnter = (event: PointerEvent<HTMLButtonElement>, i: number) => {
     if (!rail.current) return;
     const square = event.currentTarget.getBoundingClientRect();
     const box = rail.current.getBoundingClientRect();
-    setHover({ index: i, top: square.top - box.top + square.height / 2 });
+    const half = (thumbnails[pages[i].id] ? HOVER_HEIGHT : LABEL_HEIGHT) / 2;
+    const centre = square.top - box.top + square.height / 2;
+    setHover({
+      index: i,
+      top: Math.min(Math.max(centre, half), Math.max(half, box.height - half)),
+    });
   };
 
   return (
@@ -150,9 +164,19 @@ export function PageRail({
         })}
       </ol>
       {hover && (
-        <div className="page-rail__label" style={{ top: hover.top }} aria-hidden>
-          Page {hover.index + 1}
-          {tagOf(pages[hover.index], tags) && ` · ${tagOf(pages[hover.index], tags)?.name}`}
+        <div className="page-rail__hover" style={{ top: hover.top }} aria-hidden>
+          <div className="page-rail__label">
+            Page {hover.index + 1}
+            {tagOf(pages[hover.index], tags) && ` · ${tagOf(pages[hover.index], tags)?.name}`}
+          </div>
+          {thumbnails[pages[hover.index].id] && (
+            <img
+              className="page-rail__thumbnail"
+              src={thumbnails[pages[hover.index].id]}
+              alt=""
+              draggable={false}
+            />
+          )}
         </div>
       )}
     </nav>

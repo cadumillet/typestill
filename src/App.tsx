@@ -12,6 +12,8 @@ import { ZinePage } from "./page/ZinePage";
 import { defaultDivider, fitPage, pageGeometry, pageMm } from "./page/paper";
 import { imagesForLayout, isZineEmpty, type Zine } from "./page/zine";
 import { nextTagColor } from "./notebook/tags";
+import { usePageThumbnail } from "./notebook/usePageThumbnail";
+import { columnsKey } from "./store/autosave";
 import { useElementSize } from "./page/useElementSize";
 import { useAppearance } from "./shell/appearance";
 import { IconButton } from "./shell/IconButton";
@@ -70,6 +72,7 @@ export function App() {
     content: CanvasContent;
   }>();
   const [deskRef, desk] = useElementSize<HTMLElement>();
+  const deskElement = useRef<HTMLElement | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   // The panel shows the media pool on zine pages and the canvas on lined pages. A peek
   // at the other lasts until the next page change, so it is tagged with its page.
@@ -83,6 +86,35 @@ export function App() {
     setPanelWidth(width);
     storeWidth(width);
   }, []);
+
+  const attachDesk = useCallback(
+    (node: HTMLElement | null) => {
+      deskElement.current = node;
+      deskRef(node);
+    },
+    [deskRef],
+  );
+
+  // The open page's thumbnail follows its content and its look. The key is everything
+  // that changes how the page renders; nothing is rendered while the session loads.
+  const current = session?.page;
+  usePageThumbnail(
+    deskElement,
+    session && current
+      ? [
+          current.id,
+          columnsKey(current.columns),
+          JSON.stringify(current.zine ?? null),
+          session.notebook.themeId,
+          session.notebook.pageSize,
+          session.notebook.orientation,
+          current.divider,
+          current.margin,
+        ].join("|")
+      : "",
+    Boolean(session) && !preview,
+    session ? session.saveThumbnail : () => undefined,
+  );
 
   if (!session) {
     return <div className="loading">Opening notebook…</div>;
@@ -298,8 +330,9 @@ export function App() {
               tags={notebook.tags}
               filterTagId={filterTagId}
               onFilterChange={setFilterTagId}
+              thumbnails={session.thumbnails}
             />
-            <main className="desk" ref={deskRef}>
+            <main className="desk" ref={attachDesk}>
               {fit && page.kind === "zine" && page.zine && (
                 <ZinePage
                   key={page.id}

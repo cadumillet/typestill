@@ -2,13 +2,14 @@ import Dexie, { type EntityTable, type Table } from "dexie";
 import { DEFAULT_COVER } from "../notebook/cover";
 import { columnFromText } from "../page/document";
 import { DEFAULT_THEME_ID } from "../theme/themes";
-import type { Canvas, Notebook, NotebookFile, Page } from "./model";
+import type { Canvas, Notebook, NotebookFile, Page, Thumbnail } from "./model";
 
 export class TypestillDb extends Dexie {
   notebooks!: EntityTable<Notebook, "id">;
   pages!: EntityTable<Page, "id">;
   canvases!: EntityTable<Canvas, "notebookId">;
   files!: Table<NotebookFile, [string, string]>;
+  thumbnails!: EntityTable<Thumbnail, "pageId">;
 
   constructor(name = "typestill") {
     super(name);
@@ -66,6 +67,8 @@ export class TypestillDb extends Dexie {
             notebook.themeId ??= DEFAULT_THEME_ID;
           }),
       );
+    // Version 6: page thumbnails, a cache outside the backup. No data to convert.
+    this.version(6).stores({ ...stores, thumbnails: "pageId, notebookId" });
   }
 }
 
