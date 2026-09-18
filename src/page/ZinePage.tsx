@@ -19,8 +19,11 @@ import { drawingModeStyle, type DrawingAids } from "./drawingMode";
 import { FormatBar } from "./FormatBar";
 import { mmToCssPx, pageMm, type Orientation, type PageSize } from "./paper";
 import { pageLookStyle } from "./pageLook";
+import type { QuickLine } from "./quickLine";
+import { QuickLinePreview } from "./QuickLinePreview";
 import type { PageSide } from "./sides";
 import { useFormatBar } from "./useFormatBar";
+import { useQuickLine } from "./useQuickLine";
 import {
   MAX_ZINE_TEXT_ROWS,
   MEDIA_LAYOUTS,
@@ -78,10 +81,13 @@ export interface ZinePageProps {
   onPlaceFile?: (cell: number, fileId: string) => void;
   /** The cell chosen by clicking it: where a paste, or a click in the pool, lands. */
   selectedCell?: number | null;
+  /** The quick line (useQuickLine.ts), as on a lined page: given on the open page in writing mode only. */
+  onQuickLine?: (line: QuickLine) => void;
   onSelectCell?: (cell: number | null) => void;
 }
 
 const NO_ELEMENTS: readonly ExcalidrawElement[] = [];
+const NO_LINE = () => undefined;
 
 const KIND_LABELS: Record<ZineBlockKind, string> = { image: "Image", grid: "Grid", text: "Text" };
 
@@ -120,6 +126,7 @@ export function ZinePage({
   onPlaceFile,
   selectedCell = null,
   onSelectCell,
+  onQuickLine,
 }: ZinePageProps) {
   const mm = pageMm(size, orientation);
   const px = (value: number) => mmToCssPx(value, zoom);
@@ -130,6 +137,11 @@ export function ZinePage({
   const [fullBlocks, setFullBlocks] = useState<boolean[]>([]);
   const [over, setOver] = useState(false);
   const locked = preview || readOnly || drawingMode !== null;
+  const quick = useQuickLine(page, {
+    enabled: !locked && onQuickLine !== undefined,
+    zoom,
+    onLine: onQuickLine ?? NO_LINE,
+  });
 
   const setBlockFull = useCallback((index: number, full: boolean) => {
     setFullBlocks((current) => {
@@ -246,6 +258,7 @@ export function ZinePage({
     side ? `side-${side}` : "",
     over ? "is-over" : "",
     drawingMode ? "is-drawing" : "",
+    quick.armed ? "is-armed" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -264,7 +277,9 @@ export function ZinePage({
       style={style}
       ref={page}
       onPaste={onPaste}
+      {...quick.handlers}
       onPointerDown={(event) => {
+        quick.handlers.onPointerDown(event);
         if (!(event.target as HTMLElement).closest(".zine-cell")) onSelectCell?.(null);
       }}
       onDragOver={(event) => {
@@ -446,6 +461,7 @@ export function ZinePage({
           onAction={bar.onAction}
         />
       )}
+      {quick.preview && <QuickLinePreview preview={quick.preview} zoom={zoom} />}
     </div>
   );
 }

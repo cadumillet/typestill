@@ -1,6 +1,7 @@
-// Drawing mode's per-browser state: whether the mode is on (kept for the tab's session)
-// and the viewing aids, the opacity of the text and of the rules while drawing. None of
-// it is stored with the page or applied to exports.
+// Drawing mode's per-browser state: whether the mode is on (kept for the tab's session),
+// the viewing aids, the opacity of the text and of the rules while drawing, and the
+// stroke last used, which the quick line draws with. None of it is stored with the page
+// or applied to exports.
 
 import type { CSSProperties } from "react";
 
@@ -64,6 +65,56 @@ export function readDrawingAids(): DrawingAids {
 export function storeDrawingAids(aids: DrawingAids): void {
   try {
     localStorage.setItem(AIDS_KEY, JSON.stringify(aids));
+  } catch {
+    // Browser storage is a convenience only.
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The stroke last used in drawing mode, remembered per browser for the quick line.
+
+/** The drawing editor's current-item stroke: what its next stroke would be drawn with. */
+export interface DrawingStroke {
+  strokeColor: string;
+  strokeWidth: number;
+  roughness: number;
+}
+
+/** Excalidraw's defaults, used until drawing mode has been used in this browser. */
+export const DEFAULT_STROKE: DrawingStroke = {
+  strokeColor: "#1e1e1e",
+  strokeWidth: 2,
+  roughness: 1,
+};
+
+const STROKE_KEY = "typestill.drawing.stroke";
+
+export function readStroke(): DrawingStroke {
+  try {
+    const raw: unknown = JSON.parse(localStorage.getItem(STROKE_KEY) ?? "null");
+    if (typeof raw === "object" && raw !== null) {
+      const { strokeColor, strokeWidth, roughness } = raw as Record<string, unknown>;
+      return {
+        strokeColor: typeof strokeColor === "string" ? strokeColor : DEFAULT_STROKE.strokeColor,
+        strokeWidth:
+          typeof strokeWidth === "number" && Number.isFinite(strokeWidth)
+            ? strokeWidth
+            : DEFAULT_STROKE.strokeWidth,
+        roughness:
+          typeof roughness === "number" && Number.isFinite(roughness)
+            ? roughness
+            : DEFAULT_STROKE.roughness,
+      };
+    }
+  } catch {
+    // Fall through to the defaults.
+  }
+  return DEFAULT_STROKE;
+}
+
+export function storeStroke(stroke: DrawingStroke): void {
+  try {
+    localStorage.setItem(STROKE_KEY, JSON.stringify(stroke));
   } catch {
     // Browser storage is a convenience only.
   }

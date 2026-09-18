@@ -10,7 +10,7 @@ import type {
   ExcalidrawFrameLikeElement,
 } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFiles } from "@excalidraw/excalidraw/types";
-import { useEffect, useReducer } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { elementsKey } from "../store/autosave";
 import { pageGeometry, type Orientation, type PageSize } from "./paper";
 
@@ -107,6 +107,11 @@ export function useDrawingStill(
   const key = stillKey(elements, size, orientation);
   const cached = empty ? null : (stills.get(key) ?? null);
   const [, rerender] = useReducer((n: number) => n + 1, 0);
+  // The last still shown, kept while the next one builds (a quick line lands, a stroke
+  // is added) so the drawing never blinks away; an emptied drawing shows nothing. Set
+  // during render, React's way of keeping information from previous renders.
+  const [last, setLast] = useState<string | null>(null);
+  if (empty ? last !== null : cached !== null && last !== cached) setLast(empty ? null : cached);
   useEffect(() => {
     if (empty || cached !== null) return;
     let cancelled = false;
@@ -121,5 +126,5 @@ export function useDrawingStill(
     // The elements are identified by their key; a new array with the same key is the same drawing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, empty, cached]);
-  return cached;
+  return empty ? null : (cached ?? last);
 }

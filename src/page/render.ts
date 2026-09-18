@@ -10,6 +10,7 @@ const STRIPPED = [
   ".text-page__mirror",
   ".text-page__full",
   ".text-page__divider-handle",
+  ".page-chrome",
   ".zine-chrome",
 ];
 

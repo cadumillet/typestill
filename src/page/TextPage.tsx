@@ -27,7 +27,10 @@ import {
   type PageSize,
 } from "./paper";
 import { pageLookStyle } from "./pageLook";
+import type { QuickLine } from "./quickLine";
+import { QuickLinePreview } from "./QuickLinePreview";
 import type { PageSide } from "./sides";
+import { useQuickLine } from "./useQuickLine";
 import { useFormatBar } from "./useFormatBar";
 import "./textpage.css";
 
@@ -67,12 +70,19 @@ export interface TextPageProps {
    * change so the session can save it with the text.
    */
   onFill?: (fill: number) => void;
+  /**
+   * The quick line (useQuickLine.ts): with Shift held, a drag on the page draws a line
+   * reported here in scene px. Given on the open page in writing mode only; the hook is
+   * off while the page is locked.
+   */
+  onQuickLine?: (line: QuickLine) => void;
 }
 
 const NO_ELEMENTS: readonly ExcalidrawElement[] = [];
 const NO_FILES: BinaryFiles = {};
 
 const EMPTY_COLUMN = columnFromText("");
+const NO_LINE = () => undefined;
 
 /**
  * A lined text page. Each column is an editor in the theme's font whose line height is
@@ -97,6 +107,7 @@ export function TextPage({
   onChange,
   onDividerChange,
   onFill,
+  onQuickLine,
 }: TextPageProps) {
   const mm = pageMm(size, orientation);
   const px = (value: number) => mmToCssPx(value, zoom);
@@ -149,6 +160,11 @@ export function TextPage({
   } as CSSProperties;
 
   const locked = preview || readOnly || drawingMode !== null;
+  const quick = useQuickLine(page, {
+    enabled: !locked && onQuickLine !== undefined,
+    zoom,
+    onLine: onQuickLine ?? NO_LINE,
+  });
   const shownDivider = dragDivider ?? divider;
   const boxes = columnBoxes(mm.width, margin, shownDivider, lined);
 
@@ -184,6 +200,7 @@ export function TextPage({
     preview ? "is-preview" : "",
     side ? `side-${side}` : "",
     drawingMode ? "is-drawing" : "",
+    quick.armed ? "is-armed" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -193,6 +210,7 @@ export function TextPage({
       className={`${className}${dragDivider !== null ? " is-dragging-divider" : ""}`}
       style={style}
       ref={page}
+      {...quick.handlers}
     >
       {!drawingMode && (
         <DrawingStill
@@ -268,6 +286,7 @@ export function TextPage({
           onAction={bar.onAction}
         />
       )}
+      {quick.preview && <QuickLinePreview preview={quick.preview} zoom={zoom} />}
     </div>
   );
 }

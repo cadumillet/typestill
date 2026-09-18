@@ -7,6 +7,7 @@ import type {
   NormalizedZoomValue,
 } from "@excalidraw/excalidraw/types";
 import { useCallback, useEffect, useMemo, useRef, type CSSProperties } from "react";
+import { storeStroke, type DrawingStroke } from "./drawingMode";
 import "./pagedrawing.css";
 
 /** The drawing as the editor has it: its elements and the files its images use. */
@@ -102,6 +103,8 @@ export function PageDrawing({
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const latest = useRef<DrawingContent>(initial);
   const reportTimer = useRef<number | null>(null);
+  /** The stroke last remembered for the quick line, so storage is written only on a change. */
+  const stroke = useRef<DrawingStroke | null>(null);
   // Callbacks read the latest props from here, so the editor's handlers stay stable.
   const callbacks = useRef({ onChange, onUnmount, onOutsidePointerDown });
   useEffect(() => {
@@ -218,11 +221,13 @@ export function PageDrawing({
     };
   }, []);
 
-  // The latest drawing goes back to the shell when the editor goes away.
+  // The latest drawing goes back to the shell when the editor goes away, and the stroke
+  // it was left with is remembered for the quick line.
   useEffect(
     () => () => {
       if (reportTimer.current !== null) window.clearTimeout(reportTimer.current);
       callbacks.current.onUnmount?.(latest.current);
+      if (stroke.current) storeStroke(stroke.current);
     },
     [],
   );
@@ -243,6 +248,21 @@ export function PageDrawing({
       }
       if (appState.gridModeEnabled) {
         apiRef.current?.updateScene({ appState: { gridModeEnabled: false } });
+      }
+      // The current-item stroke is what the quick line draws with, remembered per browser.
+      const current = stroke.current;
+      if (
+        !current ||
+        current.strokeColor !== appState.currentItemStrokeColor ||
+        current.strokeWidth !== appState.currentItemStrokeWidth ||
+        current.roughness !== appState.currentItemRoughness
+      ) {
+        stroke.current = {
+          strokeColor: appState.currentItemStrokeColor,
+          strokeWidth: appState.currentItemStrokeWidth,
+          roughness: appState.currentItemRoughness,
+        };
+        storeStroke(stroke.current);
       }
       // Excalidraw reports every pointer move of a stroke; the shell hears a few per second.
       if (reportTimer.current === null) {
