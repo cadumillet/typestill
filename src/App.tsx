@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, type CSSProperties } from "react";
 import { flushSync } from "react-dom";
 import { DrawingTools } from "./notebook/DrawingTools";
+import { Edge } from "./notebook/Edge";
 import { MediaPool } from "./notebook/MediaPool";
 import { PAGE_BAR_HEIGHT, PageBar } from "./notebook/PageBar";
 import { CoverSwatch } from "./notebook/CoverSwatch";
@@ -483,6 +484,18 @@ export function App() {
             onPruneImages={() => void pruneImages()}
           />
           <div className="workspace">
+            {features.edge && fit && (
+              <Edge
+                pages={pages}
+                index={index}
+                sections={notebook.sections}
+                sides={sides}
+                thumbnails={session.thumbnails}
+                top={pageTop}
+                height={fit.height}
+                onSelect={session.goTo}
+              />
+            )}
             <main className="desk" ref={attachDesk}>
               {fit && (
                 <div className="desk__sheet" style={{ width: fit.width }}>

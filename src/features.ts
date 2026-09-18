@@ -12,9 +12,16 @@ export interface Features {
    * still opens, edits and exports as ever, with the pool beside it.
    */
   zinePages: boolean;
+  /**
+   * The edge, an experiment: the notebook's fore-edge as a rail beside the page (one
+   * line per page, coloured by section); while it is on the notebook box hides its map.
+   * On by default; off, or the experiment's commit reverted, restores the map.
+   */
+  edge: boolean;
 }
 
 const ZINE_STORAGE_KEY = "typestill.features.zine";
+const EDGE_STORAGE_KEY = "typestill.features.edge";
 
 /** The local-storage override of a flag, if the key holds "on" or "off". */
 function readOverride(key: string): boolean | null {
@@ -33,4 +40,5 @@ function readFlag(key: string, variable: string | undefined): boolean {
 
 export const features: Features = {
   zinePages: readFlag(ZINE_STORAGE_KEY, import.meta.env.VITE_FEATURE_ZINE as string | undefined),
+  edge: readFlag(EDGE_STORAGE_KEY, undefined),
 };
