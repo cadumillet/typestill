@@ -375,9 +375,7 @@ export function SettingsDialog({
               ))}
             </select>
           </label>
-          <p className="settings__note">
-            The chrome and the canvas, in this browser. Pages follow their theme.
-          </p>
+          <p className="settings__note">The chrome, in this browser. Pages follow their theme.</p>
         </fieldset>
         <div className="settings__actions">
           <button type="button" onClick={onClose}>

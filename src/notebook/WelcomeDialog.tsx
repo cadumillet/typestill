@@ -73,9 +73,8 @@ export function WelcomeDialog({ onOpen, onRestore }: WelcomeDialogProps) {
       <form onSubmit={submit}>
         <p className="welcome__wordmark">typestill</p>
         <p className="welcome__intro">
-          Lined pages for writing on the left, one infinite canvas for drawing on the right, and
-          zine pages for images. Everything stays in this browser and in the backup files you
-          download; there is no account.
+          Lined pages you write on and draw on, one after another, in sections. Everything stays in
+          this browser and in the backup files you download; there is no account.
         </p>
         <fieldset className="settings__group" disabled={busy}>
           <legend>Your first notebook</legend>

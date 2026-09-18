@@ -299,7 +299,7 @@ export function App() {
     } catch (error) {
       window.alert(
         error instanceof FileInUseError
-          ? "This image is in use on a page or the canvas. Replace it there first."
+          ? "This image is in use on a page. Replace it there first."
           : "Could not delete the image.",
       );
     }
