@@ -1,0 +1,49 @@
+/* The quick line (useQuickLine.ts): with Shift held the page is armed, its writing and
+   chrome take no pointer and the cursor is a crosshair; the line being dragged is an SVG
+   over the page, above the still, stripped by the renderer (.page-chrome). Screen only. */
+
+.text-page.is-armed {
+  cursor: crosshair;
+}
+
+.text-page.is-armed .text-page__column,
+.text-page.is-armed .zine-cell,
+.text-page.is-armed .zine-block,
+.text-page.is-armed .text-page__divider-handle,
+.text-page.is-armed .zine-add {
+  pointer-events: none;
+}
+
+.quick-line {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* The indicator while armed: a pill at the page's top-right, the element's icon and name. */
+.quick-line__element {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 5px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 1px 2px rgb(0 0 0 / 0.06);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}

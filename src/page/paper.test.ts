@@ -68,15 +68,29 @@ describe("ruleCount", () => {
 });
 
 describe("columnBoxes", () => {
-  it("gives one column from the margin line to the right inset", () => {
-    expect(columnBoxes(148, 20, null)).toEqual([{ left: 22, width: 120 }]);
+  it("gives one column from the left inset to the right inset, hanging by the margin", () => {
+    // The body (left + hang) starts at 22, after the margin line at 20, as before.
+    expect(columnBoxes(148, 20, null)).toEqual([{ left: 2, width: 140, hang: 20 }]);
+    expect(columnBoxes(148, 30, null)).toEqual([{ left: 2, width: 140, hang: 30 }]);
   });
 
-  it("splits at the divider with an inset on both sides", () => {
+  it("splits at the divider with an inset on both sides; only the first column hangs", () => {
     expect(columnBoxes(148, 20, 74)).toEqual([
-      { left: 22, width: 50 },
-      { left: 76, width: 66 },
+      { left: 2, width: 70, hang: 20 },
+      { left: 76, width: 66, hang: 0 },
     ]);
+    const [first, second] = columnBoxes(148, 20, 74);
+    expect(first.left + first.hang).toBe(22);
+    expect(first.left + first.width).toBe(72);
+    expect(second.left).toBe(76);
+  });
+
+  it("keeps the body's left edge where it was for any margin", () => {
+    for (const margin of [10, 20, 40]) {
+      const [box] = columnBoxes(148, margin, null);
+      expect(box.left + box.hang).toBe(margin + 2);
+      expect(box.left + box.width).toBe(142);
+    }
   });
 
   it("defaults the divider to the middle of the writable area", () => {

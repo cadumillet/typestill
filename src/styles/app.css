@@ -1,7 +1,7 @@
 /* Chrome colours. The pages take theirs from the notebook's theme (--page-*); the chrome
    follows the app appearance setting, applied as data-appearance on <html>. */
 :root {
-  --desk: #ffffff;
+  --desk: #f6f5f2;
   --surface: #ffffff;
   --ink: #26241f;
   --muted: #7d786d;
@@ -78,6 +78,12 @@ body {
   padding: 0 24px 0 16px;
   flex: none;
   white-space: nowrap;
+}
+
+/* The clean layout (Shift+?): the chrome is hidden in place, so nothing around the notebook moves. */
+.app-header.is-hidden,
+.page-bar.is-hidden {
+  visibility: hidden;
 }
 
 .app-header__actions {
@@ -200,7 +206,8 @@ button[aria-pressed="true"] {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  /* Clip, never scroll: a caret past the page's edge must not pull the desk up. */
+  overflow: clip;
 }
 
 /* The sheet is the page or spread with the page bar under it, centred on the desk. */
@@ -210,8 +217,13 @@ button[aria-pressed="true"] {
   flex-direction: column;
 }
 
+/* The spread lies on the desk with the faintest shadow, rounded as the pages' outer corners are. */
 .desk__spread {
   display: flex;
+  border-radius: var(--page-corner, 0);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 6px 20px rgb(0 0 0 / 0.06);
 }
 
 .desk__page {
@@ -219,16 +231,25 @@ button[aria-pressed="true"] {
   display: flex;
 }
 
-/* In a spread, the page that is not open is dimmed a touch until it is clicked. */
-.desk__spread.is-spread .desk__page:not(.is-open) {
-  opacity: 0.85;
+/* In a spread, the page that is not open is dimmed until it is clicked, so the open one
+   reads at a glance; not in preview, which shows the spread as it reads. */
+.desk__spread.is-spread:not(.is-preview) .desk__page:not(.is-open) {
+  opacity: 0.55;
 }
 
-/* The inside of a cover: an empty side of a spread, page-sized, in the cover colour, with
-   nothing on it and nothing to click. It rounds its outer corners like a page. */
+/* The inside of a cover: an empty side of a spread, a plain page-sized surface in the
+   chrome's colours (white in the light appearance, dark grey in the dark one), with
+   nothing on it and nothing to click; the outer corners round like a page's. */
 .desk__slab {
   flex: none;
+  box-sizing: border-box;
   pointer-events: none;
+  user-select: none;
+}
+
+.desk__slab--plain {
+  background: var(--surface);
+  border: 1px solid var(--line);
 }
 
 .desk__slab--left {
@@ -252,4 +273,11 @@ button[aria-pressed="true"] {
   justify-content: center;
   height: 100%;
   color: var(--muted);
+}
+
+/* In drawing mode the drawing editor covers the desk (z-index 5, pagedrawing.css); the
+   page bar stays above it, reachable, with its popovers and tooltips. */
+.page-bar {
+  position: relative;
+  z-index: 6;
 }

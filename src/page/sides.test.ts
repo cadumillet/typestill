@@ -9,19 +9,23 @@ describe("page sides", () => {
     expect(pageSide(3)).toBe("left");
   });
 
+  it("makes every section's first page, on a sheet boundary, a right-hand page", () => {
+    for (const start of [0, 4, 8, 92]) expect(pageSide(start)).toBe("right");
+  });
+
   it("puts page 1 alone on the right of the first spread", () => {
-    expect(spreadOf(0, 5)).toEqual({ left: null, right: 0 });
+    expect(spreadOf(0, 96)).toEqual({ left: null, right: 0 });
   });
 
   it("pairs an even page with the odd page after it", () => {
-    expect(spreadOf(1, 5)).toEqual({ left: 1, right: 2 });
-    expect(spreadOf(2, 5)).toEqual({ left: 1, right: 2 });
-    expect(spreadOf(3, 5)).toEqual({ left: 3, right: 4 });
-    expect(spreadOf(4, 5)).toEqual({ left: 3, right: 4 });
+    expect(spreadOf(1, 96)).toEqual({ left: 1, right: 2 });
+    expect(spreadOf(2, 96)).toEqual({ left: 1, right: 2 });
+    expect(spreadOf(3, 96)).toEqual({ left: 3, right: 4 });
+    expect(spreadOf(4, 96)).toEqual({ left: 3, right: 4 });
   });
 
-  it("leaves the inside of the back cover empty after a last left-hand page", () => {
-    expect(spreadOf(1, 2)).toEqual({ left: 1, right: null });
+  it("leaves the inside of the back cover after the last page", () => {
+    expect(spreadOf(95, 96)).toEqual({ left: 95, right: null });
     expect(spreadOf(0, 1)).toEqual({ left: null, right: 0 });
   });
 });

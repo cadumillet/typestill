@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type SyntheticEvent } from "react";
 import { COVER_COLORS, DEFAULT_COVER, type Cover } from "./cover";
 import { CoverSwatch } from "./CoverSwatch";
+import { DEFAULT_NOTEBOOK_SIZE, NOTEBOOK_SIZES } from "../store/model";
 import "./settings.css";
 import "./welcome.css";
 
@@ -8,7 +9,7 @@ export const DEFAULT_NOTEBOOK_NAME = "Notebook";
 
 export interface WelcomeDialogProps {
   /** Creates the first notebook and opens it. */
-  onOpen: (name: string, cover: Cover) => Promise<void>;
+  onOpen: (name: string, cover: Cover, size: number) => Promise<void>;
   /** Restores a backup file and opens that notebook. Rejects for files that are not backups. */
   onRestore: (file: File) => Promise<void>;
 }
@@ -24,6 +25,7 @@ export function WelcomeDialog({ onOpen, onRestore }: WelcomeDialogProps) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(DEFAULT_NOTEBOOK_NAME);
   const [color, setColor] = useState(DEFAULT_COVER.color);
+  const [size, setSize] = useState<number>(DEFAULT_NOTEBOOK_SIZE);
   const [busy, setBusy] = useState(false);
   /** Set once a choice is on its way, so a close event after it does nothing. */
   const chosen = useRef(false);
@@ -39,7 +41,7 @@ export function WelcomeDialog({ onOpen, onRestore }: WelcomeDialogProps) {
     if (chosen.current) return;
     chosen.current = true;
     setBusy(true);
-    void onOpen(shownName, cover);
+    void onOpen(shownName, cover, size);
   };
 
   const submit = (event: FormEvent) => {
@@ -73,8 +75,8 @@ export function WelcomeDialog({ onOpen, onRestore }: WelcomeDialogProps) {
       <form onSubmit={submit}>
         <p className="welcome__wordmark">typestill</p>
         <p className="welcome__intro">
-          Lined pages for writing on the left, one infinite canvas for drawing on the right, and
-          zine pages for images. Everything stays in this browser and in the backup files you
+          A notebook of lined pages you write on and draw on, in sections, with a fixed number of
+          pages like a real one. Everything stays in this browser and in the backup files you
           download; there is no account.
         </p>
         <fieldset className="settings__group" disabled={busy}>
@@ -105,8 +107,22 @@ export function WelcomeDialog({ onOpen, onRestore }: WelcomeDialogProps) {
                   />
                 ))}
               </div>
+              <label className="settings__field">
+                <span>Pages</span>
+                <select value={size} onChange={(event) => setSize(Number(event.target.value))}>
+                  {NOTEBOOK_SIZES.map((count) => (
+                    <option key={count} value={count}>
+                      {count} pages
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
           </div>
+          <p className="settings__note">
+            A notebook has its pages from the start, in sheets of four; it can grow by whole sheets
+            later.
+          </p>
         </fieldset>
         <div className="settings__actions welcome__actions">
           <button

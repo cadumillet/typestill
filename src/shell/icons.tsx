@@ -130,6 +130,13 @@ export const AlignRight = () => (
   </svg>
 );
 
+/** The paragraph alignment: a first line starting further in, the rest running from the edge. */
+export const AlignParagraph = () => (
+  <svg {...base}>
+    <path d="M7 5h8M3 9h12M3 13h12" />
+  </svg>
+);
+
 export const Images = () => (
   <svg {...base}>
     <rect x="2.5" y="3.5" width="13" height="11" rx="2" />
@@ -155,5 +162,54 @@ export const Search = () => (
   <svg {...base}>
     <circle cx="8" cy="8" r="4.5" />
     <path d="M11.5 11.5l4 4" />
+  </svg>
+);
+
+export const Sliders = () => (
+  <svg {...base}>
+    <path d="M3 5.5h12M3 12.5h12" />
+    <circle cx="7" cy="5.5" r="1.75" fill="var(--surface)" />
+    <circle cx="11.5" cy="12.5" r="1.75" fill="var(--surface)" />
+  </svg>
+);
+
+export const Columns = () => (
+  <svg {...base}>
+    <rect x="3" y="3.5" width="5" height="11" rx="1" />
+    <rect x="10" y="3.5" width="5" height="11" rx="1" />
+  </svg>
+);
+
+export const Grid = () => (
+  <svg {...base}>
+    <rect x="3" y="3" width="4.5" height="4.5" rx="1" />
+    <rect x="10.5" y="3" width="4.5" height="4.5" rx="1" />
+    <rect x="3" y="10.5" width="4.5" height="4.5" rx="1" />
+    <rect x="10.5" y="10.5" width="4.5" height="4.5" rx="1" />
+  </svg>
+);
+
+// The quick shapes' indicator: what the next drag draws while Shift is held.
+export const Line = () => (
+  <svg {...base}>
+    <path d="M3.5 14.5l11-11" />
+  </svg>
+);
+
+export const Rectangle = () => (
+  <svg {...base}>
+    <rect x="3" y="4" width="12" height="10" rx="1" />
+  </svg>
+);
+
+export const Ellipse = () => (
+  <svg {...base}>
+    <ellipse cx="9" cy="9" rx="6.5" ry="5" />
+  </svg>
+);
+
+export const Arrow = () => (
+  <svg {...base}>
+    <path d="M3.5 14.5l11-11M8.5 3.5h6v6" />
   </svg>
 );

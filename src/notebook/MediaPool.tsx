@@ -22,7 +22,7 @@ export interface MediaPoolProps {
 /**
  * The notebook's media pool, like a phone's photo library: square thumbnails edge to
  * edge, newest first, each with a badge saying where it is used. Images come in by
- * drop, paste or the file picker; they leave by drag (to a cell or the canvas) or, when
+ * drop, paste or the file picker; they leave by drag (to a cell) or, when
  * unused, by the delete control that appears on hover. An image in use anywhere cannot
  * be deleted.
  */
@@ -89,8 +89,7 @@ export function MediaPool({
       </div>
       {entries.length === 0 ? (
         <p className="media-pool__empty">
-          No images yet. Drop, paste or pick some; they can then be placed on zine pages or dragged
-          onto the canvas.
+          No images yet. Drop, paste or pick some; they can then be placed on zine pages.
         </p>
       ) : (
         <ul className="media-pool__grid">
@@ -111,7 +110,7 @@ export function MediaPool({
                 <button
                   type="button"
                   className="media-pool__image"
-                  title={`${where}. ${canPlace ? "Click to place in the chosen cell" : "Drag onto a cell or the canvas"}`}
+                  title={`${where}. ${canPlace ? "Click to place in the chosen cell" : "Drag onto a cell"}`}
                   onClick={() => canPlace && onPlace(entry.id)}
                 >
                   <img src={entry.data.dataURL} alt="" draggable={false} />

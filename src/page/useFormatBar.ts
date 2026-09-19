@@ -54,5 +54,11 @@ export function useFormatBar(page: RefObject<HTMLDivElement | null>) {
     [selection],
   );
 
-  return { selection, setColumnSelection, bindEditor, onAction };
+  /** The undo depth of the column that has the keyboard, or 0 when none has it. */
+  const focusedUndoDepth = useCallback(
+    () => editors.current.find((editor) => editor?.hasFocus())?.undoDepth() ?? 0,
+    [],
+  );
+
+  return { selection, setColumnSelection, bindEditor, onAction, focusedUndoDepth };
 }

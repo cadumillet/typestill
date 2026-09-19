@@ -1,3 +1,4 @@
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData } from "@excalidraw/excalidraw/types";
 import {
   useCallback,
@@ -12,12 +13,19 @@ import { POOL_DRAG_TYPE } from "../notebook/pool";
 import { Column } from "./Column";
 import type { Column as ColumnValue } from "./document";
 import type { Theme } from "../theme/theme";
+import { isDarkTheme } from "../theme/themes";
+import { DrawingStill } from "./DrawingStill";
+import { drawingModeStyle, type DrawingAids } from "./drawingMode";
 import { FormatBar } from "./FormatBar";
-import { PageMarks } from "./PageMarks";
 import { mmToCssPx, pageMm, type Orientation, type PageSize } from "./paper";
 import { pageLookStyle } from "./pageLook";
+import type { QuickShape } from "./quickLineElement";
+import { QuickElementIndicator, QuickLinePreview } from "./QuickLinePreview";
+import { pastEndLabel } from "./TextPage";
 import type { PageSide } from "./sides";
 import { useFormatBar } from "./useFormatBar";
+import { useOpenElement } from "./useOpenElement";
+import { useQuickLine } from "./useQuickLine";
 import {
   MAX_ZINE_TEXT_ROWS,
   MEDIA_LAYOUTS,
@@ -59,13 +67,15 @@ export interface ZinePageProps {
   zine: Zine;
   /** The notebook's files, for the images the media block shows. */
   files: Record<string, BinaryFileData>;
-  /** Preview: placeholders hidden, no editing. */
-  preview?: boolean;
+  /** Bare: placeholders hidden, no editing; the exports' rendering. Preview passes readOnly. */
+  bare?: boolean;
   readOnly?: boolean;
-  /** The page number at the bottom centre, when the page shows one. */
-  number?: number | null;
   /** The page's side, which rounds its outer corners; none for a rectangular render. */
   side?: PageSide;
+  /** The page's drawing, shown as a still over the blocks; empty for none. */
+  drawing?: readonly ExcalidrawElement[];
+  /** Drawing mode, with its viewing aids: the page is locked and shows no still. */
+  drawingMode?: DrawingAids | null;
   onChange?: (zine: Zine) => void;
   /** Image files dropped, pasted or picked; null when pasted with every cell full. */
   onAddImages?: (cell: number | null, files: File[]) => void;
@@ -73,8 +83,16 @@ export interface ZinePageProps {
   onPlaceFile?: (cell: number, fileId: string) => void;
   /** The cell chosen by clicking it: where a paste, or a click in the pool, lands. */
   selectedCell?: number | null;
+  /** The quick line (useQuickLine.ts), as on a lined page: given on the open page in writing mode only. */
+  onQuickLine?: (shape: QuickShape) => string | void;
+  onQuickLineUndo?: (id: string) => void;
+  /** A drawn element double-clicked on its outline (useOpenElement.ts), as on a lined page. */
+  onOpenElement?: (id: string) => void;
   onSelectCell?: (cell: number | null) => void;
 }
+
+const NO_ELEMENTS: readonly ExcalidrawElement[] = [];
+const NO_LINE = () => undefined;
 
 const KIND_LABELS: Record<ZineBlockKind, string> = { image: "Image", grid: "Grid", text: "Text" };
 
@@ -103,15 +121,19 @@ export function ZinePage({
   zoom,
   zine,
   files,
-  preview = false,
+  bare = false,
   readOnly = false,
-  number = null,
   side,
+  drawing = NO_ELEMENTS,
+  drawingMode = null,
   onChange,
   onAddImages,
   onPlaceFile,
   selectedCell = null,
   onSelectCell,
+  onQuickLine,
+  onQuickLineUndo,
+  onOpenElement,
 }: ZinePageProps) {
   const mm = pageMm(size, orientation);
   const px = (value: number) => mmToCssPx(value, zoom);
@@ -119,15 +141,29 @@ export function ZinePage({
   const pitch = px(pitchMm);
   const page = useRef<HTMLDivElement>(null);
   const bar = useFormatBar(page);
-  const [fullBlocks, setFullBlocks] = useState<boolean[]>([]);
+  /** Lines each text block runs past its rows, 0 while it fits. */
+  const [overflow, setOverflow] = useState<number[]>([]);
   const [over, setOver] = useState(false);
-  const locked = preview || readOnly;
+  const locked = bare || readOnly || drawingMode !== null;
+  const quick = useQuickLine(page, {
+    enabled: !locked && onQuickLine !== undefined,
+    zoom,
+    onLine: onQuickLine ?? NO_LINE,
+    onUndoLine: onQuickLineUndo ?? NO_LINE,
+    undoDepth: bar.focusedUndoDepth,
+  });
+  useOpenElement(page, {
+    enabled: !locked && onOpenElement !== undefined,
+    zoom,
+    elements: drawing,
+    onOpen: onOpenElement ?? NO_LINE,
+  });
 
-  const setBlockFull = useCallback((index: number, full: boolean) => {
-    setFullBlocks((current) => {
-      if (current[index] === full) return current;
+  const setBlockOverflow = useCallback((index: number, lines: number) => {
+    setOverflow((current) => {
+      if (current[index] === lines) return current;
       const next = [...current];
-      next[index] = full;
+      next[index] = lines;
       return next;
     });
   }, []);
@@ -220,6 +256,7 @@ export function ZinePage({
     height: px(mm.height),
     "--rule-pitch": `${pitch}px`,
     "--font-size": `${pitch / theme.zine.font.lineHeight}px`,
+    ...(drawingMode ? drawingModeStyle(drawingMode) : {}),
   } as CSSProperties;
 
   const boxStyle = (box: Box): CSSProperties => ({
@@ -233,9 +270,12 @@ export function ZinePage({
     "text-page",
     "zine-page",
     theme.page.border ? "has-border" : "",
-    preview ? "is-preview" : "",
+    bare ? "is-bare" : "",
+    readOnly ? "is-read-only" : "",
     side ? `side-${side}` : "",
     over ? "is-over" : "",
+    drawingMode ? "is-drawing" : "",
+    quick.armed ? "is-armed" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -254,7 +294,9 @@ export function ZinePage({
       style={style}
       ref={page}
       onPaste={onPaste}
+      {...quick.handlers}
       onPointerDown={(event) => {
+        quick.handlers.onPointerDown(event);
         if (!(event.target as HTMLElement).closest(".zine-cell")) onSelectCell?.(null);
       }}
       onDragOver={(event) => {
@@ -265,6 +307,17 @@ export function ZinePage({
       onDragLeave={() => setOver(false)}
       onDrop={onDrop}
     >
+      {!drawingMode && (
+        <DrawingStill
+          elements={drawing}
+          files={files}
+          size={size}
+          orientation={orientation}
+          inverted={isDarkTheme(theme)}
+          width={px(mm.width)}
+          height={px(mm.height)}
+        />
+      )}
       {blocks.map((entry) => {
         const { block, at, box } = entry;
         if (isMediaBlock(block)) {
@@ -288,7 +341,7 @@ export function ZinePage({
                     height: px(cellBox.height),
                   }}
                   locked={locked}
-                  preview={preview}
+                  quiet={bare || readOnly}
                   selected={selectedCell === index}
                   onSelect={() => onSelectCell?.(index)}
                   onFiles={(dropped) => onAddImages?.(index, dropped)}
@@ -333,20 +386,27 @@ export function ZinePage({
               readOnly={locked}
               lines={entry.lines}
               pitch={pitch}
-              style={{
-                left: px(text.left - box.left),
-                width: px(text.width),
-                top: px(text.top - box.top),
-                height: entry.lines * pitch,
-              }}
+              style={
+                {
+                  left: px(text.left - box.left),
+                  width: px(text.width),
+                  top: px(text.top - box.top),
+                  height: entry.lines * pitch,
+                  // A zine block has no margin line: nothing hangs.
+                  "--column-hang": "0px",
+                } as CSSProperties
+              }
               onChange={(column: ColumnValue) =>
                 change(replaceBlock(zine, at, { ...block, column }))
               }
-              onFull={(full) => setBlockFull(index, full)}
+              onOverflow={(lines) => setBlockOverflow(index, lines)}
               onSelection={(selection) => bar.setColumnSelection(index, selection)}
+              onEdit={quick.onEdit}
             />
-            {!locked && fullBlocks[index] && (
-              <div className="text-page__full zine-page__full zine-chrome">Text full</div>
+            {!locked && overflow[index] > 0 && (
+              <div className="text-page__full zine-page__full zine-chrome">
+                <span>{pastEndLabel(overflow[index])}</span>
+              </div>
             )}
             {!locked && (
               <div className="zine-block__tools zine-chrome">
@@ -417,7 +477,6 @@ export function ZinePage({
             onAdd={(kind) => add({ row: options.beside!, side: edge }, kind)}
           />
         ))}
-      <PageMarks number={number} zoom={zoom} />
       {!locked && bar.selection && (
         <FormatBar
           anchor={bar.selection.anchor}
@@ -426,6 +485,8 @@ export function ZinePage({
           onAction={bar.onAction}
         />
       )}
+      {quick.preview && <QuickLinePreview preview={quick.preview} zoom={zoom} />}
+      {quick.armed && <QuickElementIndicator element={quick.element} />}
     </div>
   );
 }
@@ -485,7 +546,8 @@ interface ZineCellProps {
   file: BinaryFileData | undefined;
   style: CSSProperties;
   locked: boolean;
-  preview: boolean;
+  /** Bare or read-only: an empty cell is not layout, so no placeholder or "missing" note. */
+  quiet: boolean;
   selected: boolean;
   onSelect: () => void;
   onFiles: (files: File[]) => void;
@@ -501,7 +563,7 @@ function ZineCell({
   file,
   style,
   locked,
-  preview,
+  quiet,
   selected,
   onSelect,
   onFiles,
@@ -563,10 +625,10 @@ function ZineCell({
           style={{ objectFit: image.fit }}
         />
       )}
-      {image && !file && !preview && (
+      {image && !file && !quiet && (
         <div className="zine-cell__missing zine-chrome">Missing image</div>
       )}
-      {!image && !preview && (
+      {!image && !quiet && (
         <button
           type="button"
           className="zine-cell__add zine-chrome"

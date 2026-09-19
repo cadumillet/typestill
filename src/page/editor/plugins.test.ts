@@ -2,24 +2,15 @@ import { EditorState, TextSelection } from "prosemirror-state";
 import { describe, expect, it } from "vitest";
 import { documentFromText } from "../document";
 import { splitParagraph } from "./commands";
-import { capacityPlugin, editorPlugins, undoUnchecked } from "./plugins";
+import { editorPlugins } from "./plugins";
 import { schema } from "./schema";
 
-/** A state whose capacity counts paragraphs as lines, capped at `limit`. */
-function stateFor(text: string, limit: number, onReject?: () => void): EditorState {
+/** A state over the given text with the editor's plugins and the caret at the end. */
+function stateFor(text: string): EditorState {
   const doc = schema.nodeFromJSON(documentFromText(text));
-  const plugins = [
-    ...editorPlugins({ usedLines: (d) => d.childCount, limit: () => limit, onReject }),
-  ];
-  const state = EditorState.create({ doc, plugins });
+  const state = EditorState.create({ doc, plugins: editorPlugins() });
   return state.apply(state.tr.setSelection(TextSelection.atEnd(doc)));
 }
-
-/** Deletes the last paragraph, joining the caret's end onto the previous one. */
-const dropLastParagraph = (state: EditorState): EditorState => {
-  const size = state.doc.content.size;
-  return state.apply(state.tr.delete(size - state.doc.lastChild!.nodeSize - 1, size));
-};
 
 const enter = (state: EditorState): EditorState => {
   let next = state;
@@ -29,41 +20,20 @@ const enter = (state: EditorState): EditorState => {
   return next;
 };
 
-describe("capacityPlugin", () => {
-  it("drops an edit that would pass the last line and reports it", () => {
-    let rejected = 0;
-    const state = stateFor("a\nb", 2, () => rejected++);
-    const after = enter(state);
-    expect(after.doc.childCount).toBe(2);
-    expect(after.doc).toBe(state.doc);
-    expect(rejected).toBe(1);
-    const typed = state.apply(state.tr.insertText("!"));
-    expect(typed.doc.textContent).toBe("ab!");
-  });
-
-  it("lets text already past the limit be edited as long as it does not grow", () => {
-    const state = stateFor("a\nb\nc\nd", 2);
-    const shorter = dropLastParagraph(state);
-    expect(shorter.doc.childCount).toBe(3);
-    expect(enter(shorter).doc.childCount).toBe(3);
-    const retyped = shorter.apply(shorter.tr.insertText("x"));
-    expect(retyped.doc.textContent).toBe("abcx");
-  });
-
-  it("never drops an undo", () => {
-    const state = stateFor("a\nb\nc", 3);
-    const shorter = dropLastParagraph(state);
-    expect(shorter.doc.childCount).toBe(2);
-    const stricter = shorter.reconfigure({
-      plugins: [
-        capacityPlugin({ usedLines: (d) => d.childCount, limit: () => 1 }),
-        ...shorter.plugins.slice(1),
-      ],
-    });
-    let undone = stricter;
-    undoUnchecked(stricter, (tr) => {
-      undone = stricter.apply(tr);
-    });
-    expect(undone.doc.childCount).toBe(3);
+describe("the continuous page", () => {
+  it("refuses nothing: a document grows past any line count and is measured, not dropped", () => {
+    // Two lines available, say: a third paragraph and more text are accepted all the same.
+    let state = stateFor("a\nb");
+    state = enter(state);
+    expect(state.doc.childCount).toBe(3);
+    state = state.apply(state.tr.insertText("c"));
+    expect(state.doc.textContent).toBe("abc");
+    state = enter(state);
+    expect(state.doc.childCount).toBe(4);
+    // What the page does with it: counts the lines past the end, for its label.
+    const limit = 2;
+    const used = state.doc.childCount;
+    expect(Math.max(0, used - limit)).toBe(2);
+    expect(editorPlugins().some((plugin) => plugin.spec.filterTransaction)).toBe(false);
   });
 });

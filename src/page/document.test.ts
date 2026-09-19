@@ -14,6 +14,11 @@ import {
 } from "./document";
 
 describe("documentFromText", () => {
+  it("gives new paragraphs the paragraph alignment, the default", () => {
+    expect(documentFromText("a").content[0].attrs).toEqual({ align: "paragraph" });
+    expect(columnFromText("").doc.content[0].attrs).toEqual({ align: "paragraph" });
+  });
+
   it("makes one paragraph per line, blank lines included", () => {
     expect(documentFromText("")).toEqual(emptyDocument());
     expect(documentFromText("a\nb\n\nc")).toEqual({
@@ -89,6 +94,13 @@ describe("isEditorDocument", () => {
       }),
     ).toBe(true);
     expect(isColumn(columnFromText("x"))).toBe(true);
+    // The fourth alignment, since backup version 11.
+    expect(
+      isEditorDocument({
+        type: "doc",
+        content: [{ type: "paragraph", attrs: { align: "paragraph" }, content: [] }],
+      }),
+    ).toBe(true);
   });
 
   it("rejects other shapes", () => {

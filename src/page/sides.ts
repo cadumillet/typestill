@@ -1,6 +1,10 @@
-// A page's side and its spread, derived from its position and never stored. Page 1 is a
-// right-hand page (recto), so the spreads are (inside cover | 1), (2 | 3), (4 | 5) and
-// so on, the way a notebook lies open.
+// A page's side and its spread, derived from its position and never stored. The notebook
+// is a sequence of sides: the inside of the front cover, pages 1 to N, the inside of the
+// back cover. Sides alternate from the inside cover (side 0, a left-hand side), so page 1
+// is a right-hand page (recto), odd pages are right-hand, and the spreads run (inside
+// cover | 1), (2 | 3), (4 | 5) … (N | inside back cover), N being even since a notebook
+// has a whole number of sheets. Every section starts on a sheet boundary, page 4k+1, so
+// it opens on a right-hand page with the previous section's last page on the left.
 
 export type PageSide = "left" | "right";
 

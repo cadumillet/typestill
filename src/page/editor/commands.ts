@@ -5,7 +5,7 @@
 import { splitBlockAs, toggleMark } from "prosemirror-commands";
 import { Fragment, Slice, type Mark, type ResolvedPos } from "prosemirror-model";
 import type { Command, EditorState } from "prosemirror-state";
-import type { Alignment, Tint } from "../document";
+import { DEFAULT_ALIGNMENT, type Alignment, type Tint } from "../document";
 import { schema } from "./schema";
 
 export type FormatAction =
@@ -135,6 +135,15 @@ export const insertHardBreak: Command = (state, dispatch) => {
   return true;
 };
 
+/** What Tab inserts: four spaces, not a tab character, so plain text reads the same everywhere. */
+export const TAB_SPACES = "    ";
+
+/** Tab: four spaces in place of the selection, keeping the stored marks; the key is used up. */
+export const insertTab: Command = (state, dispatch) => {
+  dispatch?.(state.tr.insertText(TAB_SPACES).scrollIntoView());
+  return true;
+};
+
 export function formatCommand(action: FormatAction): Command {
   switch (action.type) {
     case "bold":
@@ -166,7 +175,7 @@ export function formatState(state: EditorState): FormatState {
     italic: hasMark("italic"),
     color: color ? (color.attrs.color as string) : null,
     highlight: highlight ? (highlight.attrs.tint as Tint) : null,
-    align: ($from.parent.attrs.align as Alignment | undefined) ?? "left",
+    align: ($from.parent.attrs.align as Alignment | undefined) ?? DEFAULT_ALIGNMENT,
   };
 }
 
@@ -176,7 +185,7 @@ export function formatState(state: EditorState): FormatState {
  */
 export function parseClipboardText(text: string, $context: ResolvedPos): Slice {
   const marks = $context.marks();
-  const align = ($context.parent.attrs.align as Alignment | undefined) ?? "left";
+  const align = ($context.parent.attrs.align as Alignment | undefined) ?? DEFAULT_ALIGNMENT;
   const paragraphs = text
     .split(/\r\n?|\n/)
     .map((line) =>

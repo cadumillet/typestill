@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { isMac, keyLabel } from "./keys";
 
 export type ShortcutAction =
-  "previousPage" | "nextPage" | "newLinedPage" | "newZinePage" | "togglePanel";
+  "previousPage" | "nextPage" | "drawingMode" | "overview" | "cleanLayout";
 
 /** The parts of a KeyboardEvent the shortcuts look at. */
 export interface ShortcutKey {
@@ -30,10 +30,15 @@ export interface FocusContext {
 interface Binding {
   action: ShortcutAction;
   code: string;
+  /** Alt (Option) held; the one chord without it is Shift+Tab. */
+  alt: boolean;
   shift: boolean;
-  /** The key as the tooltip shows it. */
+  /** The key as the tooltip shows it, and its glyph on a Mac when it has one. */
   label: string;
+  macLabel?: string;
   repeats: boolean;
+  /** The chord types a character in the page editor, so it fires only outside it. */
+  outsideEditor?: boolean;
 }
 
 /**
@@ -41,14 +46,34 @@ interface Binding {
  * are the ones the browser, ProseMirror and Excalidraw leave alone. Arrows are up and
  * down rather than left and right because Option+←/→ are word jumps in the editor on a
  * Mac and Alt+←/→ are history in the browser elsewhere; up and down also follow the
- * rail, which stacks the pages vertically.
+ * rail, which stacks the pages vertically. The one exception is Shift+Tab, which
+ * switches between writing and drawing: the shortcut used most, on a big key, leaving
+ * plain Tab to the browser for moving focus (native fields keep both). The other is
+ * Shift+?, the clean layout, which types a question mark in the editor and so fires
+ * only when the editor does not have the keyboard.
  */
 const BINDINGS: Binding[] = [
-  { action: "previousPage", code: "ArrowUp", shift: false, label: "↑", repeats: true },
-  { action: "nextPage", code: "ArrowDown", shift: false, label: "↓", repeats: true },
-  { action: "newLinedPage", code: "KeyN", shift: false, label: "N", repeats: false },
-  { action: "newZinePage", code: "KeyN", shift: true, label: "N", repeats: false },
-  { action: "togglePanel", code: "Backslash", shift: false, label: "\\", repeats: false },
+  { action: "previousPage", code: "ArrowUp", alt: true, shift: false, label: "↑", repeats: true },
+  { action: "nextPage", code: "ArrowDown", alt: true, shift: false, label: "↓", repeats: true },
+  { action: "overview", code: "KeyM", alt: true, shift: false, label: "M", repeats: false },
+  {
+    action: "drawingMode",
+    code: "Tab",
+    alt: false,
+    shift: true,
+    label: "Tab",
+    macLabel: "⇥",
+    repeats: false,
+  },
+  {
+    action: "cleanLayout",
+    code: "Slash",
+    alt: false,
+    shift: true,
+    label: "?",
+    repeats: false,
+    outsideEditor: true,
+  },
 ];
 
 /**
@@ -58,21 +83,25 @@ const BINDINGS: Binding[] = [
  */
 export function shortcutFor(event: ShortcutKey, context: FocusContext): ShortcutAction | null {
   if (context.inNativeField || context.inDialog || context.inExcalidrawText) return null;
-  if (!event.altKey || event.metaKey || event.ctrlKey) return null;
-  const binding = BINDINGS.find((b) => b.code === event.code && b.shift === event.shiftKey);
-  return binding?.action ?? null;
+  if (event.metaKey || event.ctrlKey) return null;
+  const binding = BINDINGS.find(
+    (b) => b.code === event.code && b.alt === event.altKey && b.shift === event.shiftKey,
+  );
+  if (!binding || (binding.outsideEditor && context.inEditor)) return null;
+  return binding.action;
 }
 
-/** Whether holding the key repeats the action. Page flips do; creating pages does not. */
+/** Whether holding the key repeats the action. Page flips do; the toggles do not. */
 export function shortcutRepeats(action: ShortcutAction): boolean {
   return BINDINGS.some((b) => b.action === action && b.repeats);
 }
 
-/** The shortcut's label for a tooltip: "⌥↑" on a Mac, "Alt+↑" elsewhere. */
+/** The shortcut's label for a tooltip: "⌥↑" or "⇧⇥" on a Mac, "Alt+↑" or "Shift+Tab" elsewhere. */
 export function shortcutLabel(action: ShortcutAction, mac: boolean = isMac): string {
   const binding = BINDINGS.find((b) => b.action === action);
   if (!binding) throw new Error(`No shortcut for ${action}`);
-  return keyLabel({ alt: true, shift: binding.shift, key: binding.label }, mac);
+  const key = mac ? (binding.macLabel ?? binding.label) : binding.label;
+  return keyLabel({ alt: binding.alt, shift: binding.shift, key }, mac);
 }
 
 /** Reads the focus context off the element that has the keyboard. */

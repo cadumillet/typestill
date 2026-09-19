@@ -1,6 +1,7 @@
 import type { BinaryFileData } from "@excalidraw/excalidraw/types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CanvasContent } from "../canvas/Canvas";
+import type { DrawingContent } from "../page/PageDrawing";
 import { createAutosave, columnsKey, elementsKey, type Autosave } from "../store/autosave";
 import { backupFileName, parseBackup, serializeBackup } from "../store/backup";
 import { isZipBackup, packBackupZip, unpackBackupZip, zipBackupFileName } from "../store/zip";
@@ -8,7 +9,7 @@ import { getDb, type TypestillDb } from "../store/db";
 import { clampMargin, pageMm, snapDivider } from "../page/paper";
 import { placeImages, type Zine } from "../page/zine";
 import { getTheme } from "../theme/themes";
-import { canAddPage } from "./pageRules";
+import { pageFill, zineFill } from "./fill";
 import {
   columnsForDivider,
   referencedFileIds,
@@ -18,28 +19,31 @@ import {
   type Notebook,
   type Page,
   type PageKind,
-  type Tag,
+  type Section,
 } from "../store/model";
 import {
   addFile,
-  addTag as addTagRecord,
+  addSectionAtEnd as addSectionAtEndRecord,
+  appendSheet as appendSheetRecord,
+  clearPage as clearPageRecord,
   createNotebook as createNotebookRecord,
-  createPage,
   deleteFile,
   deleteNotebook as deleteNotebookRecord,
-  deletePage as deletePageRecord,
-  deleteTag as deleteTagRecord,
   exportNotebook,
   getCanvas,
   getNotebook,
+  growNotebook as growNotebookRecord,
   importNotebook,
   listNotebooks,
   listPages,
   loadNotebookFiles,
   loadThumbnails,
   pruneFiles,
+  removeCut as removeCutRecord,
+  removeSheet as removeSheetRecord,
   renameNotebook as renameNotebookRecord,
   saveCanvasContent,
+  savePageDrawing,
   savePageText,
   savePageZine,
   saveThumbnail as saveThumbnailRecord,
@@ -47,12 +51,15 @@ import {
   setLastPage,
   setPageDivider,
   setPageKind,
+  setSectionLastPage,
+  shrinkNotebook as shrinkNotebookRecord,
   touchNotebook,
   updateNotebookSettings,
   updatePage,
-  updateTag as updateTagRecord,
+  updateSection as updateSectionRecord,
   type NotebookSummary,
 } from "../store/notebooks";
+import { sectionOf } from "./sections";
 import type { Cover } from "./cover";
 import { downloadBlob, downloadText } from "./files";
 import { importImage } from "./images";
@@ -61,6 +68,7 @@ export interface NotebookSession {
   notebook: Notebook;
   /** Every notebook in storage, most recently opened first. Refreshed when one is opened. */
   notebooks: NotebookSummary[];
+  /** The pages in notebook order: section order, then creation order. Everything walks this. */
   pages: Page[];
   index: number;
   page: Page;
@@ -76,15 +84,18 @@ export interface NotebookSession {
   /** Increments each time a notebook is loaded. Key the canvas editor by it so it starts over. */
   loadId: number;
   goTo: (index: number) => void;
-  /** Appends a page of the given kind (lined by default) and opens it. */
-  newPage: (kind?: PageKind) => Promise<void>;
   /**
-   * Deletes the open page and opens its neighbour: the previous page, else the next.
-   * The only page of a notebook is replaced by a fresh lined page instead, so a notebook
-   * never has zero pages. Images a zine page used stay in the notebook's files.
+   * Empties the open page's writing and drawing, keeping the slot: the notebook has its
+   * pages. The caller asks first. Images a zine page used stay in the notebook's files.
    */
-  deletePage: () => Promise<void>;
+  clearPage: () => Promise<void>;
   setColumns: (columns: Column[]) => void;
+  /**
+   * A page's content fill as the page measured it (a lined page's lines used over the
+   * lines available), from which the page's fill is kept: a drawing alone counts for a
+   * quarter. Saved with the page's content; a page not open saves it straight away.
+   */
+  setFill: (pageId: string, contentFill: number) => void;
   setDivider: (divider: number | null) => Promise<void>;
   /** Zine pages: the media block and its text. */
   setZine: (zine: Zine) => void;
@@ -101,19 +112,45 @@ export interface NotebookSession {
   placeFile: (cell: number, fileId: string) => void;
   /** Removes an image from the notebook. Throws FileInUseError while a page or the canvas uses it. */
   deleteImage: (fileId: string) => Promise<void>;
-  /** Tags are defined on the notebook; a page carries one or none. */
-  addTag: (input: { name: string; color: string }) => Promise<Tag>;
-  updateTag: (tagId: string, patch: Partial<Pick<Tag, "name" | "color">>) => Promise<void>;
-  /** Removes the tag and untags its pages. */
-  deleteTag: (tagId: string) => Promise<void>;
-  setPageTag: (tagId: string | null) => void;
+  /**
+   * Sections are cuts on sheet boundaries (src/notebook/sections.ts), edited by their
+   * length in sheets. Every edit changes the sections alone; the store enforces the rules
+   * and throws.
+   */
+  updateSection: (
+    sectionId: string,
+    patch: Partial<Pick<Section, "name" | "color">>,
+  ) => Promise<void>;
+  /** A sheet more or less at the section's end; the last section absorbs the difference. */
+  appendSheet: (sectionId: string) => Promise<void>;
+  removeSheet: (sectionId: string) => Promise<void>;
+  /** A new section at the end, out of the last section's last sheet. */
+  addSection: (input: { name: string; color: string }) => Promise<void>;
+  /** Removes a cut: its pages merge into the section before. The caller asks first. */
+  removeCut: (sectionId: string) => Promise<void>;
+  /** Opens a section where it was left (its remembered page, else its first page). */
+  openSection: (sectionId: string) => void;
+  /**
+   * Grows the notebook to a larger multiple of four pages, appending blank ones; shrinks
+   * it to a smaller one, which the store refuses (throwing) unless the pages to drop are
+   * blank and no section starts past the new end.
+   */
+  growNotebook: (size: number) => Promise<void>;
+  shrinkNotebook: (size: number) => Promise<void>;
   /** The open page's date stamp and page number toggles. */
   setPageMarks: (patch: Partial<Pick<Page, "showPageNumber">>) => void;
   /** Moves the open page's margin line; the divider is re-snapped if the margin pushes on it. */
   setPageMargin: (margin: number) => Promise<void>;
-  /** Stores a fresh thumbnail of the open page. */
-  saveThumbnail: (dataURL: string) => void;
-  /** Canvas callbacks carry the loadId of the editor that sent them; stale editors are ignored. */
+  /** Stores a fresh thumbnail of the open page, or of `pageId` (the overview's background renders). */
+  saveThumbnail: (dataURL: string, pageId?: string) => void;
+  /**
+   * A page's drawing as its editor reports it, tagged with the editor's loadId (stale
+   * editors are ignored) and the page it draws on, since an editor reports its last
+   * state while the page it belonged to is being left. Saved through the page autosave,
+   * keyed by element versions; files new image elements use join the notebook's.
+   */
+  setDrawing: (pageId: string, content: DrawingContent, loadId: number) => void;
+  /** Canvas callbacks carry the loadId of the editor that sent them; stale editors are ignored (dormant, section 8). */
   onCanvasChange: (content: CanvasContent, loadId: number) => void;
   onCanvasViewChange: (view: CanvasView, loadId: number) => void;
   onGridChange: (enabled: boolean) => void;
@@ -121,13 +158,16 @@ export interface NotebookSession {
   openNotebook: (id: string) => Promise<void>;
   /** Saves everything pending and puts the notebook back on the shelf. */
   closeNotebook: () => Promise<void>;
-  /** Creates a notebook with one empty page and opens it. */
-  createNotebook: (name: string, cover?: Partial<Cover>) => Promise<void>;
-  /** The name and cover, the theme, the page size and orientation of every page, and the defaults for new pages. */
+  /** Creates a notebook with all its pages, blank, and opens it at the first. */
+  createNotebook: (name: string, cover?: Partial<Cover>, size?: number) => Promise<void>;
+  /**
+   * The name and cover, the theme, the page size and orientation of every page, and the
+   * defaults for new pages, any of them. The margin line default is the margin every page
+   * follows, so a change to it re-snaps the dividers it pushes on.
+   */
   updateSettings: (
-    settings: Pick<
-      Notebook,
-      "name" | "cover" | "themeId" | "pageSize" | "orientation" | "defaults"
+    settings: Partial<
+      Pick<Notebook, "name" | "cover" | "themeId" | "pageSize" | "orientation" | "defaults">
     >,
   ) => Promise<void>;
   /**
@@ -192,8 +232,8 @@ const viewKey = (view: CanvasView) => `${view.scrollX},${view.scrollY},${view.zo
 const report = (error: unknown) => console.error("typestill: save failed", error);
 
 /**
- * Opens the most recently used notebook and keeps it saved: page text and the canvas
- * drawing are autosaved as they change, and the canvas view is remembered per page.
+ * Opens the most recently used notebook and keeps it saved: page text and page drawings
+ * are autosaved as they change (the dormant canvas and its per-page view likewise).
  * Returns null until storage has been read, a FirstRun while it holds no notebook, the
  * Shelf while none is open, and the session once one is.
  */
@@ -205,10 +245,27 @@ export function useNotebookSession(
   const [firstRun, setFirstRun] = useState(false);
   /** The shelf's listing while no notebook is open; null while storage is being read. */
   const [shelf, setShelf] = useState<NotebookSummary[] | null>(null);
-  const pageSaver = useRef<Autosave<Column[]> | null>(null);
-  const zineSaver = useRef<Autosave<Zine> | null>(null);
+  // The page savers carry the fill with the content, so a page's fill is written in the
+  // same record update as what filled it.
+  const pageSaver = useRef<Autosave<{ columns: Column[]; fill: number }> | null>(null);
+  const zineSaver = useRef<Autosave<{ zine: Zine; fill: number }> | null>(null);
   const viewSaver = useRef<Autosave<CanvasView> | null>(null);
+  /** The open page's drawing saver, with the page it belongs to. */
+  const drawingSaver = useRef<{
+    pageId: string;
+    saver: Autosave<{ content: DrawingContent; fill: number }>;
+  } | null>(null);
   const canvasSaver = useRef<Autosave<CanvasContent> | null>(null);
+  /** The open page's columns as last set, for a fill that arrives on its own. */
+  const latestColumns = useRef<Column[]>([]);
+  /**
+   * Each page's content fill as its editor last measured it (a lined page's lines, a
+   * zine page's blocks), by page id; a page's fill is that plus its drawing. A page not
+   * measured yet keeps the fill it was stored with.
+   */
+  const contentFills = useRef(new Map<string, number>());
+  /** Pages dropped this session (by shrinking): a drawing editor leaving one has nothing to save. */
+  const deletedPages = useRef(new Set<string>());
   /** Latest canvas view seen, written onto the page when it is left. */
   const latestView = useRef<CanvasView | null>(null);
   const loads = useRef(0);
@@ -217,6 +274,7 @@ export function useNotebookSession(
     void pageSaver.current?.flush();
     void zineSaver.current?.flush();
     void viewSaver.current?.flush();
+    void drawingSaver.current?.saver.flush();
     void canvasSaver.current?.flush();
   }, []);
 
@@ -226,20 +284,23 @@ export function useNotebookSession(
       void pageSaver.current?.flush();
       void zineSaver.current?.flush();
       void viewSaver.current?.flush();
-      pageSaver.current = createAutosave<Column[]>({
-        save: (columns) => savePageText(db, page.id, columns),
-        key: columnsKey,
+      void drawingSaver.current?.saver.flush();
+      pageSaver.current = createAutosave<{ columns: Column[]; fill: number }>({
+        save: ({ columns, fill }) => savePageText(db, page.id, columns, fill),
+        key: ({ columns, fill }) => `${columnsKey(columns)}|${fill}`,
         onError: report,
       });
-      pageSaver.current.markClean(page.columns);
+      pageSaver.current.markClean({ columns: page.columns, fill: page.fill });
+      latestColumns.current = page.columns;
       zineSaver.current = null;
       if (page.zine) {
-        zineSaver.current = createAutosave<Zine>({
-          save: (zine) => savePageZine(db, page.id, zine),
-          key: (zine) => JSON.stringify(zine),
+        zineSaver.current = createAutosave<{ zine: Zine; fill: number }>({
+          save: ({ zine, fill }) => savePageZine(db, page.id, zine, fill),
+          key: ({ zine, fill }) => `${JSON.stringify(zine)}|${fill}`,
           onError: report,
         });
-        zineSaver.current.markClean(page.zine);
+        zineSaver.current.markClean({ zine: page.zine, fill: page.fill });
+        contentFills.current.set(page.id, zineFill(page.zine));
       }
       viewSaver.current = createAutosave<CanvasView>({
         save: (view) => updatePage(db, page.id, { canvasView: view }),
@@ -249,6 +310,14 @@ export function useNotebookSession(
       });
       if (page.canvasView) viewSaver.current.markClean(page.canvasView);
       latestView.current = page.canvasView;
+      const saver = createAutosave<{ content: DrawingContent; fill: number }>({
+        save: ({ content, fill }) =>
+          savePageDrawing(db, page.id, content.elements, content.files, fill),
+        key: ({ content, fill }) => `${elementsKey(content.elements)}|${fill}`,
+        onError: report,
+      });
+      saver.markClean({ content: { elements: page.drawing, files: {} }, fill: page.fill });
+      drawingSaver.current = { pageId: page.id, saver };
     },
     [db],
   );
@@ -259,18 +328,20 @@ export function useNotebookSession(
       pageSaver.current?.flush(),
       zineSaver.current?.flush(),
       viewSaver.current?.flush(),
+      drawingSaver.current?.saver.flush(),
       canvasSaver.current?.flush(),
     ]);
     pageSaver.current = null;
     zineSaver.current = null;
     viewSaver.current = null;
+    drawingSaver.current = null;
     canvasSaver.current = null;
   }, []);
 
   /** Opens a notebook: loads it, points the savers at it, and shows its remembered page. */
   const load = useCallback(
     async (notebookId: string) => {
-      const [notebook, pages, canvas, files, thumbnails] = await Promise.all([
+      const [notebook, stored, canvas, files, thumbnails] = await Promise.all([
         getNotebook(db, notebookId),
         listPages(db, notebookId),
         getCanvas(db, notebookId),
@@ -280,8 +351,9 @@ export function useNotebookSession(
       if (!notebook) throw new Error(`Notebook ${notebookId} not found`);
       await touchNotebook(db, notebookId);
       const notebooks = await listNotebooks(db);
+      const pages = stored;
       const remembered = pages.findIndex((page) => page.id === notebook.lastPageId);
-      const index = remembered >= 0 ? remembered : pages.length - 1;
+      const index = remembered >= 0 ? remembered : 0;
       canvasSaver.current = createAutosave<CanvasContent>({
         save: (content) => saveCanvasContent(db, notebookId, content.elements, content.files),
         key: (content) => elementsKey(content.elements),
@@ -347,6 +419,26 @@ export function useNotebookSession(
     };
   }, [flushAll]);
 
+  /** Puts the open page's section and the notebook in step with the page being opened. */
+  const rememberOpen = useCallback(
+    (current: Loaded): Loaded => {
+      const page = current.pages[current.index];
+      const sectionId = sectionOf(current.notebook.sections, page.position).id;
+      setLastPage(db, current.notebook.id, page.id).catch(report);
+      setSectionLastPage(db, current.notebook.id, sectionId, page.id).catch(report);
+      return {
+        ...current,
+        notebook: {
+          ...current.notebook,
+          sections: current.notebook.sections.map((section) =>
+            section.id === sectionId ? { ...section, lastPageId: page.id } : section,
+          ),
+        },
+      };
+    },
+    [db],
+  );
+
   const goTo = useCallback(
     (index: number) => {
       setState((current) => {
@@ -357,69 +449,61 @@ export function useNotebookSession(
           i === current.index ? { ...page, canvasView: latestView.current } : page,
         );
         attachPage(pages[index]);
-        setLastPage(db, current.notebook.id, pages[index].id).catch(report);
-        return { ...current, pages, index, restoreView: pages[index].canvasView };
+        return rememberOpen({ ...current, pages, index, restoreView: pages[index].canvasView });
       });
     },
-    [db, attachPage],
+    [rememberOpen, attachPage],
   );
 
-  // Refused while the open page is empty (the one-page rule), whichever control asked.
-  const newPage = useCallback(
-    async (kind: PageKind = "lined") => {
-      if (!state || !canAddPage(state.pages[state.index])) return;
-      const page = await createPage(db, state.notebook.id, {
-        kind,
-        divider: state.pages[state.index].divider,
-      });
+  /** A page's fill from its measured content and its drawing. */
+  const fillOf = useCallback((page: Page, contentFill?: number) => {
+    const content =
+      contentFill ??
+      contentFills.current.get(page.id) ??
+      (page.kind === "zine" && page.zine ? zineFill(page.zine) : page.fill);
+    return pageFill(content, page.drawing.length > 0);
+  }, []);
+
+  // The columns are saved with the page's fill as last measured; the column reports the
+  // new measurement right after, and setFill brings the fill along.
+  const setColumns = useCallback(
+    (columns: Column[]) => {
+      latestColumns.current = columns;
       setState((current) => {
         if (!current) return current;
+        const page = current.pages[current.index];
+        const fill = fillOf(page);
+        pageSaver.current?.onChange({ columns, fill });
         const pages = current.pages.map((p, i) =>
-          i === current.index ? { ...p, canvasView: latestView.current } : p,
+          i === current.index ? { ...p, columns, fill } : p,
         );
-        pages.push(page);
-        attachPage(page);
-        setLastPage(db, current.notebook.id, page.id).catch(report);
-        return { ...current, pages, index: pages.length - 1, restoreView: null };
+        return { ...current, pages };
       });
     },
-    [db, state, attachPage],
+    [fillOf],
   );
 
-  const deletePage = useCallback(async () => {
-    if (!state) return;
-    const page = state.pages[state.index];
-    await Promise.all([
-      pageSaver.current?.flush(),
-      zineSaver.current?.flush(),
-      viewSaver.current?.flush(),
-    ]);
-    const opened = await deletePageRecord(db, page.id);
-    setState((current) => {
-      if (!current) return current;
-      const pages = current.pages.filter((p) => p.id !== page.id);
-      let index = pages.findIndex((p) => p.id === opened.id);
-      if (index < 0) {
-        // The only page was deleted: the store made a fresh one in its place.
-        pages.push(opened);
-        index = pages.length - 1;
-      }
-      const next = pages[index];
-      attachPage(next);
-      return { ...current, pages, index, restoreView: next.canvasView };
-    });
-  }, [db, state, attachPage]);
-
-  const setColumns = useCallback((columns: Column[]) => {
-    pageSaver.current?.onChange(columns);
-    setState((current) => {
-      if (!current) return current;
-      const pages = current.pages.map((page, i) =>
-        i === current.index ? { ...page, columns } : page,
-      );
-      return { ...current, pages };
-    });
-  }, []);
+  const setFill = useCallback(
+    (pageId: string, contentFill: number) => {
+      contentFills.current.set(pageId, contentFill);
+      setState((current) => {
+        if (!current) return current;
+        const at = current.pages.findIndex((page) => page.id === pageId);
+        if (at < 0) return current;
+        const page = current.pages[at];
+        const fill = fillOf(page, contentFill);
+        if (fill === page.fill) return current;
+        if (at === current.index) {
+          pageSaver.current?.onChange({ columns: latestColumns.current, fill });
+        } else {
+          updatePage(db, pageId, { fill }).catch(report);
+        }
+        const pages = current.pages.map((p, i) => (i === at ? { ...p, fill } : p));
+        return { ...current, pages };
+      });
+    },
+    [db, fillOf],
+  );
 
   const setDivider = useCallback(
     async (divider: number | null) => {
@@ -428,7 +512,8 @@ export function useNotebookSession(
       await pageSaver.current?.flush();
       await setPageDivider(db, page.id, divider);
       const columns = columnsForDivider(page.columns, divider);
-      pageSaver.current?.markClean(columns);
+      latestColumns.current = columns;
+      pageSaver.current?.markClean({ columns, fill: page.fill });
       setState((current) => {
         if (!current) return current;
         const pages = current.pages.map((p, i) =>
@@ -441,12 +526,13 @@ export function useNotebookSession(
   );
 
   const setZine = useCallback((zine: Zine) => {
-    zineSaver.current?.onChange(zine);
     setState((current) => {
       if (!current) return current;
-      const pages = current.pages.map((page, i) =>
-        i === current.index ? { ...page, zine } : page,
-      );
+      const page = current.pages[current.index];
+      contentFills.current.set(page.id, zineFill(zine));
+      const fill = pageFill(zineFill(zine), page.drawing.length > 0);
+      zineSaver.current?.onChange({ zine, fill });
+      const pages = current.pages.map((p, i) => (i === current.index ? { ...p, zine, fill } : p));
       return { ...current, pages };
     });
   }, []);
@@ -495,9 +581,11 @@ export function useNotebookSession(
         const target = current.pages[at]?.zine;
         if (cell === null || !target) return { ...current, files };
         const zine = placeImages(target, cell, ids);
-        if (at === current.index) zineSaver.current?.onChange(zine);
-        else savePageZine(db, pageId, zine).catch(report);
-        const pages = current.pages.map((page, i) => (i === at ? { ...page, zine } : page));
+        const fill = pageFill(zineFill(zine), current.pages[at].drawing.length > 0);
+        contentFills.current.set(pageId, zineFill(zine));
+        if (at === current.index) zineSaver.current?.onChange({ zine, fill });
+        else savePageZine(db, pageId, zine, fill).catch(report);
+        const pages = current.pages.map((page, i) => (i === at ? { ...page, zine, fill } : page));
         return { ...current, pages, files };
       });
       return ids.length;
@@ -518,7 +606,11 @@ export function useNotebookSession(
   const deleteImage = useCallback(
     async (fileId: string) => {
       if (!state) return;
-      await Promise.all([zineSaver.current?.flush(), canvasSaver.current?.flush()]);
+      await Promise.all([
+        zineSaver.current?.flush(),
+        drawingSaver.current?.saver.flush(),
+        canvasSaver.current?.flush(),
+      ]);
       await deleteFile(db, state.notebook.id, fileId);
       setState((current) => {
         if (!current) return current;
@@ -530,32 +622,18 @@ export function useNotebookSession(
     [db, state],
   );
 
-  const addTag = useCallback(
-    async (input: { name: string; color: string }) => {
-      if (!state) throw new Error("No notebook open");
-      const tag = await addTagRecord(db, state.notebook.id, input);
-      setState((current) =>
-        current
-          ? { ...current, notebook: { ...current.notebook, tags: [...current.notebook.tags, tag] } }
-          : current,
-      );
-      return tag;
-    },
-    [db, state],
-  );
-
-  const updateTag = useCallback(
-    async (tagId: string, patch: Partial<Pick<Tag, "name" | "color">>) => {
+  const updateSection = useCallback(
+    async (sectionId: string, patch: Partial<Pick<Section, "name" | "color">>) => {
       if (!state) return;
-      await updateTagRecord(db, state.notebook.id, tagId, patch);
+      await updateSectionRecord(db, state.notebook.id, sectionId, patch);
       setState((current) =>
         current
           ? {
               ...current,
               notebook: {
                 ...current.notebook,
-                tags: current.notebook.tags.map((tag) =>
-                  tag.id === tagId ? { ...tag, ...patch } : tag,
+                sections: current.notebook.sections.map((section) =>
+                  section.id === sectionId ? { ...section, ...patch } : section,
                 ),
               },
             }
@@ -565,21 +643,52 @@ export function useNotebookSession(
     [db, state],
   );
 
-  const deleteTag = useCallback(
-    async (tagId: string) => {
+  // Editing sections by length changes which pages are whose; no page moves and the open
+  // page stays. The store returns the sections as written.
+  const withSections = useCallback(
+    (sections: Section[]) =>
+      setState((current) =>
+        current ? { ...current, notebook: { ...current.notebook, sections } } : current,
+      ),
+    [],
+  );
+
+  const appendSheet = useCallback(
+    async (sectionId: string) => {
       if (!state) return;
-      await deleteTagRecord(db, state.notebook.id, tagId);
+      withSections(await appendSheetRecord(db, state.notebook.id, sectionId));
+    },
+    [db, state, withSections],
+  );
+
+  const removeSheet = useCallback(
+    async (sectionId: string) => {
+      if (!state) return;
+      withSections(await removeSheetRecord(db, state.notebook.id, sectionId));
+    },
+    [db, state, withSections],
+  );
+
+  const addSection = useCallback(
+    async (input: { name: string; color: string }) => {
+      if (!state) return;
+      withSections(await addSectionAtEndRecord(db, state.notebook.id, input));
+    },
+    [db, state, withSections],
+  );
+
+  const removeCut = useCallback(
+    async (sectionId: string) => {
+      if (!state) return;
+      await removeCutRecord(db, state.notebook.id, sectionId);
       setState((current) =>
         current
           ? {
               ...current,
               notebook: {
                 ...current.notebook,
-                tags: current.notebook.tags.filter((tag) => tag.id !== tagId),
+                sections: current.notebook.sections.filter((section) => section.id !== sectionId),
               },
-              pages: current.pages.map((page) =>
-                page.tagId === tagId ? { ...page, tagId: null } : page,
-              ),
             }
           : current,
       );
@@ -587,22 +696,69 @@ export function useNotebookSession(
     [db, state],
   );
 
-  const setPageTag = useCallback(
-    (tagId: string | null) => {
+  const openSection = useCallback(
+    (sectionId: string) => {
       if (!state) return;
-      const page = state.pages[state.index];
-      updatePage(db, page.id, { tagId }).catch(report);
+      const section = state.notebook.sections.find((s) => s.id === sectionId);
+      if (!section) return;
+      const remembered = state.pages.findIndex((page) => page.id === section.lastPageId);
+      goTo(remembered >= 0 ? remembered : section.start);
+    },
+    [state, goTo],
+  );
+
+  const growNotebook = useCallback(
+    async (size: number) => {
+      if (!state) return;
+      await growNotebookRecord(db, state.notebook.id, size);
+      const pages = await listPages(db, state.notebook.id);
       setState((current) =>
-        current
-          ? {
-              ...current,
-              pages: current.pages.map((p, i) => (i === current.index ? { ...p, tagId } : p)),
-            }
-          : current,
+        current ? { ...current, notebook: { ...current.notebook, size }, pages } : current,
       );
     },
     [db, state],
   );
+
+  // The store refuses a shrink over anything written; the pages that go are forgotten
+  // by the drawing editor too, should one be leaving them.
+  const shrinkNotebook = useCallback(
+    async (size: number) => {
+      if (!state) return;
+      await flushAll();
+      await shrinkNotebookRecord(db, state.notebook.id, size);
+      for (const page of state.pages) if (page.position >= size) deletedPages.current.add(page.id);
+      const [notebook, pages] = await Promise.all([
+        getNotebook(db, state.notebook.id),
+        listPages(db, state.notebook.id),
+      ]);
+      if (!notebook) return;
+      setState((current) => {
+        if (!current) return current;
+        const index = Math.min(current.index, pages.length - 1);
+        if (index !== current.index) attachPage(pages[index]);
+        return { ...current, notebook, pages, index, restoreView: pages[index].canvasView };
+      });
+    },
+    [db, state, flushAll, attachPage],
+  );
+
+  const clearPage = useCallback(async () => {
+    if (!state) return;
+    const page = state.pages[state.index];
+    await Promise.all([
+      pageSaver.current?.flush(),
+      zineSaver.current?.flush(),
+      drawingSaver.current?.saver.flush(),
+    ]);
+    const cleared = await clearPageRecord(db, page.id);
+    contentFills.current.set(page.id, 0);
+    attachPage(cleared);
+    setState((current) =>
+      current
+        ? { ...current, pages: current.pages.map((p, i) => (i === current.index ? cleared : p)) }
+        : current,
+    );
+  }, [db, state, attachPage]);
 
   const setPageMarks = useCallback(
     (patch: Partial<Pick<Page, "showPageNumber">>) => {
@@ -651,17 +807,51 @@ export function useNotebookSession(
   );
 
   const saveThumbnail = useCallback(
-    (dataURL: string) => {
+    (dataURL: string, pageId?: string) => {
       if (!state) return;
-      const page = state.pages[state.index];
-      saveThumbnailRecord(db, state.notebook.id, page.id, dataURL).catch(report);
+      const id = pageId ?? state.pages[state.index].id;
+      saveThumbnailRecord(db, state.notebook.id, id, dataURL).catch(report);
       setState((current) =>
-        current
-          ? { ...current, thumbnails: { ...current.thumbnails, [page.id]: dataURL } }
-          : current,
+        current ? { ...current, thumbnails: { ...current.thumbnails, [id]: dataURL } } : current,
       );
     },
     [db, state],
+  );
+
+  // The open page's editor saves through its saver; an editor reporting its last state
+  // for a page just left saves straight away, since the savers have moved on. Files the
+  // drawing's new image elements use (pasted images) join the notebook's.
+  const setDrawing = useCallback(
+    (pageId: string, content: DrawingContent, loadId: number) => {
+      if (loadId !== loads.current || deletedPages.current.has(pageId)) return;
+      const live = content.elements.filter((element) => !element.isDeleted);
+      setState((current) => {
+        if (!current || current.loadId !== loadId) return current;
+        const at = current.pages.findIndex((page) => page.id === pageId);
+        if (at < 0) return current;
+        const page = { ...current.pages[at], drawing: live };
+        const fill = fillOf(page);
+        if (drawingSaver.current?.pageId === pageId) {
+          drawingSaver.current.saver.onChange({ content, fill });
+        } else {
+          savePageDrawing(db, pageId, content.elements, content.files, fill).catch(report);
+        }
+        const added: Record<string, BinaryFileData> = {};
+        for (const id of referencedFileIds(live)) {
+          if (!current.files[id] && content.files[id]) added[id] = content.files[id];
+        }
+        const changed = elementsKey(current.pages[at].drawing) !== elementsKey(live);
+        if (!changed && Object.keys(added).length === 0) return current;
+        return {
+          ...current,
+          pages: changed
+            ? current.pages.map((p, i) => (i === at ? { ...page, fill } : p))
+            : current.pages,
+          files: Object.keys(added).length > 0 ? { ...current.files, ...added } : current.files,
+        };
+      });
+    },
+    [db, fillOf],
   );
 
   // An editor from a previous load can still fire (for instance on a resize) while it is
@@ -731,9 +921,9 @@ export function useNotebookSession(
   );
 
   const createNotebook = useCallback(
-    async (name: string, cover?: Partial<Cover>) => {
+    async (name: string, cover?: Partial<Cover>, size?: number) => {
       await detach();
-      const { notebook } = await createNotebookRecord(db, { name, cover });
+      const { notebook } = await createNotebookRecord(db, { name, cover, size });
       await load(notebook.id);
     },
     [db, detach, load],
@@ -741,26 +931,53 @@ export function useNotebookSession(
 
   const updateSettings = useCallback(
     async (
-      settings: Pick<
-        Notebook,
-        "name" | "cover" | "themeId" | "pageSize" | "orientation" | "defaults"
+      settings: Partial<
+        Pick<Notebook, "name" | "cover" | "themeId" | "pageSize" | "orientation" | "defaults">
       >,
     ) => {
       if (!state) return;
       await updateNotebookSettings(db, state.notebook.id, settings);
-      setState((current) =>
-        current
-          ? {
-              ...current,
-              notebook: { ...current.notebook, ...settings },
-              notebooks: current.notebooks.map((n) =>
-                n.id === current.notebook.id
-                  ? { ...n, name: settings.name, cover: settings.cover }
-                  : n,
-              ),
-            }
-          : current,
-      );
+      const notebook = { ...state.notebook, ...settings };
+      // The pages follow the notebook's margin: a divider the new margin pushes on moves
+      // to the nearest step that still leaves room for the left column.
+      const resnapped: { id: string; divider: number }[] = [];
+      if (notebook.defaults.margin !== state.notebook.defaults.margin) {
+        const width = pageMm(notebook.pageSize, notebook.orientation).width;
+        const lined = getTheme(notebook.themeId).lined;
+        for (const page of state.pages) {
+          if (page.divider === null) continue;
+          const divider = snapDivider(page.divider, width, notebook.defaults.margin, lined);
+          if (divider !== page.divider) resnapped.push({ id: page.id, divider });
+        }
+        await pageSaver.current?.flush();
+        for (const { id, divider } of resnapped) await setPageDivider(db, id, divider);
+      }
+      setState((current) => {
+        if (!current) return current;
+        const moved = new Map(resnapped.map(({ id, divider }) => [id, divider]));
+        const pages =
+          moved.size === 0
+            ? current.pages
+            : current.pages.map((page) => {
+                const divider = moved.get(page.id);
+                return divider === undefined
+                  ? page
+                  : { ...page, divider, columns: columnsForDivider(page.columns, divider) };
+              });
+        if (moved.has(pages[current.index].id)) {
+          const open = pages[current.index];
+          latestColumns.current = open.columns;
+          pageSaver.current?.markClean({ columns: open.columns, fill: open.fill });
+        }
+        return {
+          ...current,
+          notebook: { ...current.notebook, ...settings },
+          pages,
+          notebooks: current.notebooks.map((n) =>
+            n.id === current.notebook.id ? { ...n, name: notebook.name, cover: notebook.cover } : n,
+          ),
+        };
+      });
     },
     [db, state],
   );
@@ -771,6 +988,7 @@ export function useNotebookSession(
       pageSaver.current?.flush(),
       zineSaver.current?.flush(),
       viewSaver.current?.flush(),
+      drawingSaver.current?.saver.flush(),
       canvasSaver.current?.flush(),
     ]);
     const doc = await exportNotebook(db, state.notebook.id);
@@ -785,7 +1003,11 @@ export function useNotebookSession(
 
   const pruneImages = useCallback(async () => {
     if (!state) return 0;
-    await Promise.all([zineSaver.current?.flush(), canvasSaver.current?.flush()]);
+    await Promise.all([
+      zineSaver.current?.flush(),
+      drawingSaver.current?.saver.flush(),
+      canvasSaver.current?.flush(),
+    ]);
     const removed = await pruneFiles(db, state.notebook.id);
     if (removed > 0) {
       const files = await loadNotebookFiles(db, state.notebook.id);
@@ -848,22 +1070,27 @@ export function useNotebookSession(
     ...state,
     page: state.pages[state.index],
     goTo,
-    newPage,
-    deletePage,
+    clearPage,
     setColumns,
+    setFill,
     setDivider,
     setZine,
     setKind,
     addImages,
     placeFile,
     deleteImage,
-    addTag,
-    updateTag,
-    deleteTag,
-    setPageTag,
+    updateSection,
+    appendSheet,
+    removeSheet,
+    addSection,
+    removeCut,
+    openSection,
+    growNotebook,
+    shrinkNotebook,
     setPageMarks,
     setPageMargin,
     saveThumbnail,
+    setDrawing,
     onCanvasChange,
     onCanvasViewChange,
     onGridChange,

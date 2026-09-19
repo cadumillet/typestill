@@ -1,4 +1,3 @@
-import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { useEffect, useState, type KeyboardEvent } from "react";
 import { IconButton } from "../shell/IconButton";
 import { Popover } from "../shell/Popover";
@@ -9,24 +8,24 @@ import "./searchbox.css";
 
 export interface SearchBoxProps {
   pages: readonly Page[];
-  /** The canvas's elements as they are now, read each time a search runs. */
-  elements: () => readonly ExcalidrawElement[];
   onOpenPage: (index: number) => void;
-  onOpenElement: (elementId: string) => void;
 }
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 const SHORTCUT = isMac ? "⌘K" : "Ctrl+K";
 
-const resultKey = (result: SearchResult) =>
-  result.kind === "page" ? `page:${result.index}` : `canvas:${result.elementId}`;
+const resultKey = (result: SearchResult) => `page:${result.index}`;
+
+/** "Page 3", or "Page 3 · drawing" when the match is in the text drawn on the page. */
+const whereLabel = (result: SearchResult) =>
+  result.where === "drawing" ? `Page ${result.number} · drawing` : `Page ${result.number}`;
 
 /**
  * The search popover from the app bar: a text field that filters as you type, over the
- * pages and canvas text elements that contain the query. A page result opens the page;
- * a canvas result shows the canvas and pans to the element. Cmd/Ctrl+K opens it.
+ * pages whose text or drawing contains the query. A result opens the page. Cmd/Ctrl+K
+ * opens it.
  */
-export function SearchBox({ pages, elements, onOpenPage, onOpenElement }: SearchBoxProps) {
+export function SearchBox({ pages, onOpenPage }: SearchBoxProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -34,13 +33,13 @@ export function SearchBox({ pages, elements, onOpenPage, onOpenElement }: Search
 
   const run = (text: string) => {
     setQuery(text);
-    setResults(searchNotebook(text, pages, elements()));
+    setResults(searchNotebook(text, pages));
     setActive(0);
   };
 
   const show = () => {
-    // Pages and the canvas may have changed since the last look.
-    setResults(searchNotebook(query, pages, elements()));
+    // Pages may have changed since the last look.
+    setResults(searchNotebook(query, pages));
     setActive(0);
     setOpen(true);
   };
@@ -60,8 +59,7 @@ export function SearchBox({ pages, elements, onOpenPage, onOpenElement }: Search
 
   const pick = (result: SearchResult) => {
     setOpen(false);
-    if (result.kind === "page") onOpenPage(result.index);
-    else onOpenElement(result.elementId);
+    onOpenPage(result.index);
   };
 
   const onInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -98,7 +96,7 @@ export function SearchBox({ pages, elements, onOpenPage, onOpenElement }: Search
         <input
           className="search__input"
           type="text"
-          placeholder="Search pages and canvas"
+          placeholder="Search pages"
           aria-label="Search"
           value={query}
           onChange={(event) => run(event.target.value)}
@@ -118,9 +116,7 @@ export function SearchBox({ pages, elements, onOpenPage, onOpenElement }: Search
                   onPointerEnter={() => setActive(i)}
                   onClick={() => pick(result)}
                 >
-                  <span className="search__where">
-                    {result.kind === "page" ? `Page ${result.number}` : "Canvas"}
-                  </span>
+                  <span className="search__where">{whereLabel(result)}</span>
                   <span className="search__snippet">
                     {result.snippet.before}
                     <mark>{result.snippet.match}</mark>

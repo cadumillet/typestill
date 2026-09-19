@@ -132,26 +132,39 @@ button.primary {
   margin-top: 0;
 }
 
-.settings__tags {
+.settings__sections {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.settings__tag {
+/* A section is two lines: its name and colour, then its length with the sheet buttons
+   and Delete at the right. */
+.settings__section {
+  margin-bottom: 10px;
+}
+
+.settings__section-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
 }
 
-.settings__tag input {
+.settings__section-row + .settings__section-row {
+  margin-top: 4px;
+}
+
+.settings__section input {
   flex: 1;
   min-width: 0;
   width: 0;
 }
 
-.settings__tag .settings__swatches {
+.settings__section .settings__section-delete {
+  margin-left: auto;
+}
+
+.settings__section .settings__swatches {
   margin-bottom: 0;
   gap: 3px;
 }
@@ -162,19 +175,32 @@ button.primary {
   border-width: 1.5px;
 }
 
-.settings__tag-delete {
+/* Move up, move down and delete: quiet buttons; delete turns red on hover. */
+.settings__section-move,
+.settings__section-delete {
   padding: 2px 6px;
   font-size: 11px;
   border-color: transparent;
   color: var(--muted);
 }
 
-.settings__tag-delete:hover {
+.settings__section-move:disabled,
+.settings__section-delete:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.settings__section-move:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+.settings__section-delete:hover:not(:disabled) {
   color: var(--danger);
   background: var(--danger-soft);
 }
 
-.settings__add-tag {
+.settings__add-section {
   margin-top: 4px;
   font-size: 12px;
 }
@@ -200,4 +226,54 @@ button.primary {
 .settings__prune {
   margin-top: 4px;
   font-size: 12px;
+}
+
+/* The box's head: the notebook's name and Close; changes apply as they are made. */
+.settings__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.settings__head .settings__title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A section's length in sheets, its "− sheet" and "+ sheet", and "Add section": an off
+   button keeps its tooltip, so it is aria-disabled and dimmed rather than disabled. */
+.settings__length {
+  flex: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.settings__sheet-buttons {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+}
+
+.settings__sheet {
+  padding: 2px 6px;
+  font-size: 11px;
+  border-color: transparent;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.settings__sheet:hover:not(.is-off) {
+  color: var(--ink);
+  background: var(--hover);
+}
+
+.settings__sheet.is-off,
+.settings__add-section.is-off {
+  opacity: 0.35;
+  cursor: default;
 }

@@ -2,8 +2,10 @@ import { EditorState, TextSelection, type Command } from "prosemirror-state";
 import { describe, expect, it } from "vitest";
 import { documentFromText, textFromDocument, type EditorDocument } from "../document";
 import {
+  TAB_SPACES,
   formatState,
   insertHardBreak,
+  insertTab,
   lastHighlightTint,
   parseClipboardText,
   setAlignment,
@@ -38,7 +40,8 @@ describe("setAlignment", () => {
   // "one" is at 1..4, "two" at 6..9, "three" at 11..16.
   it("aligns the paragraph the caret is in", () => {
     const state = run(stateFor("one\ntwo\nthree", 7), setAlignment("center"));
-    expect(alignments(state)).toEqual(["left", "center", "left"]);
+    // New paragraphs take the paragraph alignment, the default.
+    expect(alignments(state)).toEqual(["paragraph", "center", "paragraph"]);
   });
 
   it("aligns every paragraph a selection touches", () => {
@@ -46,9 +49,25 @@ describe("setAlignment", () => {
     expect(alignments(state)).toEqual(["right", "right", "right"]);
   });
 
+  it("sets the paragraph alignment like the others, and Enter keeps it", () => {
+    const state = run(stateFor("one\ntwo\nthree", 3, 12), setAlignment("paragraph"));
+    expect(alignments(state)).toEqual(["paragraph", "paragraph", "paragraph"]);
+    const split = run(
+      state.apply(state.tr.setSelection(TextSelection.create(state.doc, 9))),
+      splitParagraph,
+    );
+    expect(alignments(split)).toEqual(["paragraph", "paragraph", "paragraph", "paragraph"]);
+    expect(formatState(split).align).toBe("paragraph");
+    // Rendered as a data attribute, not a text-align, and parsed back from it.
+    const dom = schema.nodes.paragraph.spec.toDOM!(split.doc.child(0)) as unknown as unknown[];
+    expect(dom[1]).toEqual({ "data-align": "paragraph" });
+    const json = columnOf(split.doc).doc.content[0].attrs;
+    expect(json).toEqual({ align: "paragraph" });
+  });
+
   it("leaves untouched paragraphs alone and is a no-op when nothing changes", () => {
     const first = run(stateFor("one\ntwo\nthree", 1, 4), setAlignment("center"));
-    expect(alignments(first)).toEqual(["center", "left", "left"]);
+    expect(alignments(first)).toEqual(["center", "paragraph", "paragraph"]);
     expect(run(first, setAlignment("center"))).toBe(first);
   });
 });
@@ -130,6 +149,18 @@ describe("insertHardBreak", () => {
       "hard_break",
       "text",
     ]);
+  });
+});
+
+describe("insertTab", () => {
+  it("inserts four spaces at the caret and in place of a selection, and uses the key up", () => {
+    expect(TAB_SPACES).toBe("    ");
+    const state = run(stateFor("onetwo", 4), insertTab);
+    expect(columnOf(state.doc).text).toBe("one    two");
+    expect(state.selection.from).toBe(8);
+    const replaced = run(stateFor("onetwo", 1, 4), insertTab);
+    expect(columnOf(replaced.doc).text).toBe("    two");
+    expect(insertTab(stateFor("x", 1))).toBe(true);
   });
 });
 

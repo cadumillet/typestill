@@ -10,18 +10,19 @@ const STRIPPED = [
   ".text-page__mirror",
   ".text-page__full",
   ".text-page__divider-handle",
+  ".page-chrome",
   ".zine-chrome",
 ];
 
 export interface RenderOptions {
   /** Output width in px; the height follows the page's aspect ratio. */
   width: number;
-  /** Render as the preview: no rules, margin, divider or placeholders. */
-  preview?: boolean;
+  /** Render bare: no rules, margin line, divider or placeholders (the exports). */
+  bare?: boolean;
 }
 
 /** Rules a page render needs: the page styles, the fonts, and the colour tokens. */
-const PAGE_RULE = /\.(text-page|zine-|page-marks)|@font-face|:root/;
+const PAGE_RULE = /\.(text-page|zine-)|@font-face|:root/;
 
 /** The CSS rules of the app's stylesheets that concern pages, as text. */
 function collectCss(): string {
@@ -60,10 +61,10 @@ function fontAsDataUrl(url: string): Promise<string> {
   return pending;
 }
 
-/** Font family names a page uses: the page's own, its columns' and its page number's. */
+/** Font family names a page uses: the page's own and its columns'. */
 function fontFamiliesOf(page: HTMLElement): Set<string> {
   const families = new Set<string>();
-  const parts = page.querySelectorAll<HTMLElement>(".text-page__column, .page-marks__number");
+  const parts = page.querySelectorAll<HTMLElement>(".text-page__column");
   for (const element of [page, ...parts]) {
     const first = getComputedStyle(element).fontFamily.split(",")[0];
     families.add(first.trim().replace(/^["']|["']$/g, ""));
@@ -110,7 +111,7 @@ export async function renderPage(
   // The sided corners are screen chrome: the image is the rectangular paper. Thumbnails
   // are rounded where they are shown, from the page's position at that moment.
   clone.classList.remove("side-left", "side-right");
-  if (options.preview) clone.classList.add("is-preview");
+  if (options.bare) clone.classList.add("is-bare");
   clone
     .querySelectorAll("[contenteditable]")
     .forEach((el) => el.removeAttribute("contenteditable"));

@@ -1,3 +1,4 @@
+import { undoDepth } from "prosemirror-history";
 import { DOMSerializer, type Node as EditorNode } from "prosemirror-model";
 import { EditorState } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
@@ -10,7 +11,7 @@ import {
   type CSSProperties,
   type Ref,
 } from "react";
-import type { Column as ColumnValue } from "./document";
+import { isBlankDocument, type Column as ColumnValue } from "./document";
 import {
   formatCommand,
   formatState,
@@ -24,6 +25,10 @@ import { columnOf, loadColumn, schema } from "./editor/schema";
 export interface ColumnHandle {
   /** Applies a formatting action to the selection and returns focus to the column. */
   format: (action: FormatAction) => void;
+  /** Whether the column's editor has the keyboard. */
+  hasFocus: () => boolean;
+  /** How many steps the editor's own history can undo. */
+  undoDepth: () => number;
 }
 
 /** A text selection in a focused column: where it is and what formatting it has. */
@@ -44,18 +49,30 @@ export interface ColumnProps {
   pitch: number;
   style: CSSProperties;
   onChange: (column: ColumnValue) => void;
-  onFull: (full: boolean) => void;
+  /** How many lines the text runs past the column's last rule, 0 while it fits; on mount and on every change. */
+  onOverflow: (linesPastEnd: number) => void;
+  /**
+   * The lines the document takes, measured in the mirror, on mount and on every change;
+   * a blank document counts as none rather than the one line its trailing break takes.
+   */
+  onLines?: (lines: number) => void;
   /** Reported while text is selected in the focused column, null otherwise. */
   onSelection: (selection: ColumnSelection | null) => void;
+  /**
+   * A transaction changed the document and was not itself an undo or redo (those carry
+   * prosemirror-history's meta): an edit the page may log against its own actions.
+   */
+  onEdit?: () => void;
   ref?: Ref<ColumnHandle>;
 }
 
 /**
- * One text column: a ProseMirror editor sized to the column and capped at the page's
- * line count. Paragraphs have zero margin and the rule pitch as line height, so every
- * baseline lands on a rule whatever the formatting. An edit that would push text past
- * the last rule is dropped by the capacity plugin, which measures the candidate document
- * in a hidden mirror laid out like the column.
+ * One text column: a ProseMirror editor sized to the column's lines. Paragraphs have
+ * zero margin and the rule pitch as line height, so every baseline lands on a rule
+ * whatever the formatting. Nothing is refused (the continuous page): after each change
+ * the document is measured in a hidden mirror laid out like the column and the lines
+ * past the last rule are reported, for the page's label and its fill; lines past the
+ * rule show below it until the page's edge clips them.
  *
  * The editor owns the text while editing; the value prop is loaded only when it differs
  * from what the editor last reported.
@@ -67,17 +84,39 @@ export function Column({
   pitch,
   style,
   onChange,
-  onFull,
+  onOverflow,
+  onLines,
   onSelection,
+  onEdit,
   ref,
 }: ColumnProps) {
   const host = useRef<HTMLDivElement>(null);
   const mirror = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   // The editor is created once; its callbacks read the latest props from here.
-  const props = useRef({ value, readOnly, lines, pitch, onChange, onFull, onSelection });
+  const props = useRef({
+    value,
+    readOnly,
+    lines,
+    pitch,
+    onChange,
+    onOverflow,
+    onLines,
+    onSelection,
+    onEdit,
+  });
   useLayoutEffect(() => {
-    props.current = { value, readOnly, lines, pitch, onChange, onFull, onSelection };
+    props.current = {
+      value,
+      readOnly,
+      lines,
+      pitch,
+      onChange,
+      onOverflow,
+      onLines,
+      onSelection,
+      onEdit,
+    };
   });
   /** The value last reported through onChange. A value prop equal to it needs no reload. */
   const emitted = useRef<ColumnValue | null>(null);
@@ -94,8 +133,12 @@ export function Column({
     return used ?? 1;
   }, []);
 
-  const reportFull = useCallback(
-    (doc: EditorNode) => props.current.onFull(usedLines(doc) >= props.current.lines),
+  const reportLines = useCallback(
+    (doc: EditorNode) => {
+      const used = usedLines(doc);
+      props.current.onOverflow(Math.max(0, used - props.current.lines));
+      props.current.onLines?.(isBlankDocument(columnOf(doc).doc) ? 0 : used);
+    },
     [usedLines],
   );
 
@@ -123,12 +166,7 @@ export function Column({
   useLayoutEffect(() => {
     const el = host.current;
     if (!el) return;
-    const plugins = editorPlugins({
-      usedLines,
-      limit: () => props.current.lines,
-      // A refused paste or keystroke shows the "full" label, so it is not a silent no-op.
-      onReject: () => props.current.onFull(true),
-    });
+    const plugins = editorPlugins();
     const editor = new EditorView(
       { mount: el },
       {
@@ -160,7 +198,8 @@ export function Column({
             const column = columnOf(state.doc);
             emitted.current = column;
             props.current.onChange(column);
-            reportFull(state.doc);
+            reportLines(state.doc);
+            if (!tr.getMeta("history$")) props.current.onEdit?.();
           }
           reportSelection();
         },
@@ -168,7 +207,7 @@ export function Column({
     );
     view.current = editor;
     emitted.current = props.current.value;
-    reportFull(editor.state.doc);
+    reportLines(editor.state.doc);
     const onMouseUp = () => {
       if (!dragging.current) return;
       dragging.current = false;
@@ -181,7 +220,7 @@ export function Column({
       view.current = null;
       props.current.onSelection(null);
     };
-  }, [usedLines, reportFull, reportSelection]);
+  }, [usedLines, reportLines, reportSelection]);
 
   // Content set from outside (a divider added or removed) replaces the editor's document.
   useLayoutEffect(() => {
@@ -191,9 +230,9 @@ export function Column({
     if (editor.state.doc.eq(doc)) return;
     editor.updateState(EditorState.create({ doc, plugins: editor.state.plugins }));
     emitted.current = value;
-    reportFull(doc);
+    reportLines(doc);
     reportSelection();
-  }, [value, reportFull, reportSelection]);
+  }, [value, reportLines, reportSelection]);
 
   useEffect(() => {
     view.current?.setProps({ editable: () => !readOnly });
@@ -204,10 +243,26 @@ export function Column({
   useEffect(() => {
     measured.current = new WeakMap();
     if (view.current) {
-      reportFull(view.current.state.doc);
+      reportLines(view.current.state.doc);
       reportSelection();
     }
-  }, [lines, pitch, style.width, reportFull, reportSelection]);
+  }, [lines, pitch, style.width, reportLines, reportSelection]);
+
+  // A measurement taken before the page's font arrived counted the fallback font's
+  // lines; once every font is in, the document is measured again.
+  useEffect(() => {
+    let cancelled = false;
+    document.fonts.ready
+      .then(() => {
+        if (cancelled || !view.current) return;
+        measured.current = new WeakMap();
+        reportLines(view.current.state.doc);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [reportLines]);
 
   useImperativeHandle(
     ref,
@@ -218,6 +273,8 @@ export function Column({
         formatCommand(action)(editor.state, editor.dispatch);
         editor.focus();
       },
+      hasFocus: () => view.current?.hasFocus() ?? false,
+      undoDepth: () => (view.current ? undoDepth(view.current.state) : 0),
     }),
     [],
   );
@@ -228,7 +285,16 @@ export function Column({
       <div
         ref={mirror}
         className="text-page__mirror"
-        style={{ left: style.left, top: style.top, width: style.width }}
+        // The mirror is laid out like the column, its hanging indent included, so it
+        // wraps the same lines.
+        style={
+          {
+            left: style.left,
+            top: style.top,
+            width: style.width,
+            "--column-hang": (style as Record<string, unknown>)["--column-hang"],
+          } as CSSProperties
+        }
         aria-hidden="true"
       />
     </>
