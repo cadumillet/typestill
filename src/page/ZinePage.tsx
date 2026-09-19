@@ -21,6 +21,7 @@ import { mmToCssPx, pageMm, type Orientation, type PageSize } from "./paper";
 import { pageLookStyle } from "./pageLook";
 import type { QuickShape } from "./quickLineElement";
 import { QuickElementIndicator, QuickLinePreview } from "./QuickLinePreview";
+import { pastEndLabel } from "./TextPage";
 import type { PageSide } from "./sides";
 import { useFormatBar } from "./useFormatBar";
 import { useOpenElement } from "./useOpenElement";
@@ -140,7 +141,8 @@ export function ZinePage({
   const pitch = px(pitchMm);
   const page = useRef<HTMLDivElement>(null);
   const bar = useFormatBar(page);
-  const [fullBlocks, setFullBlocks] = useState<boolean[]>([]);
+  /** Lines each text block runs past its rows, 0 while it fits. */
+  const [overflow, setOverflow] = useState<number[]>([]);
   const [over, setOver] = useState(false);
   const locked = preview || readOnly || drawingMode !== null;
   const quick = useQuickLine(page, {
@@ -157,11 +159,11 @@ export function ZinePage({
     onOpen: onOpenElement ?? NO_LINE,
   });
 
-  const setBlockFull = useCallback((index: number, full: boolean) => {
-    setFullBlocks((current) => {
-      if (current[index] === full) return current;
+  const setBlockOverflow = useCallback((index: number, lines: number) => {
+    setOverflow((current) => {
+      if (current[index] === lines) return current;
       const next = [...current];
-      next[index] = full;
+      next[index] = lines;
       return next;
     });
   }, []);
@@ -396,12 +398,14 @@ export function ZinePage({
               onChange={(column: ColumnValue) =>
                 change(replaceBlock(zine, at, { ...block, column }))
               }
-              onFull={(full) => setBlockFull(index, full)}
+              onOverflow={(lines) => setBlockOverflow(index, lines)}
               onSelection={(selection) => bar.setColumnSelection(index, selection)}
               onEdit={quick.onEdit}
             />
-            {!locked && fullBlocks[index] && (
-              <div className="text-page__full zine-page__full zine-chrome">Text full</div>
+            {!locked && overflow[index] > 0 && (
+              <div className="text-page__full zine-page__full zine-chrome">
+                <span>{pastEndLabel(overflow[index])}</span>
+              </div>
             )}
             {!locked && (
               <div className="zine-block__tools zine-chrome">

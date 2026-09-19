@@ -9,7 +9,9 @@
   box-sizing: border-box;
   background: var(--page-paper, #fff);
   border: 1px solid transparent;
-  overflow: hidden;
+  /* The page's edge is where the paper ends: clip, never scroll, so a caret past the edge
+     never pulls the text up (the continuous page). */
+  overflow: clip;
   font-family: var(--page-font, "Excalifont"), "Segoe Print", "Comic Sans MS", sans-serif;
 }
 
@@ -124,9 +126,10 @@
   overflow-wrap: break-word;
 }
 
+/* A column's box does not clip: text past its last rule shows below it, to the page's edge. */
 .text-page__column {
   outline: none;
-  overflow: hidden;
+  overflow: visible;
   background: transparent;
   color: var(--page-ink, #26241f);
   caret-color: var(--page-ink, #26241f);
@@ -206,6 +209,8 @@
   height: auto;
 }
 
+/* "N lines past the end": at the page's foot, right-aligned in the column, in the warning
+   colour on a scrap of paper, since the overflowing text runs to the edge beneath it. */
 .text-page__full {
   position: absolute;
   z-index: 2;
@@ -213,8 +218,15 @@
   text-align: right;
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 11px;
+  line-height: 14px;
   color: #c0504d;
   pointer-events: none;
+}
+
+.text-page__full > span {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--page-paper, #fff);
 }
 
 /* The page's drawing as a still, in writing mode: an image the size of the page (sized

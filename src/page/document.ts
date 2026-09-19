@@ -71,7 +71,7 @@ export function columnLeftToParagraph(column: Column): Column {
   return doc === column.doc ? column : { ...column, doc };
 }
 
-/** A column: the document, plus its plain text for search and capacity checks. */
+/** A column: the document, plus its plain text for search. */
 export interface Column {
   text: string;
   doc: EditorDocument;

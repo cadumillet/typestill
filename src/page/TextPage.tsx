@@ -93,6 +93,10 @@ const NO_FILES: BinaryFiles = {};
 const EMPTY_COLUMN = columnFromText("");
 const NO_LINE = () => undefined;
 
+/** "3 lines past the end": what the page says under a column that has run past its last rule. */
+export const pastEndLabel = (lines: number) =>
+  `${lines} ${lines === 1 ? "line" : "lines"} past the end`;
+
 /**
  * A lined text page. Each column is an editor in the theme's font whose line height is
  * the rule pitch and whose top is placed so every baseline lands on a rule, using the
@@ -130,7 +134,8 @@ export function TextPage({
   const baseline = useBaseline(lined.font, fontSize, pitch);
   const page = useRef<HTMLDivElement>(null);
   const bar = useFormatBar(page);
-  const [fullColumns, setFullColumns] = useState<boolean[]>([]);
+  /** Lines each column runs past its last rule, 0 while it fits. */
+  const [overflow, setOverflow] = useState<number[]>([]);
   /** Lines each column's text takes, as the columns report them. */
   const usedLines = useRef<number[]>([]);
   const fillRef = useRef(onFill);
@@ -140,11 +145,11 @@ export function TextPage({
   /** Where the divider is while it is being dragged, in mm; null otherwise. */
   const [dragDivider, setDragDivider] = useState<number | null>(null);
 
-  const setColumnFull = useCallback((index: number, full: boolean) => {
-    setFullColumns((current) => {
-      if (current[index] === full) return current;
+  const setColumnOverflow = useCallback((index: number, lines: number) => {
+    setOverflow((current) => {
+      if (current[index] === lines) return current;
       const next = [...current];
-      next[index] = full;
+      next[index] = lines;
       return next;
     });
   }, []);
@@ -285,7 +290,7 @@ export function TextPage({
             next[index] = column;
             onChange?.(next);
           }}
-          onFull={(full) => setColumnFull(index, full)}
+          onOverflow={(lines) => setColumnOverflow(index, lines)}
           onLines={(used) => reportLines(index, used)}
           onSelection={(at) => bar.setColumnSelection(index, at)}
           onEdit={quick.onEdit}
@@ -294,13 +299,13 @@ export function TextPage({
       {!locked &&
         boxes.map(
           (box, index) =>
-            fullColumns[index] && (
+            overflow[index] > 0 && (
               <div
                 key={index}
                 className="text-page__full"
                 style={{ left: px(box.left), width: px(box.width) }}
               >
-                {boxes.length > 1 ? "Column full" : "Page full"}
+                <span>{pastEndLabel(overflow[index])}</span>
               </div>
             ),
         )}

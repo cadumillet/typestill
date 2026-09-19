@@ -206,7 +206,8 @@ button[aria-pressed="true"] {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  /* Clip, never scroll: a caret past the page's edge must not pull the desk up. */
+  overflow: clip;
 }
 
 /* The sheet is the page or spread with the page bar under it, centred on the desk. */

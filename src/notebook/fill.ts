@@ -1,6 +1,6 @@
 // How full a page is, 0 to 1, kept on the page so the grid view can shade it without
 // rendering anything (PLAN.md section 5, "Fill"). Lined pages: the lines the text takes
-// over the lines available, summed over the columns, reported by the columns' capacity
+// over the lines available, summed over the columns, reported by the columns' line
 // measurement; a page with a drawing and no text is at least a quarter full. Zine pages:
 // the cells filled and the text blocks written over the cells and blocks present.
 
