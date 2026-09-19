@@ -160,6 +160,9 @@ export function TextPage({
 
   const style = {
     ...pageLookStyle(theme, lined.font, zoom),
+    // The paragraph alignment's first-line indent: the first column's hang (the same
+    // whatever the divider), so a paragraph's first line starts at the rule in either column.
+    "--paragraph-indent": `${px(columnBoxes(mm.width, margin, null, lined)[0].hang)}px`,
     width: px(mm.width),
     height: px(mm.height),
     "--rule-pitch": `${pitch}px`,

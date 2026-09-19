@@ -137,22 +137,23 @@
   cursor: default;
 }
 
-/* Paragraphs sit flush on the rules: no margin, the rule pitch as line height. They hang
-   from the margin line (--column-hang, set by the page from the column's box): the first
-   line reaches back into the margin strip, the wrapped and hard-broken lines start after
-   the line. Centred and right-aligned paragraphs keep every line right of it. */
+/* Paragraphs sit flush on the rules: no margin, the rule pitch as line height. Every
+   paragraph is padded by --column-hang (set by the page from the column's box), so left,
+   centred and right-aligned lines all sit right of the margin line, as they always did.
+   A paragraph-aligned one (data-align="paragraph") drops the padding and indents its
+   first line by --paragraph-indent (the page's, the first column's hang): it starts at
+   the rule and its wrapped and hard-broken lines run from the page's left inset. */
 .text-page__column p,
 .text-page__mirror p {
   margin: 0;
   padding-left: var(--column-hang, 0px);
-  text-indent: calc(-1 * var(--column-hang, 0px));
+  text-indent: 0;
 }
 
-.text-page__column p[style*="text-align: center"],
-.text-page__column p[style*="text-align: right"],
-.text-page__mirror p[style*="text-align: center"],
-.text-page__mirror p[style*="text-align: right"] {
-  text-indent: 0;
+.text-page__column p[data-align="paragraph"],
+.text-page__mirror p[data-align="paragraph"] {
+  padding-left: 0;
+  text-indent: var(--paragraph-indent, 0px);
 }
 
 .text-page__column strong,

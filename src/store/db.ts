@@ -196,6 +196,13 @@ export class TypestillDb extends Dexie {
           await tx.table("pages").bulkPut(converted.pages);
         }
       });
+    // Version 12 (backup version 11): a paragraph's align may be "paragraph", the fourth
+    // alignment. The stores are the same and nothing is converted.
+    this.version(12).stores({
+      ...stores,
+      pages: "id, notebookId, [notebookId+createdAt], [notebookId+position]",
+      thumbnails: "pageId, notebookId",
+    });
   }
 }
 

@@ -203,11 +203,25 @@ function expectInNotes(parsed: NotebookDocument, expected: readonly Page[]): voi
 }
 
 describe("backup", () => {
-  it("round-trips through JSON at version 10, size, cuts, slots and drawings included", () => {
-    expect(BACKUP_VERSION).toBe(10);
+  it("round-trips through JSON at version 11, size, cuts, slots, drawings and the paragraph alignment included", () => {
+    expect(BACKUP_VERSION).toBe(11);
     const text = serializeBackup(doc);
     expect(JSON.parse(text).version).toBe(BACKUP_VERSION);
     expect(parseBackup(text)).toEqual(doc);
+    // A paragraph-aligned paragraph, the one thing version 11 adds.
+    const aligned = JSON.parse(text);
+    aligned.notebook.pages[0].columns[0].doc.content[0].attrs = { align: "paragraph" };
+    const parsed = parseBackup(JSON.stringify(aligned));
+    expect(parsed.pages[0].columns[0].doc.content[0].attrs).toEqual({ align: "paragraph" });
+  });
+
+  it("still reads a version 10 file, which has no paragraph alignment", () => {
+    const old = raw();
+    old.version = 10;
+    expect(parseBackup(JSON.stringify(old))).toEqual(doc);
+    const bad = raw();
+    bad.version = 12;
+    expect(() => parseBackup(JSON.stringify(bad))).toThrow(/not supported/);
   });
 
   it("checks the size, the cuts and the slots of version 10 files", () => {

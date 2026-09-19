@@ -89,6 +89,13 @@ describe("isEditorDocument", () => {
       }),
     ).toBe(true);
     expect(isColumn(columnFromText("x"))).toBe(true);
+    // The fourth alignment, since backup version 11.
+    expect(
+      isEditorDocument({
+        type: "doc",
+        content: [{ type: "paragraph", attrs: { align: "paragraph" }, content: [] }],
+      }),
+    ).toBe(true);
   });
 
   it("rejects other shapes", () => {

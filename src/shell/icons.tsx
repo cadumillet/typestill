@@ -130,6 +130,13 @@ export const AlignRight = () => (
   </svg>
 );
 
+/** The paragraph alignment: a first line starting further in, the rest running from the edge. */
+export const AlignParagraph = () => (
+  <svg {...base}>
+    <path d="M7 5h8M3 9h12M3 13h12" />
+  </svg>
+);
+
 export const Images = () => (
   <svg {...base}>
     <rect x="2.5" y="3.5" width="13" height="11" rx="2" />

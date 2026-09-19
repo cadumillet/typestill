@@ -4,8 +4,12 @@
 // helpers work on the JSON alone so the store, the backup converter and their tests need
 // no editor.
 
-export type Alignment = "left" | "center" | "right";
-export const ALIGNMENTS: readonly Alignment[] = ["left", "center", "right"];
+/**
+ * A paragraph's alignment. "paragraph" is the fourth, opinionated one: the first line
+ * starts at the margin line and the wrapped lines run from the page's left edge.
+ */
+export type Alignment = "left" | "center" | "right" | "paragraph";
+export const ALIGNMENTS: readonly Alignment[] = ["left", "center", "right", "paragraph"];
 
 /** A highlight's tint: an id each theme renders on its own paper, yellow first. */
 export type Tint = "yellow" | "green" | "blue" | "pink";

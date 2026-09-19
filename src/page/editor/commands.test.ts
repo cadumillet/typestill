@@ -48,6 +48,22 @@ describe("setAlignment", () => {
     expect(alignments(state)).toEqual(["right", "right", "right"]);
   });
 
+  it("sets the paragraph alignment like the others, and Enter keeps it", () => {
+    const state = run(stateFor("one\ntwo\nthree", 3, 12), setAlignment("paragraph"));
+    expect(alignments(state)).toEqual(["paragraph", "paragraph", "paragraph"]);
+    const split = run(
+      state.apply(state.tr.setSelection(TextSelection.create(state.doc, 9))),
+      splitParagraph,
+    );
+    expect(alignments(split)).toEqual(["paragraph", "paragraph", "paragraph", "paragraph"]);
+    expect(formatState(split).align).toBe("paragraph");
+    // Rendered as a data attribute, not a text-align, and parsed back from it.
+    const dom = schema.nodes.paragraph.spec.toDOM!(split.doc.child(0)) as unknown as unknown[];
+    expect(dom[1]).toEqual({ "data-align": "paragraph" });
+    const json = columnOf(split.doc).doc.content[0].attrs;
+    expect(json).toEqual({ align: "paragraph" });
+  });
+
   it("leaves untouched paragraphs alone and is a no-op when nothing changes", () => {
     const first = run(stateFor("one\ntwo\nthree", 1, 4), setAlignment("center"));
     expect(alignments(first)).toEqual(["center", "left", "left"]);

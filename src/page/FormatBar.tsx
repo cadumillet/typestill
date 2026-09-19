@@ -2,7 +2,15 @@ import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode }
 import { HIGHLIGHT_TINTS, INK_COLORS } from "../canvas/palette";
 import { IconButton } from "../shell/IconButton";
 import { keyLabel } from "../shell/keys";
-import { AlignCenter, AlignLeft, AlignRight, Bold, Highlighter, Italic } from "../shell/icons";
+import {
+  AlignCenter,
+  AlignLeft,
+  AlignParagraph,
+  AlignRight,
+  Bold,
+  Highlighter,
+  Italic,
+} from "../shell/icons";
 import { ALIGNMENTS, type Alignment } from "./document";
 import type { FormatAction, FormatState } from "./editor/commands";
 import "./formatbar.css";
@@ -20,15 +28,20 @@ const GAP = 6;
 const INSET = 4;
 const shortcut = (key: string, shift = false) => keyLabel({ mod: true, shift, key });
 
-const ALIGNMENT_ICONS: Record<Alignment, { label: string; key: string; icon: () => ReactNode }> = {
+/** The alignments' buttons; the paragraph alignment has no chord (the free Cmd+Shift letters are the browsers'). */
+const ALIGNMENT_ICONS: Record<
+  Alignment,
+  { label: string; key: string | null; icon: () => ReactNode }
+> = {
   left: { label: "Align left", key: "L", icon: AlignLeft },
   center: { label: "Align centre", key: "E", icon: AlignCenter },
   right: { label: "Align right", key: "R", icon: AlignRight },
+  paragraph: { label: "Paragraph", key: null, icon: AlignParagraph },
 };
 
 /**
  * The floating bar over a text selection: bold, italic, the ink palette, the highlighter
- * with its tints, and the three alignments. It sits above the selection's first line, or
+ * with its tints, and the four alignments. It sits above the selection's first line, or
  * below it when there is no room, and never leaves the page. Its buttons keep the
  * editor's focus and selection.
  */
@@ -132,7 +145,7 @@ export function FormatBar({ anchor, bounds, format, onAction }: FormatBarProps) 
             <IconButton
               key={align}
               label={label}
-              shortcut={shortcut(key, true)}
+              shortcut={key ? shortcut(key, true) : undefined}
               pressed={format.align === align}
               onClick={() => onAction({ type: "align", align })}
             >

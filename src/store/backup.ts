@@ -35,9 +35,10 @@ import { SHEET, type Column, type NotebookDocument, type Page, type Section } fr
 export const BACKUP_FORMAT = "typestill-notebook";
 // Version 10 made the notebook one of fixed size (Phase 10): it carries `size`, each
 // section a `start` and each page a `position` and a `fill`; older files' sections of
-// named pages are converted on read.
-export const BACKUP_VERSION = 10;
-const READABLE_VERSIONS = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+// named pages are converted on read. Version 11 only marks that a paragraph's `align`
+// may be "paragraph" (the fourth alignment); nothing is converted.
+export const BACKUP_VERSION = 11;
+const READABLE_VERSIONS = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
 
 export interface BackupFile {
   format: typeof BACKUP_FORMAT;

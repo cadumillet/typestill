@@ -14,8 +14,11 @@ import {
 } from "../document";
 
 function alignmentOf(dom: HTMLElement): Alignment {
+  // The paragraph alignment is a data attribute (it is not a text-align value); the
+  // others are the inline text-align, or a legacy align attribute.
+  if (dom.getAttribute("data-align") === "paragraph") return "paragraph";
   const value = dom.style.textAlign || dom.getAttribute("align") || "";
-  return ALIGNMENTS.includes(value as Alignment) && value !== "left"
+  return ALIGNMENTS.includes(value as Alignment) && value !== "left" && value !== "paragraph"
     ? (value as Alignment)
     : "left";
 }
@@ -29,7 +32,11 @@ export const schema = new Schema({
       parseDOM: [{ tag: "p", getAttrs: (dom) => ({ align: alignmentOf(dom) }) }],
       toDOM: (node) => [
         "p",
-        node.attrs.align === "left" ? {} : { style: `text-align: ${node.attrs.align}` },
+        node.attrs.align === "left"
+          ? {}
+          : node.attrs.align === "paragraph"
+            ? { "data-align": "paragraph" }
+            : { style: `text-align: ${node.attrs.align}` },
         0,
       ],
     },
