@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode 
 import { mmToCssPx, pageGeometry, pageMm, ruleCount } from "../page/paper";
 import { pageSide, type PageSide } from "../page/sides";
 import { isPageBlank, type Notebook, type Page, type Section } from "../store/model";
-import { getTheme } from "../theme/themes";
+import { getTheme, isDarkTheme } from "../theme/themes";
 import { CoverSwatch } from "./CoverSwatch";
 import { sectionOf } from "./sections";
 import "./overview.css";
@@ -56,23 +56,24 @@ export function Overview({
   const corner = mmToCssPx(theme.page.cornerMm, zoom);
   const written = pages.filter((page) => page.fill > 0).length;
   /**
-   * A blank lined page's paper: the theme's rules and margin line in miniature, drawn by
-   * CSS from the theme's metrics at the thumbnail's scale (px per mm), so a blank ruled
-   * page is still a ruled page. Zine pages are plain.
+   * A lined page's sheet: the theme's rules and margin line in miniature, drawn by CSS
+   * from the theme's metrics at the thumbnail's scale (px per mm) over the thumbnail or
+   * the blank paper, so a ruled page is still a ruled page at this size (a thumbnail's
+   * own 1px rules fade away when it is shrunk). Blended so they never paint over ink:
+   * multiplied on light paper, screened on dark. Zine pages are plain.
    */
   const scale = width / mm.width;
   const { lined } = theme;
-  const paperStyle = {
-    background: theme.colours.paper,
+  const sheetStyle = {
     "--mini-rule": theme.colours.rule,
     "--mini-margin": theme.colours.margin,
+    "--mini-blend": isDarkTheme(theme) ? "screen" : "multiply",
     "--mini-pitch": `${lined.pitchMm * scale}px`,
     "--mini-rule-top": `${lined.firstRuleMm * scale}px`,
     "--mini-rules-height": `${ruleCount(mm.height, lined) * lined.pitchMm * scale}px`,
     "--mini-margin-left": `${notebook.defaults.margin * scale}px`,
   } as CSSProperties;
-  const paperClass = [
-    "overview__paper",
+  const linedSheet = [
     lined.rules === "lines" ? "has-rules" : "",
     lined.marginLine ? "has-margin-line" : "",
   ]
@@ -127,14 +128,18 @@ export function Overview({
         aria-label={label}
         onClick={() => onSelect(position)}
       >
-        {thumbnail && !isPageBlank(page) ? (
-          <img className="overview__thumbnail" src={thumbnail} alt="" draggable={false} />
-        ) : (
-          <span
-            className={page.kind === "zine" ? "overview__paper" : paperClass}
-            style={page.kind === "zine" ? { background: theme.colours.paper } : paperStyle}
-          />
-        )}
+        <span
+          className={`overview__sheet${page.kind === "zine" ? "" : ` ${linedSheet}`}${
+            thumbnail && !isPageBlank(page) ? "" : " is-blank"
+          }`}
+          style={sheetStyle}
+        >
+          {thumbnail && !isPageBlank(page) ? (
+            <img className="overview__thumbnail" src={thumbnail} alt="" draggable={false} />
+          ) : (
+            <span className="overview__paper" style={{ background: theme.colours.paper }} />
+          )}
+        </span>
         <span className="overview__label" aria-hidden>
           {label}
         </span>

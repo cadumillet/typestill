@@ -583,7 +583,7 @@ export function App() {
               {fit && (
                 <div className="desk__sheet" style={{ width: fit.width }}>
                   <div
-                    className={`desk__spread${spread ? " is-spread" : ""}`}
+                    className={`desk__spread${spread ? " is-spread" : ""}${preview ? " is-preview" : ""}`}
                     style={{ "--page-corner": `${cornerPx}px` } as CSSProperties}
                   >
                     {slots.map((i, slot) => {

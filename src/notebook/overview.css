@@ -98,17 +98,31 @@
 .overview__page.is-left,
 .overview__slab.is-left,
 .overview__cover.is-left,
-.overview__page.is-left .overview__thumbnail,
-.overview__page.is-left .overview__paper {
+.overview__page.is-left .overview__sheet {
   border-radius: var(--overview-corner) 0 0 var(--overview-corner);
 }
 
 .overview__page.is-right,
 .overview__slab.is-right,
 .overview__cover.is-right,
-.overview__page.is-right .overview__thumbnail,
-.overview__page.is-right .overview__paper {
+.overview__page.is-right .overview__sheet {
   border-radius: 0 var(--overview-corner) var(--overview-corner) 0;
+}
+
+/* The sheet holds the thumbnail or the blank paper and draws the theme's rules and
+   margin line over it in miniature (the custom properties are set by the overview from
+   the theme's metrics at the thumbnail's scale), blended so they never cover ink. A
+   blank sheet sits back, so the written pages stand out. */
+.overview__sheet {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: clip;
+}
+
+.overview__sheet.is-blank {
+  opacity: 0.45;
 }
 
 .overview__thumbnail,
@@ -119,23 +133,16 @@
   height: 100%;
 }
 
-/* Blank paper sits back, so the written pages stand out; no border, just the paper, with
-   the theme's rules and margin line in miniature (the custom properties are set by the
-   overview from the theme's metrics at the thumbnail's scale). */
-.overview__paper {
-  position: relative;
-  overflow: clip;
-  opacity: 0.45;
-}
-
-.overview__paper.has-rules::after,
-.overview__paper.has-margin-line::before {
+.overview__sheet.has-rules::after,
+.overview__sheet.has-margin-line::before {
   content: "";
   position: absolute;
+  z-index: 1;
   pointer-events: none;
+  mix-blend-mode: var(--mini-blend, multiply);
 }
 
-.overview__paper.has-rules::after {
+.overview__sheet.has-rules::after {
   left: 0;
   right: 0;
   top: var(--mini-rule-top);
@@ -144,15 +151,14 @@
   background-size: 100% var(--mini-pitch);
 }
 
-.overview__paper.has-margin-line::before {
+.overview__sheet.has-margin-line::before {
   inset: 0;
   background: linear-gradient(var(--mini-margin), var(--mini-margin)) no-repeat;
   background-size: 1px 100%;
   background-position: var(--mini-margin-left) 0;
 }
 
-.overview__page:hover .overview__thumbnail,
-.overview__page:hover .overview__paper {
+.overview__page:hover .overview__sheet {
   filter: brightness(0.96);
 }
 

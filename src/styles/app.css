@@ -232,8 +232,8 @@ button[aria-pressed="true"] {
 }
 
 /* In a spread, the page that is not open is dimmed until it is clicked, so the open one
-   reads at a glance. */
-.desk__spread.is-spread .desk__page:not(.is-open) {
+   reads at a glance; not in preview, which shows the spread as it reads. */
+.desk__spread.is-spread:not(.is-preview) .desk__page:not(.is-open) {
   opacity: 0.55;
 }
 
