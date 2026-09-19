@@ -203,24 +203,42 @@ function expectInNotes(parsed: NotebookDocument, expected: readonly Page[]): voi
 }
 
 describe("backup", () => {
-  it("round-trips through JSON at version 11, size, cuts, slots, drawings and the paragraph alignment included", () => {
-    expect(BACKUP_VERSION).toBe(11);
+  it("round-trips through JSON at version 12, size, cuts, slots, drawings and the paragraph alignment included", () => {
+    expect(BACKUP_VERSION).toBe(12);
     const text = serializeBackup(doc);
     expect(JSON.parse(text).version).toBe(BACKUP_VERSION);
     expect(parseBackup(text)).toEqual(doc);
-    // A paragraph-aligned paragraph, the one thing version 11 adds.
+    // A paragraph-aligned paragraph, the alignment version 11 added.
     const aligned = JSON.parse(text);
     aligned.notebook.pages[0].columns[0].doc.content[0].attrs = { align: "paragraph" };
     const parsed = parseBackup(JSON.stringify(aligned));
     expect(parsed.pages[0].columns[0].doc.content[0].attrs).toEqual({ align: "paragraph" });
   });
 
-  it("still reads a version 10 file, which has no paragraph alignment", () => {
+  it("makes the left paragraphs of files before version 12 paragraph-aligned, keeping the rest", () => {
+    // The fixture's first column is centred and its second a plain column, which is
+    // paragraph-aligned at version 12; in a version-11 file that column is left.
+    const old = raw();
+    old.version = 11;
+    old.notebook.pages[0].columns[1].doc.content[0].attrs = { align: "left" };
+    old.notebook.pages[0].columns[0].doc.content[0].attrs = { align: "right" };
+    const parsed = parseBackup(JSON.stringify(old));
+    expect(parsed.pages[0].columns[1].doc.content[0].attrs).toEqual({ align: "paragraph" });
+    expect(parsed.pages[0].columns[0].doc.content[0].attrs).toEqual({ align: "right" });
+    // A version-12 file's left stays left: a choice now.
+    const chosen = raw();
+    chosen.notebook.pages[0].columns[1].doc.content[0].attrs = { align: "left" };
+    expect(parseBackup(JSON.stringify(chosen)).pages[0].columns[1].doc.content[0].attrs).toEqual({
+      align: "left",
+    });
+  });
+
+  it("still reads a version 10 file, and refuses one from the future", () => {
     const old = raw();
     old.version = 10;
     expect(parseBackup(JSON.stringify(old))).toEqual(doc);
     const bad = raw();
-    bad.version = 12;
+    bad.version = 13;
     expect(() => parseBackup(JSON.stringify(bad))).toThrow(/not supported/);
   });
 

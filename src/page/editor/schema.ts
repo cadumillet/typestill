@@ -6,6 +6,7 @@ import { Schema, type Node as EditorNode } from "prosemirror-model";
 import { inkColorOf } from "../../canvas/palette";
 import {
   ALIGNMENTS,
+  DEFAULT_ALIGNMENT,
   documentFromText,
   isTint,
   type Alignment,
@@ -15,12 +16,13 @@ import {
 
 function alignmentOf(dom: HTMLElement): Alignment {
   // The paragraph alignment is a data attribute (it is not a text-align value); the
-  // others are the inline text-align, or a legacy align attribute.
+  // others are the inline text-align, or a legacy align attribute; a paragraph that
+  // says nothing gets the default.
   if (dom.getAttribute("data-align") === "paragraph") return "paragraph";
   const value = dom.style.textAlign || dom.getAttribute("align") || "";
-  return ALIGNMENTS.includes(value as Alignment) && value !== "left" && value !== "paragraph"
+  return ALIGNMENTS.includes(value as Alignment) && value !== "paragraph"
     ? (value as Alignment)
-    : "left";
+    : DEFAULT_ALIGNMENT;
 }
 
 export const schema = new Schema({
@@ -28,15 +30,15 @@ export const schema = new Schema({
     doc: { content: "paragraph+" },
     paragraph: {
       content: "inline*",
-      attrs: { align: { default: "left" } },
+      attrs: { align: { default: DEFAULT_ALIGNMENT } },
       parseDOM: [{ tag: "p", getAttrs: (dom) => ({ align: alignmentOf(dom) }) }],
+      // Every alignment is written out, left included, so a paragraph read back from
+      // the DOM (a copy within the app) keeps its alignment rather than the default.
       toDOM: (node) => [
         "p",
-        node.attrs.align === "left"
-          ? {}
-          : node.attrs.align === "paragraph"
-            ? { "data-align": "paragraph" }
-            : { style: `text-align: ${node.attrs.align}` },
+        node.attrs.align === "paragraph"
+          ? { "data-align": "paragraph" }
+          : { style: `text-align: ${node.attrs.align}` },
         0,
       ],
     },

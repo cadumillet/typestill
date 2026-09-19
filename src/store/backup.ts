@@ -25,7 +25,7 @@ import {
   type LegacySection,
   type LegacyTag,
 } from "../notebook/sections";
-import { columnFromText, isColumn } from "../page/document";
+import { columnFromText, columnLeftToParagraph, isColumn } from "../page/document";
 import { DEFAULT_MARGIN_MM, PAGE_SIZES_MM } from "../page/paper";
 import { isZine, type Zine } from "../page/zine";
 import { convertLegacyZine, isLegacyZine } from "../page/zineLegacy";
@@ -36,9 +36,23 @@ export const BACKUP_FORMAT = "typestill-notebook";
 // Version 10 made the notebook one of fixed size (Phase 10): it carries `size`, each
 // section a `start` and each page a `position` and a `fill`; older files' sections of
 // named pages are converted on read. Version 11 only marks that a paragraph's `align`
-// may be "paragraph" (the fourth alignment); nothing is converted.
-export const BACKUP_VERSION = 11;
-const READABLE_VERSIONS = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+// may be "paragraph" (the fourth alignment); version 12 makes that alignment the
+// default, and older files' left-aligned paragraphs become paragraph-aligned on read.
+export const BACKUP_VERSION = 12;
+const READABLE_VERSIONS = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+
+/** A zine with its text blocks' left paragraphs made paragraph-aligned (files before version 12). */
+function zineLeftToParagraph(zine: Zine): Zine {
+  return {
+    ...zine,
+    rows: zine.rows.map((row) => ({
+      ...row,
+      blocks: row.blocks.map((block) =>
+        block.kind === "text" ? { ...block, column: columnLeftToParagraph(block.column) } : block,
+      ),
+    })),
+  };
+}
 
 export interface BackupFile {
   format: typeof BACKUP_FORMAT;
@@ -270,9 +284,12 @@ export function parseBackup(text: string): NotebookDocument {
       kind: page.kind ?? "lined",
       showPageNumber: page.showPageNumber !== false,
       margin: typeof page.margin === "number" ? page.margin : DEFAULT_MARGIN_MM,
-      columns: (page.columns as (string | Column)[]).map((column) =>
-        typeof column === "string" ? columnFromText(column) : column,
-      ),
+      // Before version 12 left was the only default alignment, so a left paragraph
+      // there is the default and becomes the paragraph alignment.
+      columns: (page.columns as (string | Column)[]).map((column) => {
+        const parsed = typeof column === "string" ? columnFromText(column) : column;
+        return version < 12 ? columnLeftToParagraph(parsed) : parsed;
+      }),
       // Pages from before version 8 have no drawing.
       drawing: version < 8 ? [] : page.drawing,
       drawingLayer: version < 8 ? "over" : page.drawingLayer,
@@ -280,6 +297,7 @@ export function parseBackup(text: string): NotebookDocument {
     if (converted.kind === "zine") {
       const zine = page.zine as unknown;
       converted.zine = (version < 6 ? convertLegacyZine(zine as never) : zine) as Zine;
+      if (version < 12) converted.zine = zineLeftToParagraph(converted.zine);
     }
     return converted;
   });

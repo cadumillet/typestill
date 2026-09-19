@@ -14,6 +14,11 @@ import {
 } from "./document";
 
 describe("documentFromText", () => {
+  it("gives new paragraphs the paragraph alignment, the default", () => {
+    expect(documentFromText("a").content[0].attrs).toEqual({ align: "paragraph" });
+    expect(columnFromText("").doc.content[0].attrs).toEqual({ align: "paragraph" });
+  });
+
   it("makes one paragraph per line, blank lines included", () => {
     expect(documentFromText("")).toEqual(emptyDocument());
     expect(documentFromText("a\nb\n\nc")).toEqual({

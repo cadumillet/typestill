@@ -10,6 +10,8 @@
  */
 export type Alignment = "left" | "center" | "right" | "paragraph";
 export const ALIGNMENTS: readonly Alignment[] = ["left", "center", "right", "paragraph"];
+/** What a new paragraph gets: the paragraph alignment (the owner's default since 2026-09-19). */
+export const DEFAULT_ALIGNMENT: Alignment = "paragraph";
 
 /** A highlight's tint: an id each theme renders on its own paper, yellow first. */
 export type Tint = "yellow" | "green" | "blue" | "pink";
@@ -46,13 +48,36 @@ export interface EditorDocument {
   content: ParagraphJson[];
 }
 
+/**
+ * The document with every left-aligned paragraph made paragraph-aligned, for files and
+ * databases from before the paragraph alignment became the default (backup version 12,
+ * Dexie version 13): until then left was the only default, so a stored "left" was never
+ * a choice. Centred and right-aligned paragraphs are kept. Returns the input when
+ * nothing changes.
+ */
+export function leftToParagraph(doc: EditorDocument): EditorDocument {
+  if (!doc.content.some((p) => p.attrs.align === "left")) return doc;
+  return {
+    ...doc,
+    content: doc.content.map((p) =>
+      p.attrs.align === "left" ? { ...p, attrs: { ...p.attrs, align: "paragraph" } } : p,
+    ),
+  };
+}
+
+/** A column with its document converted by `leftToParagraph`; the text is unchanged. */
+export function columnLeftToParagraph(column: Column): Column {
+  const doc = leftToParagraph(column.doc);
+  return doc === column.doc ? column : { ...column, doc };
+}
+
 /** A column: the document, plus its plain text for search and capacity checks. */
 export interface Column {
   text: string;
   doc: EditorDocument;
 }
 
-export function paragraph(text = "", align: Alignment = "left"): ParagraphJson {
+export function paragraph(text = "", align: Alignment = DEFAULT_ALIGNMENT): ParagraphJson {
   const node: ParagraphJson = { type: "paragraph", attrs: { align } };
   if (text) node.content = [{ type: "text", text }];
   return node;

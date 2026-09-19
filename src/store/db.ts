@@ -7,7 +7,7 @@ import {
   type LegacySection,
   type LegacyTag,
 } from "../notebook/sections";
-import { columnFromText } from "../page/document";
+import { columnFromText, columnLeftToParagraph, type Column } from "../page/document";
 import { convertLegacyZine, isLegacyZine } from "../page/zineLegacy";
 import { DEFAULT_THEME_ID } from "../theme/themes";
 import {
@@ -203,6 +203,39 @@ export class TypestillDb extends Dexie {
       pages: "id, notebookId, [notebookId+createdAt], [notebookId+position]",
       thumbnails: "pageId, notebookId",
     });
+    // Version 13 (backup version 12): the paragraph alignment is the default. Until now
+    // left was the only default, so every left-aligned paragraph, in the columns and in
+    // zine text blocks, becomes paragraph-aligned; centred and right ones stay.
+    this.version(13)
+      .stores({
+        ...stores,
+        pages: "id, notebookId, [notebookId+createdAt], [notebookId+position]",
+        thumbnails: "pageId, notebookId",
+      })
+      .upgrade((tx) =>
+        tx
+          .table("pages")
+          .toCollection()
+          .modify(
+            (page: {
+              columns: Column[];
+              zine?: {
+                rows: { blocks: ({ kind: "text"; column: Column } | { kind: string })[] }[];
+              } | null;
+            }) => {
+              page.columns = page.columns.map(columnLeftToParagraph);
+              if (page.zine) {
+                for (const row of page.zine.rows) {
+                  for (const block of row.blocks) {
+                    if (block.kind === "text" && "column" in block) {
+                      block.column = columnLeftToParagraph(block.column);
+                    }
+                  }
+                }
+              }
+            },
+          ),
+      );
   }
 }
 

@@ -1,7 +1,7 @@
 import Dexie from "dexie";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DEFAULT_COVER } from "../notebook/cover";
-import { columnFromText, documentFromText } from "../page/document";
+import { columnFromText, documentFromText, type Column } from "../page/document";
 import { TypestillDb } from "./db";
 import { element, fileData, imageElement } from "./fixtures";
 import { emptyZine, type Zine } from "../page/zine";
@@ -748,6 +748,75 @@ describe("pages", () => {
       expect(pages[63].createdAt).toBeGreaterThan(pages[62].createdAt);
       expect(await upgraded.pages.get("orphan")).toMatchObject({ sectionId: "s1" });
       expect(await upgraded.pages.count()).toBe(65);
+    } finally {
+      await upgraded.delete();
+    }
+  });
+
+  it("makes left paragraphs from version 12 of the database paragraph-aligned, columns and zine blocks alike", async () => {
+    const name = `test-${crypto.randomUUID()}`;
+    const old = new Dexie(name);
+    old.version(12).stores({
+      ...OLD_STORES,
+      pages: "id, notebookId, [notebookId+createdAt], [notebookId+position]",
+      thumbnails: "pageId, notebookId",
+    });
+    const aligned = (text: string, align: string): Column => ({
+      text,
+      doc: {
+        type: "doc",
+        content: [{ type: "paragraph", attrs: { align }, content: [{ type: "text", text }] }],
+      } as unknown as Column["doc"],
+    });
+    await old.table("notebooks").add({
+      id: "nb",
+      lastOpenedAt: 1,
+      cover: DEFAULT_COVER,
+      themeId: "ruled",
+      size: 4,
+      defaults: { showPageNumber: false, margin: 20, divider: null },
+      lastPageId: null,
+      sections: [{ id: "s1", name: "Notes", color: "#111", lastPageId: null, start: 0 }],
+    });
+    const zine: Zine = {
+      ...emptyZine(),
+      rows: [{ blocks: [{ kind: "text", column: aligned("z", "left"), rows: 2 }] }],
+    };
+    const base = {
+      notebookId: "nb",
+      kind: "lined",
+      showPageNumber: false,
+      margin: 20,
+      divider: null,
+      canvasView: null,
+      drawing: [],
+      drawingLayer: "over",
+      fill: 0.5,
+    };
+    await old.table("pages").bulkAdd([
+      {
+        ...base,
+        id: "p1",
+        createdAt: 1,
+        position: 0,
+        columns: [aligned("a", "left"), aligned("b", "center")],
+      },
+      { ...base, id: "p2", createdAt: 2, position: 1, columns: [aligned("c", "right")] },
+      { ...base, id: "p3", createdAt: 3, position: 2, kind: "zine", columns: [], zine },
+      { ...base, id: "p4", createdAt: 4, position: 3, columns: [aligned("d", "paragraph")] },
+    ]);
+    old.close();
+    const upgraded = new TypestillDb(name);
+    try {
+      const pages = await listPages(upgraded, "nb");
+      const alignOf = (column: { doc: { content: { attrs: { align: string } }[] } }) =>
+        column.doc.content[0].attrs.align;
+      expect(pages[0].columns.map(alignOf)).toEqual(["paragraph", "center"]);
+      expect(pages[1].columns.map(alignOf)).toEqual(["right"]);
+      const block = pages[2].zine!.rows[0].blocks[0];
+      expect(block.kind === "text" && alignOf(block.column)).toBe("paragraph");
+      expect(pages[3].columns.map(alignOf)).toEqual(["paragraph"]);
+      expect(pages[0].columns[0].text).toBe("a");
     } finally {
       await upgraded.delete();
     }

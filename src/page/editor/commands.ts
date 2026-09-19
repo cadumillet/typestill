@@ -5,7 +5,7 @@
 import { splitBlockAs, toggleMark } from "prosemirror-commands";
 import { Fragment, Slice, type Mark, type ResolvedPos } from "prosemirror-model";
 import type { Command, EditorState } from "prosemirror-state";
-import type { Alignment, Tint } from "../document";
+import { DEFAULT_ALIGNMENT, type Alignment, type Tint } from "../document";
 import { schema } from "./schema";
 
 export type FormatAction =
@@ -175,7 +175,7 @@ export function formatState(state: EditorState): FormatState {
     italic: hasMark("italic"),
     color: color ? (color.attrs.color as string) : null,
     highlight: highlight ? (highlight.attrs.tint as Tint) : null,
-    align: ($from.parent.attrs.align as Alignment | undefined) ?? "left",
+    align: ($from.parent.attrs.align as Alignment | undefined) ?? DEFAULT_ALIGNMENT,
   };
 }
 
@@ -185,7 +185,7 @@ export function formatState(state: EditorState): FormatState {
  */
 export function parseClipboardText(text: string, $context: ResolvedPos): Slice {
   const marks = $context.marks();
-  const align = ($context.parent.attrs.align as Alignment | undefined) ?? "left";
+  const align = ($context.parent.attrs.align as Alignment | undefined) ?? DEFAULT_ALIGNMENT;
   const paragraphs = text
     .split(/\r\n?|\n/)
     .map((line) =>

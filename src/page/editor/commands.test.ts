@@ -40,7 +40,8 @@ describe("setAlignment", () => {
   // "one" is at 1..4, "two" at 6..9, "three" at 11..16.
   it("aligns the paragraph the caret is in", () => {
     const state = run(stateFor("one\ntwo\nthree", 7), setAlignment("center"));
-    expect(alignments(state)).toEqual(["left", "center", "left"]);
+    // New paragraphs take the paragraph alignment, the default.
+    expect(alignments(state)).toEqual(["paragraph", "center", "paragraph"]);
   });
 
   it("aligns every paragraph a selection touches", () => {
@@ -66,7 +67,7 @@ describe("setAlignment", () => {
 
   it("leaves untouched paragraphs alone and is a no-op when nothing changes", () => {
     const first = run(stateFor("one\ntwo\nthree", 1, 4), setAlignment("center"));
-    expect(alignments(first)).toEqual(["center", "left", "left"]);
+    expect(alignments(first)).toEqual(["center", "paragraph", "paragraph"]);
     expect(run(first, setAlignment("center"))).toBe(first);
   });
 });
