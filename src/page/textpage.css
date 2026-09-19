@@ -106,9 +106,11 @@
   user-select: none;
 }
 
-.text-page.is-preview::before,
-.text-page.is-preview::after,
-.text-page.is-preview .text-page__divider {
+/* Bare (the exports, until the print options): no rules, margin line or divider. The
+   desk's preview is not bare; it keeps the page's layout and only locks it. */
+.text-page.is-bare::before,
+.text-page.is-bare::after,
+.text-page.is-bare .text-page__divider {
   display: none;
 }
 

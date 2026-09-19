@@ -48,8 +48,11 @@ export interface TextPageProps {
   columns: readonly ColumnValue[];
   /** Divider offset in mm from the left edge, null for one column. */
   divider: number | null;
-  /** Preview: no rules, margin or divider, and no editing. */
-  preview?: boolean;
+  /**
+   * Bare: no rules, margin line or divider, and no editing; the exports' rendering
+   * until the print options make it a choice. The desk's preview passes readOnly instead.
+   */
+  bare?: boolean;
   readOnly?: boolean;
   /** The page's side, which rounds its outer corners; none for a rectangular render. */
   side?: PageSide;
@@ -111,7 +114,7 @@ export function TextPage({
   margin,
   columns,
   divider,
-  preview = false,
+  bare = false,
   readOnly = false,
   side,
   drawing = NO_ELEMENTS,
@@ -178,7 +181,7 @@ export function TextPage({
     ...(drawingMode ? drawingModeStyle(drawingMode) : {}),
   } as CSSProperties;
 
-  const locked = preview || readOnly || drawingMode !== null;
+  const locked = bare || readOnly || drawingMode !== null;
   const quick = useQuickLine(page, {
     enabled: !locked && onQuickLine !== undefined,
     zoom,
@@ -224,7 +227,7 @@ export function TextPage({
     `rules-${lined.rules}`,
     lined.marginLine ? "has-margin-line" : "",
     theme.page.border ? "has-border" : "",
-    preview ? "is-preview" : "",
+    bare ? "is-bare" : "",
     side ? `side-${side}` : "",
     drawingMode ? "is-drawing" : "",
     quick.armed ? "is-armed" : "",

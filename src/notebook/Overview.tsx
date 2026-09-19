@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
-import { mmToCssPx, pageGeometry, pageMm } from "../page/paper";
+import { mmToCssPx, pageGeometry, pageMm, ruleCount } from "../page/paper";
 import { pageSide, type PageSide } from "../page/sides";
 import { isPageBlank, type Notebook, type Page, type Section } from "../store/model";
 import { getTheme } from "../theme/themes";
@@ -55,6 +55,29 @@ export function Overview({
   const zoom = width / pageGeometry(notebook.pageSize, notebook.orientation).width;
   const corner = mmToCssPx(theme.page.cornerMm, zoom);
   const written = pages.filter((page) => page.fill > 0).length;
+  /**
+   * A blank lined page's paper: the theme's rules and margin line in miniature, drawn by
+   * CSS from the theme's metrics at the thumbnail's scale (px per mm), so a blank ruled
+   * page is still a ruled page. Zine pages are plain.
+   */
+  const scale = width / mm.width;
+  const { lined } = theme;
+  const paperStyle = {
+    background: theme.colours.paper,
+    "--mini-rule": theme.colours.rule,
+    "--mini-margin": theme.colours.margin,
+    "--mini-pitch": `${lined.pitchMm * scale}px`,
+    "--mini-rule-top": `${lined.firstRuleMm * scale}px`,
+    "--mini-rules-height": `${ruleCount(mm.height, lined) * lined.pitchMm * scale}px`,
+    "--mini-margin-left": `${notebook.defaults.margin * scale}px`,
+  } as CSSProperties;
+  const paperClass = [
+    "overview__paper",
+    lined.rules === "lines" ? "has-rules" : "",
+    lined.marginLine ? "has-margin-line" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   const count = pages.length;
   /** The rows of spreads between the covers: row r shows positions (2r − 3 | 2r − 2). */
   const spreadRows = count / 2 + 1;
@@ -107,7 +130,10 @@ export function Overview({
         {thumbnail && !isPageBlank(page) ? (
           <img className="overview__thumbnail" src={thumbnail} alt="" draggable={false} />
         ) : (
-          <span className="overview__paper" style={{ background: theme.colours.paper }} />
+          <span
+            className={page.kind === "zine" ? "overview__paper" : paperClass}
+            style={page.kind === "zine" ? { background: theme.colours.paper } : paperStyle}
+          />
         )}
         <span className="overview__label" aria-hidden>
           {label}

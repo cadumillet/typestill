@@ -17,8 +17,8 @@ const STRIPPED = [
 export interface RenderOptions {
   /** Output width in px; the height follows the page's aspect ratio. */
   width: number;
-  /** Render as the preview: no rules, margin, divider or placeholders. */
-  preview?: boolean;
+  /** Render bare: no rules, margin line, divider or placeholders (the exports). */
+  bare?: boolean;
 }
 
 /** Rules a page render needs: the page styles, the fonts, and the colour tokens. */
@@ -111,7 +111,7 @@ export async function renderPage(
   // The sided corners are screen chrome: the image is the rectangular paper. Thumbnails
   // are rounded where they are shown, from the page's position at that moment.
   clone.classList.remove("side-left", "side-right");
-  if (options.preview) clone.classList.add("is-preview");
+  if (options.bare) clone.classList.add("is-bare");
   clone
     .querySelectorAll("[contenteditable]")
     .forEach((el) => el.removeAttribute("contenteditable"));

@@ -67,8 +67,8 @@ export interface ZinePageProps {
   zine: Zine;
   /** The notebook's files, for the images the media block shows. */
   files: Record<string, BinaryFileData>;
-  /** Preview: placeholders hidden, no editing. */
-  preview?: boolean;
+  /** Bare: placeholders hidden, no editing; the exports' rendering. Preview passes readOnly. */
+  bare?: boolean;
   readOnly?: boolean;
   /** The page's side, which rounds its outer corners; none for a rectangular render. */
   side?: PageSide;
@@ -121,7 +121,7 @@ export function ZinePage({
   zoom,
   zine,
   files,
-  preview = false,
+  bare = false,
   readOnly = false,
   side,
   drawing = NO_ELEMENTS,
@@ -144,7 +144,7 @@ export function ZinePage({
   /** Lines each text block runs past its rows, 0 while it fits. */
   const [overflow, setOverflow] = useState<number[]>([]);
   const [over, setOver] = useState(false);
-  const locked = preview || readOnly || drawingMode !== null;
+  const locked = bare || readOnly || drawingMode !== null;
   const quick = useQuickLine(page, {
     enabled: !locked && onQuickLine !== undefined,
     zoom,
@@ -270,7 +270,8 @@ export function ZinePage({
     "text-page",
     "zine-page",
     theme.page.border ? "has-border" : "",
-    preview ? "is-preview" : "",
+    bare ? "is-bare" : "",
+    readOnly ? "is-read-only" : "",
     side ? `side-${side}` : "",
     over ? "is-over" : "",
     drawingMode ? "is-drawing" : "",
@@ -340,7 +341,7 @@ export function ZinePage({
                     height: px(cellBox.height),
                   }}
                   locked={locked}
-                  preview={preview}
+                  quiet={bare || readOnly}
                   selected={selectedCell === index}
                   onSelect={() => onSelectCell?.(index)}
                   onFiles={(dropped) => onAddImages?.(index, dropped)}
@@ -545,7 +546,8 @@ interface ZineCellProps {
   file: BinaryFileData | undefined;
   style: CSSProperties;
   locked: boolean;
-  preview: boolean;
+  /** Bare or read-only: an empty cell is not layout, so no placeholder or "missing" note. */
+  quiet: boolean;
   selected: boolean;
   onSelect: () => void;
   onFiles: (files: File[]) => void;
@@ -561,7 +563,7 @@ function ZineCell({
   file,
   style,
   locked,
-  preview,
+  quiet,
   selected,
   onSelect,
   onFiles,
@@ -623,10 +625,10 @@ function ZineCell({
           style={{ objectFit: image.fit }}
         />
       )}
-      {image && !file && !preview && (
+      {image && !file && !quiet && (
         <div className="zine-cell__missing zine-chrome">Missing image</div>
       )}
-      {!image && !preview && (
+      {!image && !quiet && (
         <button
           type="button"
           className="zine-cell__add zine-chrome"

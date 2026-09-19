@@ -119,9 +119,36 @@
   height: 100%;
 }
 
-/* Blank paper sits back, so the written pages stand out; no border, just the paper. */
+/* Blank paper sits back, so the written pages stand out; no border, just the paper, with
+   the theme's rules and margin line in miniature (the custom properties are set by the
+   overview from the theme's metrics at the thumbnail's scale). */
 .overview__paper {
+  position: relative;
+  overflow: clip;
   opacity: 0.45;
+}
+
+.overview__paper.has-rules::after,
+.overview__paper.has-margin-line::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.overview__paper.has-rules::after {
+  left: 0;
+  right: 0;
+  top: var(--mini-rule-top);
+  height: var(--mini-rules-height);
+  background-image: linear-gradient(to bottom, var(--mini-rule) 0 1px, transparent 1px);
+  background-size: 100% var(--mini-pitch);
+}
+
+.overview__paper.has-margin-line::before {
+  inset: 0;
+  background: linear-gradient(var(--mini-margin), var(--mini-margin)) no-repeat;
+  background-size: 1px 100%;
+  background-position: var(--mini-margin-left) 0;
 }
 
 .overview__page:hover .overview__thumbnail,

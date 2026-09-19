@@ -627,8 +627,7 @@ export function App() {
                               zoom={fit.zoom}
                               zine={shownPage.zine}
                               files={session.files}
-                              preview={preview}
-                              readOnly={!isOpen}
+                              readOnly={!isOpen || preview}
                               side={pageSide(i)}
                               {...drawingProps}
                               onChange={session.setZine}
@@ -649,8 +648,7 @@ export function App() {
                               margin={margin}
                               columns={shownPage.columns}
                               divider={shownPage.divider}
-                              preview={preview}
-                              readOnly={!isOpen}
+                              readOnly={!isOpen || preview}
                               side={pageSide(i)}
                               files={session.files}
                               {...drawingProps}

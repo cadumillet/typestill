@@ -1,6 +1,7 @@
 // Exports: PDF of every page, PNG of one page (and, dormant, PNG of the canvas). Pages
-// are rendered off screen at zoom 1 in preview mode (no rules, margin or divider; the
-// drawing stays; no side, so the paper is rectangular) through the
+// are rendered off screen at zoom 1 bare (no rules, margin line or divider, until the
+// print options make that a choice; the drawing stays; no side, so the paper is
+// rectangular) through the
 // same renderer as thumbnails, at 2x, so they wrap exactly as on screen; the PDF places
 // each image on a page of the paper's physical size. The same hidden host renders a
 // page's thumbnail for the overview, as the desk's hook renders the open page's.
@@ -33,14 +34,14 @@ export interface ExportSource {
   files: Record<string, BinaryFileData>;
 }
 
-function pageElement(page: Page, source: ExportSource, theme: Theme, preview: boolean) {
+function pageElement(page: Page, source: ExportSource, theme: Theme, bare: boolean) {
   const { notebook } = source;
   const common = {
     size: notebook.pageSize,
     orientation: notebook.orientation,
     theme,
     zoom: 1,
-    preview,
+    bare,
     readOnly: true,
     drawing: page.drawing,
   };
@@ -62,15 +63,15 @@ const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 /**
  * Mounts pages one at a time in a hidden host and hands each page's element to `each`.
- * The host is off screen but laid out, which is what the renderer needs. In preview the
- * page shows no rules, margin or divider (exports); otherwise it is drawn as on the desk
- * (thumbnails).
+ * The host is off screen but laid out, which is what the renderer needs. Bare, the page
+ * shows no rules, margin line or divider (the exports, until the print options);
+ * otherwise it is drawn as on the desk (thumbnails).
  */
 async function mountPages(
   pages: readonly Page[],
   indexes: readonly number[],
   source: ExportSource,
-  preview: boolean,
+  bare: boolean,
   each: (element: HTMLElement, index: number) => Promise<void>,
 ): Promise<void> {
   const theme = getTheme(source.notebook.themeId);
@@ -97,7 +98,7 @@ async function mountPages(
   const root = createRoot(host);
   try {
     for (const index of indexes) {
-      flushSync(() => root.render(pageElement(pages[index], source, theme, preview)));
+      flushSync(() => root.render(pageElement(pages[index], source, theme, bare)));
       await settle();
       const element = host.querySelector<HTMLElement>(".text-page");
       if (!element) throw new Error("The page did not render");
@@ -109,7 +110,7 @@ async function mountPages(
   }
 }
 
-/** Renders pages one at a time in the hidden host, in preview, and hands each PNG to `each`. */
+/** Renders pages one at a time in the hidden host, bare, and hands each PNG to `each`. */
 async function renderPages(
   pages: readonly Page[],
   indexes: readonly number[],
@@ -120,7 +121,7 @@ async function renderPages(
   await mountPages(pages, indexes, source, true, async (element, index) => {
     const canvas = await renderPage(element, {
       width: geometry.width * EXPORT_SCALE,
-      preview: true,
+      bare: true,
     });
     const blob = await new Promise<Blob>((resolve, reject) =>
       canvas.toBlob(

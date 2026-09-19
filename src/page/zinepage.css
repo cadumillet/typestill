@@ -33,7 +33,10 @@
   box-sizing: border-box;
 }
 
-.is-preview .zine-cell.is-empty {
+/* An empty cell is not layout: bare and read-only pages (exports, preview, the other
+   page of a spread) show no placeholder. */
+.is-bare .zine-cell.is-empty,
+.is-read-only .zine-cell.is-empty {
   border: 0;
   background: transparent;
 }
