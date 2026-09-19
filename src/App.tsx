@@ -90,6 +90,8 @@ export function App() {
   // Drawing mode and its viewing aids are the browser's, never the page's: the mode
   // lasts the tab's session, the aids are kept across sessions.
   const [drawingMode, setDrawingModeState] = useState(readDrawingMode);
+  /** The element a double-click opened drawing mode on, selected once the editor is up. */
+  const [openedElement, setOpenedElement] = useState<string | null>(null);
   const [aids, setAidsState] = useState<DrawingAids>(readDrawingAids);
   const [deskRef, desk] = useElementSize<HTMLElement>();
   const deskElement = useRef<HTMLElement | null>(null);
@@ -115,7 +117,17 @@ export function App() {
     storeDrawingMode(on);
     // Drawing mode is for the page alone: the pool panel closes with it.
     if (on) setPoolPageId(null);
+    else setOpenedElement(null);
   }, []);
+
+  /** A drawn element double-clicked in writing mode: drawing mode opens on it, selected. */
+  const openElement = useCallback(
+    (id: string) => {
+      setOpenedElement(id);
+      setDrawingMode(true);
+    },
+    [setDrawingMode],
+  );
   const setAids = (patch: Partial<DrawingAids>) =>
     setAidsState((current) => {
       const next = { ...current, ...patch };
@@ -429,6 +441,8 @@ export function App() {
   /** The quick line is allowed on the open page while nothing sits over it. */
   const quickLine =
     !preview && !drawingMode && !overviewOpen && !boxOpen ? addQuickLine : undefined;
+  /** Double-click into drawing mode, under the same conditions. */
+  const openElementProp = quickLine ? openElement : undefined;
 
   /** Opens a page from the overview and closes it. */
   const openFromOverview = (go: () => void) => {
@@ -624,6 +638,7 @@ export function App() {
                               onSelectCell={setSelectedCell}
                               onQuickLine={isOpen ? quickLine : undefined}
                               onQuickLineUndo={undoQuickLine}
+                              onOpenElement={isOpen ? openElementProp : undefined}
                             />
                           ) : (
                             <TextPage
@@ -644,6 +659,7 @@ export function App() {
                               onDividerChange={(offset) => void session.setDivider(offset)}
                               onQuickLine={isOpen ? quickLine : undefined}
                               onQuickLineUndo={undoQuickLine}
+                              onOpenElement={isOpen ? openElementProp : undefined}
                             />
                           )}
                         </div>
@@ -682,6 +698,8 @@ export function App() {
                   onChange={(content) => session.setDrawing(page.id, content, session.loadId)}
                   onUnmount={(content) => session.setDrawing(page.id, content, session.loadId)}
                   onOutsidePointerDown={openAtDeskPoint}
+                  initialSelection={openedElement}
+                  onEscapeOut={() => setDrawingMode(false)}
                 />
               )}
               {overviewOpen && (

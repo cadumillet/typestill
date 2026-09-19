@@ -30,6 +30,7 @@ import { pageLookStyle } from "./pageLook";
 import type { QuickShape } from "./quickLineElement";
 import { QuickElementIndicator, QuickLinePreview } from "./QuickLinePreview";
 import type { PageSide } from "./sides";
+import { useOpenElement } from "./useOpenElement";
 import { useQuickLine } from "./useQuickLine";
 import { useFormatBar } from "./useFormatBar";
 import "./textpage.css";
@@ -79,6 +80,11 @@ export interface TextPageProps {
   onQuickLine?: (shape: QuickShape) => string | void;
   /** Removes a quick line by its element id (Cmd+Z, or a right click while armed). */
   onQuickLineUndo?: (id: string) => void;
+  /**
+   * A drawn element was double-clicked on its outline (useOpenElement.ts): the caller
+   * enters drawing mode with it selected. Given on the open page in writing mode only.
+   */
+  onOpenElement?: (id: string) => void;
 }
 
 const NO_ELEMENTS: readonly ExcalidrawElement[] = [];
@@ -112,6 +118,7 @@ export function TextPage({
   onFill,
   onQuickLine,
   onQuickLineUndo,
+  onOpenElement,
 }: TextPageProps) {
   const mm = pageMm(size, orientation);
   const px = (value: number) => mmToCssPx(value, zoom);
@@ -170,6 +177,12 @@ export function TextPage({
     onLine: onQuickLine ?? NO_LINE,
     onUndoLine: onQuickLineUndo ?? NO_LINE,
     undoDepth: bar.focusedUndoDepth,
+  });
+  useOpenElement(page, {
+    enabled: !locked && onOpenElement !== undefined,
+    zoom,
+    elements: drawing,
+    onOpen: onOpenElement ?? NO_LINE,
   });
   const shownDivider = dragDivider ?? divider;
   const boxes = columnBoxes(mm.width, margin, shownDivider, lined);

@@ -23,6 +23,7 @@ import type { QuickShape } from "./quickLineElement";
 import { QuickElementIndicator, QuickLinePreview } from "./QuickLinePreview";
 import type { PageSide } from "./sides";
 import { useFormatBar } from "./useFormatBar";
+import { useOpenElement } from "./useOpenElement";
 import { useQuickLine } from "./useQuickLine";
 import {
   MAX_ZINE_TEXT_ROWS,
@@ -84,6 +85,8 @@ export interface ZinePageProps {
   /** The quick line (useQuickLine.ts), as on a lined page: given on the open page in writing mode only. */
   onQuickLine?: (shape: QuickShape) => string | void;
   onQuickLineUndo?: (id: string) => void;
+  /** A drawn element double-clicked on its outline (useOpenElement.ts), as on a lined page. */
+  onOpenElement?: (id: string) => void;
   onSelectCell?: (cell: number | null) => void;
 }
 
@@ -129,6 +132,7 @@ export function ZinePage({
   onSelectCell,
   onQuickLine,
   onQuickLineUndo,
+  onOpenElement,
 }: ZinePageProps) {
   const mm = pageMm(size, orientation);
   const px = (value: number) => mmToCssPx(value, zoom);
@@ -145,6 +149,12 @@ export function ZinePage({
     onLine: onQuickLine ?? NO_LINE,
     onUndoLine: onQuickLineUndo ?? NO_LINE,
     undoDepth: bar.focusedUndoDepth,
+  });
+  useOpenElement(page, {
+    enabled: !locked && onOpenElement !== undefined,
+    zoom,
+    elements: drawing,
+    onOpen: onOpenElement ?? NO_LINE,
   });
 
   const setBlockFull = useCallback((index: number, full: boolean) => {

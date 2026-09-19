@@ -41,6 +41,10 @@ export interface PageDrawingProps {
    * the shell may open another page of the spread there.
    */
   onOutsidePointerDown?: (point: { x: number; y: number }) => void;
+  /** An element to select once the editor is ready: the one double-clicked into drawing mode. Read once, at mount. */
+  initialSelection?: string | null;
+  /** Escape with the selection tool active and nothing selected: the shell leaves drawing mode. */
+  onEscapeOut?: () => void;
 }
 
 interface Viewport {
@@ -98,18 +102,29 @@ export function PageDrawing({
   onChange,
   onUnmount,
   onOutsidePointerDown,
+  initialSelection = null,
+  onEscapeOut,
 }: PageDrawingProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   const latest = useRef<DrawingContent>(initial);
+  /** The element still to select once the scene has it; applied once. */
+  const pendingSelection = useRef<string | null>(initialSelection);
+  /**
+   * Where Escape stands, from the latest appState: "out" when the editor is at rest (the
+   * selection tool active, nothing selected, nothing being edited), "deselect" when the
+   * selection tool holds a selection and no linear element is being edited, else the
+   * editor's own (a tool to cancel, a text or line being edited).
+   */
+  const escape = useRef<"out" | "deselect" | "own">("out");
   const reportTimer = useRef<number | null>(null);
   /** The stroke last remembered for the quick line, so storage is written only on a change. */
   const stroke = useRef<DrawingStroke | null>(null);
   // Callbacks read the latest props from here, so the editor's handlers stay stable.
-  const callbacks = useRef({ onChange, onUnmount, onOutsidePointerDown });
+  const callbacks = useRef({ onChange, onUnmount, onOutsidePointerDown, onEscapeOut });
   useEffect(() => {
-    callbacks.current = { onChange, onUnmount, onOutsidePointerDown };
-  }, [onChange, onUnmount, onOutsidePointerDown]);
+    callbacks.current = { onChange, onUnmount, onOutsidePointerDown, onEscapeOut };
+  }, [onChange, onUnmount, onOutsidePointerDown, onEscapeOut]);
 
   // Excalidraw maps scene to screen as (scene + scroll) * zoom, so the scroll that puts
   // the scene origin at the page box corner is corner / zoom.
@@ -166,6 +181,19 @@ export function PageDrawing({
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (isTextInput(event.target)) return;
+      // Escape walks back: a tool or an edit is Excalidraw's to cancel; a selection is
+      // cleared here, since this Excalidraw's Escape (actionFinalize) keeps it; at rest
+      // it is the way out of drawing mode. Each runs after Excalidraw has had the key.
+      if (event.key === "Escape") {
+        const step = escape.current;
+        window.setTimeout(() => {
+          if (step === "out") callbacks.current.onEscapeOut?.();
+          else if (step === "deselect") {
+            apiRef.current?.updateScene({ appState: { selectedElementIds: {} } });
+          }
+        }, 0);
+        return;
+      }
       const zoomShortcut = (event.ctrlKey || event.metaKey) && ZOOM_KEYS.has(event.key);
       // Shift+1 zooms to fit all, Shift+2 to the selection.
       const fitShortcut = event.shiftKey && (event.code === "Digit1" || event.code === "Digit2");
@@ -238,9 +266,29 @@ export function PageDrawing({
     apiRef.current = api;
   }, []);
 
+  /** Selects the element double-clicked into drawing mode once the scene has it. */
+  const selectPending = useCallback((api: ExcalidrawImperativeAPI) => {
+    const id = pendingSelection.current;
+    if (!id) return;
+    if (!api.getSceneElements().some((element) => element.id === id)) {
+      // Not in the scene at all (removed since): nothing to select, ever.
+      if (latest.current.elements.length > 0) pendingSelection.current = null;
+      return;
+    }
+    pendingSelection.current = null;
+    api.updateScene({ appState: { selectedElementIds: { [id]: true } } });
+  }, []);
+
   const handleChange = useCallback<NonNullable<ExcalidrawProps["onChange"]>>(
     (elements, appState, files) => {
       latest.current = { elements, files };
+      const selecting =
+        appState.activeTool.type === "selection" &&
+        !appState.editingTextElement &&
+        !appState.editingLinearElement;
+      const selected = Object.values(appState.selectedElementIds).some(Boolean);
+      escape.current = !selecting ? "own" : selected ? "deselect" : "out";
+      if (pendingSelection.current && apiRef.current) selectPending(apiRef.current);
       // The hand tool is hidden from the toolbar but still reachable via its shortcut,
       // and the grid via Cmd+': neither belongs on a page.
       if (appState.activeTool.type === "hand") {
@@ -272,7 +320,7 @@ export function PageDrawing({
         }, REPORT_DELAY_MS);
       }
     },
-    [],
+    [selectPending],
   );
 
   // Excalidraw reads this once, when it mounts.
