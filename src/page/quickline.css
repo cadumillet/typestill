@@ -23,3 +23,27 @@
   overflow: visible;
   pointer-events: none;
 }
+
+/* The indicator while armed: a pill at the page's top-right, the element's icon and name. */
+.quick-line__element {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 5px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 1px 2px rgb(0 0 0 / 0.06);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}

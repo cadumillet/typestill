@@ -10,15 +10,26 @@ import {
 import { focusContextOf } from "../shell/useShortcuts";
 import { readStroke, type DrawingStroke } from "./drawingMode";
 import { PAGE_BORDER_PX } from "./pageLook";
-import { isDrag, toScene, type Point, type QuickLine } from "./quickLine";
+import {
+  isBoxDrag,
+  isDrag,
+  nextElement,
+  toScene,
+  toSceneBox,
+  type Point,
+  type QuickElement,
+} from "./quickLine";
+import type { QuickShape } from "./quickLineElement";
 import { popForUndo, popLine, push, type LogEntry } from "./quickLineLog";
 
 export interface QuickLinePreview {
-  /** The drag so far, in page px from the padding box's origin, the end snapped. */
+  /** The drag so far, in page px from the padding box's origin. */
   start: Point;
   end: Point;
-  /** The stroke the line will have, for the preview to match. */
+  /** The stroke the shape will have, for the preview to match. */
   stroke: DrawingStroke;
+  /** What the drag draws: the hold's element, which Option may change mid-drag. */
+  element: QuickElement;
 }
 
 export interface QuickLineHandlers {
@@ -32,6 +43,8 @@ export interface QuickLineHandlers {
 export interface QuickLineState {
   /** Shift is held: the page takes the pointer for a line and shows a crosshair. */
   armed: boolean;
+  /** What the next drag draws: the line on arming, cycled by Option while armed. */
+  element: QuickElement;
   /** A line being dragged past the dead zone, or null. */
   preview: QuickLinePreview | null;
   /** For the page element. */
@@ -45,8 +58,8 @@ export interface UseQuickLineOptions {
   enabled: boolean;
   /** CSS px per scene px, for the line's scene coordinates. */
   zoom: number;
-  /** A line drawn, in scene px; returns the element's id, for its undo. */
-  onLine: (line: QuickLine) => string | void;
+  /** A shape drawn, in scene px; returns the element's id, for its undo. */
+  onLine: (shape: QuickShape) => string | void;
   /** Removes a quick line by its element id: Cmd+Z or a right click while armed. */
   onUndoLine: (id: string) => void;
   /** The undo depth of the column that has the keyboard, 0 when none has it. */
@@ -58,6 +71,14 @@ interface Drag {
   start: Point;
   end: Point;
   stroke: DrawingStroke;
+  element: QuickElement;
+}
+
+/** Whether a drag from `start` to `end` draws `element`: a box needs one direction clear. */
+function draws(element: QuickElement, start: Point, end: Point): boolean {
+  return element === "rectangle" || element === "ellipse"
+    ? isBoxDrag(start, end)
+    : isDrag(start, end);
 }
 
 /** Whether the focus is somewhere Shift belongs to: a native field or a dialog. */
@@ -74,8 +95,10 @@ const focusTaken = (): boolean => {
  * key event is ever stopped: Shift+letter types a capital, Shift+arrows extend the
  * selection and Shift+Tab goes on to toggle drawing mode. Armed, the page's writing and
  * chrome take no pointer (quickline.css) and a pointer down on the page captures the
- * pointer and drags a line that follows the pointer freely; past the dead zone a preview
- * shows, and on release the line is reported in scene px, a shorter drag
+ * pointer and drags the hold's element (the line on arming; Option, with Shift still
+ * down, cycles it through rectangle, ellipse and arrow and back, the choice lasting the
+ * hold and shown by the page's indicator): a line follows the pointer freely, a box takes
+ * the drag's corners, an arrow runs start to end; past the dead zone a preview shows, and on release the line is reported in scene px, a shorter drag
  * being nothing. Shift released mid-drag disarms but the drag finishes; Escape cancels it;
  * other pointers are ignored.
  */
@@ -85,11 +108,32 @@ export function useQuickLine(
 ): QuickLineState {
   const [armed, setArmed] = useState(false);
   const [preview, setPreview] = useState<QuickLinePreview | null>(null);
+  /** The hold's element: the line on arming, stepped by Option, back to the line on Shift up. */
+  const [element, setElement] = useState<QuickElement>("line");
   const drag = useRef<Drag | null>(null);
   /** Pointer buttons down anywhere in the document: a selection in progress must not be interrupted. */
   const buttonsDown = useRef(0);
   /** The page's action log: lines by id and text edits, newest last. */
   const log = useRef<readonly LogEntry[]>([]);
+  /** The armed state and the element as the document listeners see them. */
+  const armedRef = useRef(false);
+  const elementRef = useRef<QuickElement>("line");
+  useEffect(() => {
+    armedRef.current = enabled && armed;
+    elementRef.current = element;
+  }, [enabled, armed, element]);
+  /** The preview for a drag, or none while it is under the dead zone. */
+  const showPreview = (current: Drag) =>
+    setPreview(
+      draws(current.element, current.start, current.end)
+        ? {
+            start: current.start,
+            end: current.end,
+            stroke: current.stroke,
+            element: current.element,
+          }
+        : null,
+    );
   const latest = useRef({ zoom, onLine, onUndoLine, undoDepth });
   useEffect(() => {
     latest.current = { zoom, onLine, onUndoLine, undoDepth };
@@ -111,10 +155,29 @@ export function useQuickLine(
   // the cleanup, since the Shift keyup may never be seen.
   useEffect(() => {
     if (!enabled) return;
-    const disarm = () => setArmed(false);
+    const disarm = () => {
+      setArmed(false);
+      setElement("line");
+      elementRef.current = "line";
+    };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Shift") {
         if (!event.repeat && buttonsDown.current === 0 && !focusTaken()) setArmed(true);
+      } else if (event.key === "Alt") {
+        // Option cycles the element for the rest of the hold; while armed a bare Alt
+        // must not reach the browser, where it focuses the menu on Windows and Linux.
+        if (!armedRef.current) return;
+        event.preventDefault();
+        if (!event.repeat && event.shiftKey && !event.metaKey && !event.ctrlKey) {
+          const next = nextElement(elementRef.current);
+          elementRef.current = next;
+          setElement(next);
+          // Mid-drag, the preview is redrawn as the new element from the same points.
+          if (drag.current) {
+            drag.current.element = next;
+            showPreview(drag.current);
+          }
+        }
       } else if (event.key === "Tab") {
         disarm();
       } else if (event.key === "Escape") {
@@ -140,6 +203,7 @@ export function useQuickLine(
     };
     const onKeyUp = (event: KeyboardEvent) => {
       if (event.key === "Shift") disarm();
+      else if (event.key === "Alt" && armedRef.current) event.preventDefault();
     };
     const onBlur = () => {
       disarm();
@@ -221,7 +285,13 @@ export function useQuickLine(
       // A pointer the browser does not track (synthetic events); the drag still works
       // while the pointer stays over the page.
     }
-    drag.current = { pointerId: event.pointerId, start, end: start, stroke: readStroke() };
+    drag.current = {
+      pointerId: event.pointerId,
+      start,
+      end: start,
+      stroke: readStroke(),
+      element,
+    };
   };
 
   const onPointerMove = (event: PointerEvent<HTMLElement>) => {
@@ -231,20 +301,21 @@ export function useQuickLine(
     if (!at) return;
     // The line follows the pointer freely; no angle snapping (the owner's call, 2026-09-19).
     current.end = at;
-    setPreview(
-      isDrag(current.start, current.end)
-        ? { start: current.start, end: current.end, stroke: current.stroke }
-        : null,
-    );
+    showPreview(current);
   };
 
   const onPointerUp = (event: PointerEvent<HTMLElement>) => {
     const current = drag.current;
     if (!current || event.pointerId !== current.pointerId) return;
-    const { start, end } = current;
+    const { start, end, element: kind } = current;
     cancel();
-    if (isDrag(start, end)) {
-      const id = latest.current.onLine(toScene(start, end, latest.current.zoom));
+    if (draws(kind, start, end)) {
+      const { zoom: z } = latest.current;
+      const shape: QuickShape =
+        kind === "rectangle" || kind === "ellipse"
+          ? { kind, ...toSceneBox(start, end, z) }
+          : { kind, ...toScene(start, end, z) };
+      const id = latest.current.onLine(shape);
       if (typeof id === "string") log.current = push(log.current, { kind: "line", id });
     }
   };
@@ -264,6 +335,7 @@ export function useQuickLine(
 
   return {
     armed: enabled && armed,
+    element,
     preview,
     handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onContextMenu },
     onEdit,

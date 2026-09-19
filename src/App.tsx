@@ -25,8 +25,7 @@ import {
   type DrawingAids,
 } from "./page/drawingMode";
 import { PAGE_BORDER_PX } from "./page/pageLook";
-import type { QuickLine } from "./page/quickLine";
-import { quickLineElement } from "./page/quickLineElement";
+import { quickShapeElement, type QuickShape } from "./page/quickLineElement";
 import { readStroke } from "./page/drawingMode";
 import { pageSide, spreadOf } from "./page/sides";
 import { isZineEmpty } from "./page/zine";
@@ -407,12 +406,12 @@ export function App() {
   };
 
   /**
-   * A quick line drawn on the open page: an ordinary line element in the stroke last used
-   * in drawing mode, appended to the page's drawing through the path drawing mode saves
-   * by, so the still refreshes at once.
+   * A quick line or shape drawn on the open page: an ordinary element in the stroke last
+   * used in drawing mode, appended to the page's drawing through the path drawing mode
+   * saves by, so the still refreshes at once.
    */
-  const addQuickLine = (line: QuickLine): string => {
-    const element = quickLineElement(line, readStroke());
+  const addQuickLine = (shape: QuickShape): string => {
+    const element = quickShapeElement(shape, readStroke());
     session.setDrawing(
       page.id,
       { elements: [...page.drawing, element], files: {} },

@@ -181,3 +181,28 @@ export const Grid = () => (
     <rect x="10.5" y="10.5" width="4.5" height="4.5" rx="1" />
   </svg>
 );
+
+// The quick shapes' indicator: what the next drag draws while Shift is held.
+export const Line = () => (
+  <svg {...base}>
+    <path d="M3.5 14.5l11-11" />
+  </svg>
+);
+
+export const Rectangle = () => (
+  <svg {...base}>
+    <rect x="3" y="4" width="12" height="10" rx="1" />
+  </svg>
+);
+
+export const Ellipse = () => (
+  <svg {...base}>
+    <ellipse cx="9" cy="9" rx="6.5" ry="5" />
+  </svg>
+);
+
+export const Arrow = () => (
+  <svg {...base}>
+    <path d="M3.5 14.5l11-11M8.5 3.5h6v6" />
+  </svg>
+);

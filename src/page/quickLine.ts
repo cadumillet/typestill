@@ -1,6 +1,7 @@
-// The quick line's arithmetic: a drag on the page in page px, its end snapped to 15°
-// steps from its start as Excalidraw's Shift does, and the line in scene px for the
-// element it becomes. Pure; the hook (useQuickLine.ts) and the element builder
+// The quick line's arithmetic: a drag on the page in page px, the element it draws
+// (a line by default; Option cycles through rectangle, ellipse and arrow while Shift is
+// held), the box a rectangle or ellipse takes from the drag, and the line in scene px
+// for the element it becomes. Pure; the hook (useQuickLine.ts) and the element builder
 // (quickLineElement.ts) use it.
 
 export interface Point {
@@ -14,6 +15,45 @@ export interface QuickLine {
   y: number;
   dx: number;
   dy: number;
+}
+
+/** What a quick drag draws. The order is the round robin Option steps through. */
+export const QUICK_ELEMENTS = ["line", "rectangle", "ellipse", "arrow"] as const;
+export type QuickElement = (typeof QUICK_ELEMENTS)[number];
+
+/** The element after `element` in the round robin: line, rectangle, ellipse, arrow, line. */
+export function nextElement(element: QuickElement): QuickElement {
+  return QUICK_ELEMENTS[(QUICK_ELEMENTS.indexOf(element) + 1) % QUICK_ELEMENTS.length];
+}
+
+/** A box in page or scene px: its min corner and its size, never negative. */
+export interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** The bounding box of a drag's start and end: the min corner and the absolute size. */
+export function boxOf(start: Point, end: Point): Box {
+  return {
+    x: Math.min(start.x, end.x),
+    y: Math.min(start.y, end.y),
+    width: Math.abs(end.x - start.x),
+    height: Math.abs(end.y - start.y),
+  };
+}
+
+/** Whether a box from a drag is drawn: it clears the dead zone in at least one direction. */
+export function isBoxDrag(start: Point, end: Point): boolean {
+  const box = boxOf(start, end);
+  return box.width >= DEAD_ZONE_PX || box.height >= DEAD_ZONE_PX;
+}
+
+/** A box in page px as one in scene px at `zoom` CSS px per scene px. */
+export function toSceneBox(start: Point, end: Point, zoom: number): Box {
+  const box = boxOf(start, end);
+  return { x: box.x / zoom, y: box.y / zoom, width: box.width / zoom, height: box.height / zoom };
 }
 
 /** Excalidraw's Shift snapping: the angle steps a line can take. */

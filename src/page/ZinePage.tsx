@@ -19,8 +19,8 @@ import { drawingModeStyle, type DrawingAids } from "./drawingMode";
 import { FormatBar } from "./FormatBar";
 import { mmToCssPx, pageMm, type Orientation, type PageSize } from "./paper";
 import { pageLookStyle } from "./pageLook";
-import type { QuickLine } from "./quickLine";
-import { QuickLinePreview } from "./QuickLinePreview";
+import type { QuickShape } from "./quickLineElement";
+import { QuickElementIndicator, QuickLinePreview } from "./QuickLinePreview";
 import type { PageSide } from "./sides";
 import { useFormatBar } from "./useFormatBar";
 import { useQuickLine } from "./useQuickLine";
@@ -82,7 +82,7 @@ export interface ZinePageProps {
   /** The cell chosen by clicking it: where a paste, or a click in the pool, lands. */
   selectedCell?: number | null;
   /** The quick line (useQuickLine.ts), as on a lined page: given on the open page in writing mode only. */
-  onQuickLine?: (line: QuickLine) => string | void;
+  onQuickLine?: (shape: QuickShape) => string | void;
   onQuickLineUndo?: (id: string) => void;
   onSelectCell?: (cell: number | null) => void;
 }
@@ -467,6 +467,7 @@ export function ZinePage({
         />
       )}
       {quick.preview && <QuickLinePreview preview={quick.preview} zoom={zoom} />}
+      {quick.armed && <QuickElementIndicator element={quick.element} />}
     </div>
   );
 }

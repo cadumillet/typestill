@@ -27,8 +27,8 @@ import {
   type PageSize,
 } from "./paper";
 import { pageLookStyle } from "./pageLook";
-import type { QuickLine } from "./quickLine";
-import { QuickLinePreview } from "./QuickLinePreview";
+import type { QuickShape } from "./quickLineElement";
+import { QuickElementIndicator, QuickLinePreview } from "./QuickLinePreview";
 import type { PageSide } from "./sides";
 import { useQuickLine } from "./useQuickLine";
 import { useFormatBar } from "./useFormatBar";
@@ -71,11 +71,12 @@ export interface TextPageProps {
    */
   onFill?: (fill: number) => void;
   /**
-   * The quick line (useQuickLine.ts): with Shift held, a drag on the page draws a line
-   * reported here in scene px; the element's id comes back for its undo. Given on the
+   * The quick line (useQuickLine.ts): with Shift held, a drag on the page draws the
+   * hold's element (a line, or a shape Option chose), reported here in scene px; the
+   * element's id comes back for its undo. Given on the
    * open page in writing mode only; the hook is off while the page is locked.
    */
-  onQuickLine?: (line: QuickLine) => string | void;
+  onQuickLine?: (shape: QuickShape) => string | void;
   /** Removes a quick line by its element id (Cmd+Z, or a right click while armed). */
   onQuickLineUndo?: (id: string) => void;
 }
@@ -293,6 +294,7 @@ export function TextPage({
         />
       )}
       {quick.preview && <QuickLinePreview preview={quick.preview} zoom={zoom} />}
+      {quick.armed && <QuickElementIndicator element={quick.element} />}
     </div>
   );
 }

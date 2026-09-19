@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { DEAD_ZONE_PX, isDrag, snapTo15, toScene } from "./quickLine";
+import {
+  DEAD_ZONE_PX,
+  QUICK_ELEMENTS,
+  boxOf,
+  isBoxDrag,
+  isDrag,
+  nextElement,
+  snapTo15,
+  toScene,
+  toSceneBox,
+} from "./quickLine";
 
 const close = (point: { x: number; y: number }, x: number, y: number) => {
   expect(point.x).toBeCloseTo(x, 6);
@@ -55,5 +65,57 @@ describe("quick line", () => {
     expect(zoomed.y).toBeCloseTo(60);
     expect(zoomed.dx).toBeCloseTo(0);
     expect(zoomed.dy).toBeCloseTo(60);
+  });
+
+  it("cycles the element round robin from the line", () => {
+    expect(QUICK_ELEMENTS).toEqual(["line", "rectangle", "ellipse", "arrow"]);
+    expect(nextElement("line")).toBe("rectangle");
+    expect(nextElement("rectangle")).toBe("ellipse");
+    expect(nextElement("ellipse")).toBe("arrow");
+    expect(nextElement("arrow")).toBe("line");
+  });
+
+  it("takes a rectangle's or ellipse's box from the drag, whichever way it went", () => {
+    expect(boxOf({ x: 10, y: 20 }, { x: 110, y: 70 })).toEqual({
+      x: 10,
+      y: 20,
+      width: 100,
+      height: 50,
+    });
+    expect(boxOf({ x: 110, y: 70 }, { x: 10, y: 20 })).toEqual({
+      x: 10,
+      y: 20,
+      width: 100,
+      height: 50,
+    });
+    expect(boxOf({ x: 10, y: 70 }, { x: 110, y: 20 })).toEqual({
+      x: 10,
+      y: 20,
+      width: 100,
+      height: 50,
+    });
+    expect(boxOf({ x: 5, y: 5 }, { x: 5, y: 5 })).toEqual({ x: 5, y: 5, width: 0, height: 0 });
+  });
+
+  it("draws a box once it clears the dead zone in either direction", () => {
+    expect(isBoxDrag({ x: 0, y: 0 }, { x: 3, y: 3 })).toBe(false);
+    expect(isBoxDrag({ x: 0, y: 0 }, { x: 4, y: 0 })).toBe(true);
+    expect(isBoxDrag({ x: 0, y: 0 }, { x: 0, y: -4 })).toBe(true);
+    expect(isBoxDrag({ x: 0, y: 0 }, { x: 3, y: 4 })).toBe(true);
+  });
+
+  it("converts a box to scene px by the zoom", () => {
+    expect(toSceneBox({ x: 60, y: 30 }, { x: 160, y: 80 }, 0.5)).toEqual({
+      x: 120,
+      y: 60,
+      width: 200,
+      height: 100,
+    });
+    expect(toSceneBox({ x: 160, y: 80 }, { x: 60, y: 30 }, 1)).toEqual({
+      x: 60,
+      y: 30,
+      width: 100,
+      height: 50,
+    });
   });
 });
