@@ -20,6 +20,8 @@ export interface OverviewProps {
   /** A section's name: opens the section where it was left (the caller closes the overview). */
   onOpenSection: (sectionId: string) => void;
   onClose: () => void;
+  /** The clean layout: the written count and the section names are hidden in place. */
+  clean?: boolean;
 }
 
 /** A page's width in the overview, in px; the height follows the paper. */
@@ -43,6 +45,7 @@ export function Overview({
   onSelect,
   onOpenSection,
   onClose,
+  clean = false,
 }: OverviewProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const theme = getTheme(notebook.themeId);
@@ -104,10 +107,7 @@ export function Overview({
         {thumbnail && !isPageBlank(page) ? (
           <img className="overview__thumbnail" src={thumbnail} alt="" draggable={false} />
         ) : (
-          <span
-            className={`overview__paper${theme.page.border ? " has-border" : ""}`}
-            style={{ background: theme.colours.paper }}
-          />
+          <span className="overview__paper" style={{ background: theme.colours.paper }} />
         )}
         <span className="overview__label" aria-hidden>
           {label}
@@ -196,7 +196,13 @@ export function Overview({
   );
 
   return (
-    <div className="overview" role="dialog" aria-label="Overview" ref={scroller} style={style}>
+    <div
+      className={`overview${clean ? " is-clean" : ""}`}
+      role="dialog"
+      aria-label="Overview"
+      ref={scroller}
+      style={style}
+    >
       <div className="overview__head">
         {written} of {count} {count === 1 ? "page" : "pages"} written
       </div>

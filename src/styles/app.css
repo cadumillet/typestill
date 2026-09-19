@@ -1,7 +1,7 @@
 /* Chrome colours. The pages take theirs from the notebook's theme (--page-*); the chrome
    follows the app appearance setting, applied as data-appearance on <html>. */
 :root {
-  --desk: #ffffff;
+  --desk: #f6f5f2;
   --surface: #ffffff;
   --ink: #26241f;
   --muted: #7d786d;
@@ -78,6 +78,12 @@ body {
   padding: 0 24px 0 16px;
   flex: none;
   white-space: nowrap;
+}
+
+/* The clean layout (Shift+?): the chrome is hidden in place, so nothing around the notebook moves. */
+.app-header.is-hidden,
+.page-bar.is-hidden {
+  visibility: hidden;
 }
 
 .app-header__actions {
@@ -210,8 +216,13 @@ button[aria-pressed="true"] {
   flex-direction: column;
 }
 
+/* The spread lies on the desk with the faintest shadow, rounded as the pages' outer corners are. */
 .desk__spread {
   display: flex;
+  border-radius: var(--page-corner, 0);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.04),
+    0 6px 20px rgb(0 0 0 / 0.06);
 }
 
 .desk__page {

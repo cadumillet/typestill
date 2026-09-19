@@ -44,6 +44,22 @@ describe("shortcutFor", () => {
     expect(shortcutFor(alt("KeyM", { key: "µ" }), focus({ inEditor: true }))).toBe("overview");
   });
 
+  it("maps Shift+? to the clean layout only outside the page editor, where it types", () => {
+    const shiftSlash = {
+      key: "?",
+      code: "Slash",
+      altKey: false,
+      metaKey: false,
+      ctrlKey: false,
+      shiftKey: true,
+    };
+    expect(shortcutFor(shiftSlash, focus())).toBe("cleanLayout");
+    expect(shortcutFor(shiftSlash, focus({ inEditor: true }))).toBeNull();
+    expect(shortcutFor({ ...shiftSlash, shiftKey: false }, focus())).toBeNull();
+    expect(shortcutLabel("cleanLayout", true)).toBe("⇧?");
+    expect(shortcutLabel("cleanLayout", false)).toBe("Shift+?");
+  });
+
   it("works with the caret in the page editor and with nothing focused", () => {
     expect(shortcutFor(alt("ArrowDown"), focus({ inEditor: true }))).toBe("nextPage");
     expect(shortcutFor(alt("KeyM"), focus({ inEditor: true }))).toBe("overview");

@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { isMac, keyLabel } from "./keys";
 
-export type ShortcutAction = "previousPage" | "nextPage" | "drawingMode" | "overview";
+export type ShortcutAction =
+  "previousPage" | "nextPage" | "drawingMode" | "overview" | "cleanLayout";
 
 /** The parts of a KeyboardEvent the shortcuts look at. */
 export interface ShortcutKey {
@@ -36,6 +37,8 @@ interface Binding {
   label: string;
   macLabel?: string;
   repeats: boolean;
+  /** The chord types a character in the page editor, so it fires only outside it. */
+  outsideEditor?: boolean;
 }
 
 /**
@@ -45,7 +48,9 @@ interface Binding {
  * Mac and Alt+←/→ are history in the browser elsewhere; up and down also follow the
  * rail, which stacks the pages vertically. The one exception is Shift+Tab, which
  * switches between writing and drawing: the shortcut used most, on a big key, leaving
- * plain Tab to the browser for moving focus (native fields keep both).
+ * plain Tab to the browser for moving focus (native fields keep both). The other is
+ * Shift+?, the clean layout, which types a question mark in the editor and so fires
+ * only when the editor does not have the keyboard.
  */
 const BINDINGS: Binding[] = [
   { action: "previousPage", code: "ArrowUp", alt: true, shift: false, label: "↑", repeats: true },
@@ -60,6 +65,15 @@ const BINDINGS: Binding[] = [
     macLabel: "⇥",
     repeats: false,
   },
+  {
+    action: "cleanLayout",
+    code: "Slash",
+    alt: false,
+    shift: true,
+    label: "?",
+    repeats: false,
+    outsideEditor: true,
+  },
 ];
 
 /**
@@ -73,7 +87,8 @@ export function shortcutFor(event: ShortcutKey, context: FocusContext): Shortcut
   const binding = BINDINGS.find(
     (b) => b.code === event.code && b.alt === event.altKey && b.shift === event.shiftKey,
   );
-  return binding?.action ?? null;
+  if (!binding || (binding.outsideEditor && context.inEditor)) return null;
+  return binding.action;
 }
 
 /** Whether holding the key repeats the action. Page flips do; the toggles do not. */

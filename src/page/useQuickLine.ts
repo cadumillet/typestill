@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent, type RefOb
 import { focusContextOf } from "../shell/useShortcuts";
 import { readStroke, type DrawingStroke } from "./drawingMode";
 import { PAGE_BORDER_PX } from "./pageLook";
-import { isDrag, snapTo15, toScene, type Point, type QuickLine } from "./quickLine";
+import { isDrag, toScene, type Point, type QuickLine } from "./quickLine";
 
 export interface QuickLinePreview {
   /** The drag so far, in page px from the padding box's origin, the end snapped. */
@@ -58,8 +58,8 @@ const focusTaken = (): boolean => {
  * key event is ever stopped: Shift+letter types a capital, Shift+arrows extend the
  * selection and Shift+Tab goes on to toggle drawing mode. Armed, the page's writing and
  * chrome take no pointer (quickline.css) and a pointer down on the page captures the
- * pointer and drags a line whose end snaps to 15° steps from the start; past the dead
- * zone a preview shows, and on release the line is reported in scene px, a shorter drag
+ * pointer and drags a line that follows the pointer freely; past the dead zone a preview
+ * shows, and on release the line is reported in scene px, a shorter drag
  * being nothing. Shift released mid-drag disarms but the drag finishes; Escape cancels it;
  * other pointers are ignored.
  */
@@ -178,7 +178,8 @@ export function useQuickLine(
     if (!current || event.pointerId !== current.pointerId) return;
     const at = pagePoint(event);
     if (!at) return;
-    current.end = snapTo15(current.start, at);
+    // The line follows the pointer freely; no angle snapping (the owner's call, 2026-09-19).
+    current.end = at;
     setPreview(
       isDrag(current.start, current.end)
         ? { start: current.start, end: current.end, stroke: current.stroke }

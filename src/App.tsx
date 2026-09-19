@@ -81,6 +81,8 @@ export function App() {
   const [boxOpen, setBoxOpen] = useState(false);
   /** The overview over the desk: the notebook's spreads stacked. */
   const [overviewOpen, setOverviewOpen] = useState(false);
+  /** The clean layout (Shift+?): the notebook alone, without the app bar and the page bar. */
+  const [clean, setClean] = useState(false);
   /** The zine page whose media pool is open in the side panel; the panel closes with the page. */
   const [poolPageId, setPoolPageId] = useState<string | null>(null);
   const [panelWidth, setPanelWidth] = useState(
@@ -174,6 +176,7 @@ export function App() {
     nextPage: () => loaded?.goTo(loaded.index + 1),
     drawingMode: () => setDrawingMode(!drawingMode),
     overview: () => setOverviewOpen((open) => !open),
+    cleanLayout: () => setClean((on) => !on),
   });
 
   if (!session) {
@@ -237,16 +240,17 @@ export function App() {
   /** Which half of the sheet the open page is: 0 on the left, 1 on the right. */
   const openSlot = spread && pageSide(index) === "right" ? 1 : 0;
   // The page bar sits under the page, so the page is fitted above its height.
+  const barHeight = PAGE_BAR_HEIGHT;
   const fit = desk
     ? fitPage(spread ? { width: geometry.width * 2, height: geometry.height } : geometry, {
         width: desk.width - 2 * DESK_PADDING,
-        height: desk.height - 2 * DESK_PADDING - PAGE_BAR_HEIGHT,
+        height: desk.height - 2 * DESK_PADDING - barHeight,
       })
     : null;
   /** The corner radius of a page at the desk's zoom, for the slab. */
   const cornerPx = fit ? mmToCssPx(theme.page.cornerMm, fit.zoom) : 0;
   /** Top of the page in the desk: the sheet (page and bar) is centred vertically. */
-  const pageTop = desk && fit ? Math.max(0, (desk.height - fit.height - PAGE_BAR_HEIGHT) / 2) : 0;
+  const pageTop = desk && fit ? Math.max(0, (desk.height - fit.height - barHeight) / 2) : 0;
   /**
    * The app bar's right-hand group lines up with the right edge of the page or spread.
    * The bar and the workspace share the column's width, so the inset from the bar's right
@@ -474,7 +478,10 @@ export function App() {
       minPanel={MIN_PANEL_WIDTH}
       main={
         <>
-          <header className="app-header" style={{ paddingRight: barInset }}>
+          <header
+            className={`app-header${clean ? " is-hidden" : ""}`}
+            style={{ paddingRight: barInset }}
+          >
             <span className="wordmark">typestill</span>
             <div className="app-header__actions">
               <button type="button" className="notebook-button" onClick={openBox} title="Notebook">
@@ -554,7 +561,10 @@ export function App() {
             <main className="desk" ref={attachDesk}>
               {fit && (
                 <div className="desk__sheet" style={{ width: fit.width }}>
-                  <div className={`desk__spread${spread ? " is-spread" : ""}`}>
+                  <div
+                    className={`desk__spread${spread ? " is-spread" : ""}`}
+                    style={{ "--page-corner": `${cornerPx}px` } as CSSProperties}
+                  >
                     {slots.map((i, slot) => {
                       if (i === null) {
                         const side = slot === 0 ? "left" : "right";
@@ -632,6 +642,7 @@ export function App() {
                     })}
                   </div>
                   <PageBar
+                    hidden={clean}
                     index={index}
                     count={pages.length}
                     section={sectionOf(notebook.sections, page.position)}
@@ -675,6 +686,7 @@ export function App() {
                     openFromOverview(() => session.openSection(sectionId))
                   }
                   onClose={() => setOverviewOpen(false)}
+                  clean={clean}
                 />
               )}
             </main>

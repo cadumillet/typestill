@@ -34,6 +34,8 @@ export interface PageBarProps {
   onTogglePool: () => void;
   /** Anything else that sits at the right end, before the layout toggle. */
   children?: ReactNode;
+  /** The clean layout: the bar keeps its place under the page but is not shown. */
+  hidden?: boolean;
 }
 
 /**
@@ -64,9 +66,14 @@ export function PageBar({
   poolOpen,
   onTogglePool,
   children,
+  hidden = false,
 }: PageBarProps) {
   return (
-    <nav className="page-bar" aria-label="Page controls" style={{ height: PAGE_BAR_HEIGHT }}>
+    <nav
+      className={`page-bar${hidden ? " is-hidden" : ""}`}
+      aria-label="Page controls"
+      style={{ height: PAGE_BAR_HEIGHT }}
+    >
       <div className="page-bar__group page-bar__group--start">
         <IconButton
           label={overviewOpen ? "Close the overview" : "Overview"}
