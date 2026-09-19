@@ -411,14 +411,22 @@ export function App() {
    * in drawing mode, appended to the page's drawing through the path drawing mode saves
    * by, so the still refreshes at once.
    */
-  const addQuickLine = (line: QuickLine) => {
+  const addQuickLine = (line: QuickLine): string => {
     const element = quickLineElement(line, readStroke());
     session.setDrawing(
       page.id,
       { elements: [...page.drawing, element], files: {} },
       session.loadId,
     );
+    return element.id;
   };
+  /** Takes a quick line back: the page's drawing without that element. */
+  const undoQuickLine = (id: string) =>
+    session.setDrawing(
+      page.id,
+      { elements: page.drawing.filter((element) => element.id !== id), files: {} },
+      session.loadId,
+    );
   /** The quick line is allowed on the open page while nothing sits over it. */
   const quickLine =
     !preview && !drawingMode && !overviewOpen && !boxOpen ? addQuickLine : undefined;
@@ -616,6 +624,7 @@ export function App() {
                               selectedCell={isOpen ? selectedCell : null}
                               onSelectCell={setSelectedCell}
                               onQuickLine={isOpen ? quickLine : undefined}
+                              onQuickLineUndo={undoQuickLine}
                             />
                           ) : (
                             <TextPage
@@ -635,6 +644,7 @@ export function App() {
                               onFill={(fill) => session.setFill(shownPage.id, fill)}
                               onDividerChange={(offset) => void session.setDivider(offset)}
                               onQuickLine={isOpen ? quickLine : undefined}
+                              onQuickLineUndo={undoQuickLine}
                             />
                           )}
                         </div>

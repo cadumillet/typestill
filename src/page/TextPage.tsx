@@ -72,10 +72,12 @@ export interface TextPageProps {
   onFill?: (fill: number) => void;
   /**
    * The quick line (useQuickLine.ts): with Shift held, a drag on the page draws a line
-   * reported here in scene px. Given on the open page in writing mode only; the hook is
-   * off while the page is locked.
+   * reported here in scene px; the element's id comes back for its undo. Given on the
+   * open page in writing mode only; the hook is off while the page is locked.
    */
-  onQuickLine?: (line: QuickLine) => void;
+  onQuickLine?: (line: QuickLine) => string | void;
+  /** Removes a quick line by its element id (Cmd+Z, or a right click while armed). */
+  onQuickLineUndo?: (id: string) => void;
 }
 
 const NO_ELEMENTS: readonly ExcalidrawElement[] = [];
@@ -108,6 +110,7 @@ export function TextPage({
   onDividerChange,
   onFill,
   onQuickLine,
+  onQuickLineUndo,
 }: TextPageProps) {
   const mm = pageMm(size, orientation);
   const px = (value: number) => mmToCssPx(value, zoom);
@@ -164,6 +167,8 @@ export function TextPage({
     enabled: !locked && onQuickLine !== undefined,
     zoom,
     onLine: onQuickLine ?? NO_LINE,
+    onUndoLine: onQuickLineUndo ?? NO_LINE,
+    undoDepth: bar.focusedUndoDepth,
   });
   const shownDivider = dragDivider ?? divider;
   const boxes = columnBoxes(mm.width, margin, shownDivider, lined);
@@ -263,6 +268,7 @@ export function TextPage({
           onFull={(full) => setColumnFull(index, full)}
           onLines={(used) => reportLines(index, used)}
           onSelection={(at) => bar.setColumnSelection(index, at)}
+          onEdit={quick.onEdit}
         />
       ))}
       {!locked &&

@@ -82,7 +82,8 @@ export interface ZinePageProps {
   /** The cell chosen by clicking it: where a paste, or a click in the pool, lands. */
   selectedCell?: number | null;
   /** The quick line (useQuickLine.ts), as on a lined page: given on the open page in writing mode only. */
-  onQuickLine?: (line: QuickLine) => void;
+  onQuickLine?: (line: QuickLine) => string | void;
+  onQuickLineUndo?: (id: string) => void;
   onSelectCell?: (cell: number | null) => void;
 }
 
@@ -127,6 +128,7 @@ export function ZinePage({
   selectedCell = null,
   onSelectCell,
   onQuickLine,
+  onQuickLineUndo,
 }: ZinePageProps) {
   const mm = pageMm(size, orientation);
   const px = (value: number) => mmToCssPx(value, zoom);
@@ -141,6 +143,8 @@ export function ZinePage({
     enabled: !locked && onQuickLine !== undefined,
     zoom,
     onLine: onQuickLine ?? NO_LINE,
+    onUndoLine: onQuickLineUndo ?? NO_LINE,
+    undoDepth: bar.focusedUndoDepth,
   });
 
   const setBlockFull = useCallback((index: number, full: boolean) => {
@@ -380,6 +384,7 @@ export function ZinePage({
               }
               onFull={(full) => setBlockFull(index, full)}
               onSelection={(selection) => bar.setColumnSelection(index, selection)}
+              onEdit={quick.onEdit}
             />
             {!locked && fullBlocks[index] && (
               <div className="text-page__full zine-page__full zine-chrome">Text full</div>

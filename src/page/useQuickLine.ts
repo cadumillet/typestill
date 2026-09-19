@@ -1,8 +1,17 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type PointerEvent,
+  type RefObject,
+} from "react";
 import { focusContextOf } from "../shell/useShortcuts";
 import { readStroke, type DrawingStroke } from "./drawingMode";
 import { PAGE_BORDER_PX } from "./pageLook";
 import { isDrag, toScene, type Point, type QuickLine } from "./quickLine";
+import { popForUndo, popLine, push, type LogEntry } from "./quickLineLog";
 
 export interface QuickLinePreview {
   /** The drag so far, in page px from the padding box's origin, the end snapped. */
@@ -17,6 +26,7 @@ export interface QuickLineHandlers {
   onPointerMove: (event: PointerEvent<HTMLElement>) => void;
   onPointerUp: (event: PointerEvent<HTMLElement>) => void;
   onPointerCancel: (event: PointerEvent<HTMLElement>) => void;
+  onContextMenu: (event: MouseEvent<HTMLElement>) => void;
 }
 
 export interface QuickLineState {
@@ -26,6 +36,8 @@ export interface QuickLineState {
   preview: QuickLinePreview | null;
   /** For the page element. */
   handlers: QuickLineHandlers;
+  /** For each column: a text edit to log against the lines, so Cmd+Z walks both. */
+  onEdit: () => void;
 }
 
 export interface UseQuickLineOptions {
@@ -33,8 +45,12 @@ export interface UseQuickLineOptions {
   enabled: boolean;
   /** CSS px per scene px, for the line's scene coordinates. */
   zoom: number;
-  /** A line drawn, in scene px. */
-  onLine: (line: QuickLine) => void;
+  /** A line drawn, in scene px; returns the element's id, for its undo. */
+  onLine: (line: QuickLine) => string | void;
+  /** Removes a quick line by its element id: Cmd+Z or a right click while armed. */
+  onUndoLine: (id: string) => void;
+  /** The undo depth of the column that has the keyboard, 0 when none has it. */
+  undoDepth: () => number;
 }
 
 interface Drag {
@@ -65,17 +81,19 @@ const focusTaken = (): boolean => {
  */
 export function useQuickLine(
   page: RefObject<HTMLElement | null>,
-  { enabled, zoom, onLine }: UseQuickLineOptions,
+  { enabled, zoom, onLine, onUndoLine, undoDepth }: UseQuickLineOptions,
 ): QuickLineState {
   const [armed, setArmed] = useState(false);
   const [preview, setPreview] = useState<QuickLinePreview | null>(null);
   const drag = useRef<Drag | null>(null);
   /** Pointer buttons down anywhere in the document: a selection in progress must not be interrupted. */
   const buttonsDown = useRef(0);
-  const latest = useRef({ zoom, onLine });
+  /** The page's action log: lines by id and text edits, newest last. */
+  const log = useRef<readonly LogEntry[]>([]);
+  const latest = useRef({ zoom, onLine, onUndoLine, undoDepth });
   useEffect(() => {
-    latest.current = { zoom, onLine };
-  }, [zoom, onLine]);
+    latest.current = { zoom, onLine, onUndoLine, undoDepth };
+  }, [zoom, onLine, onUndoLine, undoDepth]);
 
   const cancel = useCallback(() => {
     const current = drag.current;
@@ -102,6 +120,22 @@ export function useQuickLine(
       } else if (event.key === "Escape") {
         cancel();
         disarm();
+      } else if (
+        (event.metaKey || event.ctrlKey) &&
+        !event.shiftKey &&
+        !event.altKey &&
+        event.key.toLowerCase() === "z"
+      ) {
+        // Cmd/Ctrl+Z walks the page's actions: a line on top goes here, a text edit on
+        // top is the editor's to undo (the event goes on to it).
+        if (focusTaken()) return;
+        const { log: rest, step } = popForUndo(log.current, latest.current.undoDepth());
+        log.current = rest;
+        if (step?.kind === "line") {
+          event.preventDefault();
+          event.stopPropagation();
+          latest.current.onUndoLine(step.id);
+        }
       }
     };
     const onKeyUp = (event: KeyboardEvent) => {
@@ -142,6 +176,7 @@ export function useQuickLine(
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("blur", onBlur);
       buttonsDown.current = 0;
+      log.current = [];
       disarm();
       cancel();
     };
@@ -157,7 +192,23 @@ export function useQuickLine(
     };
   };
 
+  /** A right click while armed: cancels a drag, else takes back the line just placed. */
+  const undoByRightClick = () => {
+    if (drag.current) {
+      cancel();
+      return;
+    }
+    const { log: rest, step } = popLine(log.current);
+    log.current = rest;
+    if (step?.kind === "line") latest.current.onUndoLine(step.id);
+  };
+
   const onPointerDown = (event: PointerEvent<HTMLElement>) => {
+    if (armed && event.button === 2) {
+      event.preventDefault();
+      undoByRightClick();
+      return;
+    }
     if (!armed || event.button !== 0 || !event.isPrimary || drag.current) return;
     if (event.pointerType === "touch") return;
     const start = pagePoint(event);
@@ -192,16 +243,29 @@ export function useQuickLine(
     if (!current || event.pointerId !== current.pointerId) return;
     const { start, end } = current;
     cancel();
-    if (isDrag(start, end)) latest.current.onLine(toScene(start, end, latest.current.zoom));
+    if (isDrag(start, end)) {
+      const id = latest.current.onLine(toScene(start, end, latest.current.zoom));
+      if (typeof id === "string") log.current = push(log.current, { kind: "line", id });
+    }
   };
 
   const onPointerCancel = (event: PointerEvent<HTMLElement>) => {
     if (drag.current && event.pointerId === drag.current.pointerId) cancel();
   };
 
+  // The context menu stays away while the page is armed: the right button is the undo.
+  const onContextMenu = (event: MouseEvent<HTMLElement>) => {
+    if (armed || drag.current) event.preventDefault();
+  };
+
+  const onEdit = useCallback(() => {
+    log.current = push(log.current, { kind: "text" });
+  }, []);
+
   return {
     armed: enabled && armed,
     preview,
-    handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel },
+    handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onContextMenu },
+    onEdit,
   };
 }

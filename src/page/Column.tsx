@@ -1,3 +1,4 @@
+import { undoDepth } from "prosemirror-history";
 import { DOMSerializer, type Node as EditorNode } from "prosemirror-model";
 import { EditorState } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
@@ -24,6 +25,10 @@ import { columnOf, loadColumn, schema } from "./editor/schema";
 export interface ColumnHandle {
   /** Applies a formatting action to the selection and returns focus to the column. */
   format: (action: FormatAction) => void;
+  /** Whether the column's editor has the keyboard. */
+  hasFocus: () => boolean;
+  /** How many steps the editor's own history can undo. */
+  undoDepth: () => number;
 }
 
 /** A text selection in a focused column: where it is and what formatting it has. */
@@ -52,6 +57,11 @@ export interface ColumnProps {
   onLines?: (lines: number) => void;
   /** Reported while text is selected in the focused column, null otherwise. */
   onSelection: (selection: ColumnSelection | null) => void;
+  /**
+   * A transaction changed the document and was not itself an undo or redo (those carry
+   * prosemirror-history's meta): an edit the page may log against its own actions.
+   */
+  onEdit?: () => void;
   ref?: Ref<ColumnHandle>;
 }
 
@@ -75,15 +85,36 @@ export function Column({
   onFull,
   onLines,
   onSelection,
+  onEdit,
   ref,
 }: ColumnProps) {
   const host = useRef<HTMLDivElement>(null);
   const mirror = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   // The editor is created once; its callbacks read the latest props from here.
-  const props = useRef({ value, readOnly, lines, pitch, onChange, onFull, onLines, onSelection });
+  const props = useRef({
+    value,
+    readOnly,
+    lines,
+    pitch,
+    onChange,
+    onFull,
+    onLines,
+    onSelection,
+    onEdit,
+  });
   useLayoutEffect(() => {
-    props.current = { value, readOnly, lines, pitch, onChange, onFull, onLines, onSelection };
+    props.current = {
+      value,
+      readOnly,
+      lines,
+      pitch,
+      onChange,
+      onFull,
+      onLines,
+      onSelection,
+      onEdit,
+    };
   });
   /** The value last reported through onChange. A value prop equal to it needs no reload. */
   const emitted = useRef<ColumnValue | null>(null);
@@ -171,6 +202,7 @@ export function Column({
             emitted.current = column;
             props.current.onChange(column);
             reportFull(state.doc);
+            if (!tr.getMeta("history$")) props.current.onEdit?.();
           }
           reportSelection();
         },
@@ -228,6 +260,8 @@ export function Column({
         formatCommand(action)(editor.state, editor.dispatch);
         editor.focus();
       },
+      hasFocus: () => view.current?.hasFocus() ?? false,
+      undoDepth: () => (view.current ? undoDepth(view.current.state) : 0),
     }),
     [],
   );
