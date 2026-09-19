@@ -103,20 +103,35 @@ export function snapDivider(
   return Math.min(Math.max(snapped, Math.ceil(min / DIVIDER_STEP_MM) * DIVIDER_STEP_MM), max);
 }
 
-/** Horizontal extent of each text column in mm: [left edge, width]. */
+/** A text column's horizontal extent in mm, and how far its first lines hang into the margin. */
+export interface ColumnBox {
+  left: number;
+  width: number;
+  /**
+   * The hanging indent: a paragraph's first line starts at `left`, its other lines at
+   * `left + hang`. The first column hangs by the margin offset, so its wrapped lines
+   * start after the margin line where every line started before; the second column has
+   * no margin and no hang.
+   */
+  hang: number;
+}
+
+/** Horizontal extent of each text column in mm, with its hang. */
 export function columnBoxes(
   widthMm: number,
   marginMm: number,
   divider: number | null,
   grid: LinedMetrics = RULED_GRID,
-): { left: number; width: number }[] {
+): ColumnBox[] {
   const inset = grid.textInsetMm;
-  const textLeft = marginMm + inset;
   const textRight = widthMm - grid.rightInsetMm;
-  if (divider === null) return [{ left: textLeft, width: textRight - textLeft }];
+  // The first column starts at the page's left inset and hangs by the margin, so its
+  // body (wrapped lines) still starts at margin + inset, after the margin line.
+  const first = { left: inset, hang: marginMm };
+  if (divider === null) return [{ ...first, width: textRight - inset }];
   return [
-    { left: textLeft, width: divider - inset - textLeft },
-    { left: divider + inset, width: textRight - divider - inset },
+    { ...first, width: divider - inset - inset },
+    { left: divider + inset, width: textRight - divider - inset, hang: 0 },
   ];
 }
 

@@ -2,8 +2,10 @@ import { EditorState, TextSelection, type Command } from "prosemirror-state";
 import { describe, expect, it } from "vitest";
 import { documentFromText, textFromDocument, type EditorDocument } from "../document";
 import {
+  TAB_SPACES,
   formatState,
   insertHardBreak,
+  insertTab,
   lastHighlightTint,
   parseClipboardText,
   setAlignment,
@@ -130,6 +132,18 @@ describe("insertHardBreak", () => {
       "hard_break",
       "text",
     ]);
+  });
+});
+
+describe("insertTab", () => {
+  it("inserts four spaces at the caret and in place of a selection, and uses the key up", () => {
+    expect(TAB_SPACES).toBe("    ");
+    const state = run(stateFor("onetwo", 4), insertTab);
+    expect(columnOf(state.doc).text).toBe("one    two");
+    expect(state.selection.from).toBe(8);
+    const replaced = run(stateFor("onetwo", 1, 4), insertTab);
+    expect(columnOf(replaced.doc).text).toBe("    two");
+    expect(insertTab(stateFor("x", 1))).toBe(true);
   });
 });
 

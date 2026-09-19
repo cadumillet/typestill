@@ -5,6 +5,7 @@ import type { Node as EditorNode } from "prosemirror-model";
 import { Plugin, PluginKey, type Command } from "prosemirror-state";
 import {
   insertHardBreak,
+  insertTab,
   setAlignment,
   splitParagraph,
   toggleBold,
@@ -64,6 +65,7 @@ export function editorPlugins(capacity: CapacityOptions): Plugin[] {
       "Mod-Shift-r": setAlignment("right"),
       Enter: splitParagraph,
       "Shift-Enter": insertHardBreak,
+      Tab: insertTab,
       "Mod-z": undoUnchecked,
       "Shift-Mod-z": redoUnchecked,
       "Mod-y": redoUnchecked,

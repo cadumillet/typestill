@@ -272,7 +272,16 @@ export function Column({
       <div
         ref={mirror}
         className="text-page__mirror"
-        style={{ left: style.left, top: style.top, width: style.width }}
+        // The mirror is laid out like the column, its hanging indent included, so it
+        // wraps the same lines.
+        style={
+          {
+            left: style.left,
+            top: style.top,
+            width: style.width,
+            "--column-hang": (style as Record<string, unknown>)["--column-hang"],
+          } as CSSProperties
+        }
         aria-hidden="true"
       />
     </>

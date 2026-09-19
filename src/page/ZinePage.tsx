@@ -383,12 +383,16 @@ export function ZinePage({
               readOnly={locked}
               lines={entry.lines}
               pitch={pitch}
-              style={{
-                left: px(text.left - box.left),
-                width: px(text.width),
-                top: px(text.top - box.top),
-                height: entry.lines * pitch,
-              }}
+              style={
+                {
+                  left: px(text.left - box.left),
+                  width: px(text.width),
+                  top: px(text.top - box.top),
+                  height: entry.lines * pitch,
+                  // A zine block has no margin line: nothing hangs.
+                  "--column-hang": "0px",
+                } as CSSProperties
+              }
               onChange={(column: ColumnValue) =>
                 change(replaceBlock(zine, at, { ...block, column }))
               }

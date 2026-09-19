@@ -135,6 +135,15 @@ export const insertHardBreak: Command = (state, dispatch) => {
   return true;
 };
 
+/** What Tab inserts: four spaces, not a tab character, so plain text reads the same everywhere. */
+export const TAB_SPACES = "    ";
+
+/** Tab: four spaces in place of the selection, keeping the stored marks; the key is used up. */
+export const insertTab: Command = (state, dispatch) => {
+  dispatch?.(state.tr.insertText(TAB_SPACES).scrollIntoView());
+  return true;
+};
+
 export function formatCommand(action: FormatAction): Command {
   switch (action.type) {
     case "bold":

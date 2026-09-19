@@ -268,12 +268,15 @@ export function TextPage({
           readOnly={locked}
           lines={lines}
           pitch={pitch}
-          style={{
-            left: px(box.left),
-            width: px(box.width),
-            top: ruleTop - baseline,
-            height: lines * pitch,
-          }}
+          style={
+            {
+              left: px(box.left),
+              width: px(box.width),
+              top: ruleTop - baseline,
+              height: lines * pitch,
+              "--column-hang": `${px(box.hang)}px`,
+            } as CSSProperties
+          }
           onChange={(column) => {
             const next = [...columns];
             next[index] = column;
